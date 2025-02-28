@@ -17,6 +17,9 @@ class SuccessRate(object):
         for _, val in info.items():
             if val[0] == 0:
                 n += 1
+        
+        if m == 0:
+            return 0
         return n / m
 
 

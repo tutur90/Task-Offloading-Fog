@@ -20,24 +20,24 @@ class DRLPolicy:
 
         # Simple feed-forward network:
         # Input -> Hidden (128 units) -> Output (num_actions)
-        self.model = nn.Sequential(
-            nn.Linear(self.n_observations, hidden_size),
-            nn.ReLU(),
-            # nn.Linear(hidden_size, hidden_size),
-            # nn.ReLU(),
-            nn.Linear(hidden_size, self.num_actions),
-            nn.Softmax(dim=-1)
-        )
         # self.model = nn.Sequential(
-        #     nn.Linear(n_observations, self.num_actions),
+        #     nn.Linear(self.n_observations, hidden_size),
+        #     nn.ReLU(),
+        #     # nn.Linear(hidden_size, hidden_size),
+        #     # nn.ReLU(),
+        #     nn.Linear(hidden_size, self.num_actions),
         #     nn.Softmax(dim=-1)
         # )
+        self.model = nn.Sequential(
+            nn.Linear(self.n_observations, self.num_actions),
+            nn.Softmax(dim=-1)
+        )
 
         # Adam optimizer
         self.optimizer = optim.AdamW(self.model.parameters(), lr=lr)
 
         # We will store log probabilities of each action taken
-        self.log_probs = []
+        self.log_probs = {}
         
         self.probs = []
 
@@ -109,7 +109,11 @@ class DRLPolicy:
         # print(distribution.log_prob(action))
 
         # Store the log probability for the policy gradient update
-        self.log_probs.append(distribution.log_prob(action))
+        
+        # print(task.task_id)
+        self.log_probs[task.task_id] = distribution.log_prob(action)
+        
+        # self.log_probs[task.task_id] = 1
 
         # Convert the sampled action to a Python integer
         return action.item()
@@ -129,15 +133,25 @@ class DRLPolicy:
         
         # Combine all log probabilities from the tasks in the current "episode"
         policy_loss = []
-        for log_prob in self.log_probs:
+        for key, value in reward.items():
             # REINFORCE uses: -log_prob * reward (we do negative because we want to maximize)
-            policy_loss.append(log_prob * reward)
+            if key in self.log_probs:
+                if value[0] == 0:
+                    policy_loss.append(-self.log_probs[key] * -sum(value[1]))
+                else:
+                    policy_loss.append(-self.log_probs[key] * -1e6)
+        
+        if len(policy_loss) == 0:
+            return
+
+
 
         self.optimizer.zero_grad()
         # print(torch.cat(policy_loss))
         loss = torch.cat(policy_loss).sum()
+
         loss.backward()
         self.optimizer.step()
 
-        # Clear the log probabilities after each epoch (or episode)
-        self.log_probs = []
+        # Clear the log_probs for the next episode
+        self.log_probs = {}

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 import random
 from torch.distributions import Categorical  # (optional for epsilon random selection)
 
@@ -38,26 +39,38 @@ class DQRLPolicy:
         Returns a flat observation vector.
         For instance, we return the free CPU frequency for each node.
         """
-        cpu_obs = [env.scenario.get_node(node_name).free_cpu_freq 
-               for node_name in env.scenario.get_nodes()]
+        cpu_obs = {node_name: env.scenario.get_node(node_name).free_cpu_freq 
+               for node_name in env.scenario.get_nodes()}
         # print(env.scenario.get_links())
-        bw_obs = [env.scenario.get_link(link_name[0], link_name[1]).free_bandwidth
-              for link_name in env.scenario.get_links()]
+        bw_obs ={(link_name[0], link_name[1]):env.scenario.get_link(link_name[0], link_name[1]).free_bandwidth for link_name in env.scenario.get_links()}
         
         # print(cpu_obs)
         # print(bw_obs)
         
-        obs = cpu_obs
+        obs = np.zeros((len(env.scenario.get_nodes()), 3))
+        
+        for i, node_name in enumerate(env.scenario.get_nodes()):
+            obs[env.scenario.node_name2id[node_name], 0] = cpu_obs[node_name]
+
+        for i, link_name in enumerate(env.scenario.get_links()):
+            
+            if link_name[0] == 'e0':
+                obs[env.scenario.node_name2id[link_name[1]], 1] = bw_obs[link_name]
+            else:
+                obs[env.scenario.node_name2id[link_name[0]], 2] = bw_obs[link_name]
+            
+            
+        
         return obs
 
-    def act(self, env, task, eval=False):
+    def act(self, env, task):
         """
         Chooses an action using ε-greedy strategy and records the current state.
         """
         state = self._make_observation(env, task)
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         
-        if random.random() < self.epsilon and not eval:
+        if random.random() < self.epsilon:
             action = random.randrange(self.num_actions)
         else:
             with torch.no_grad():

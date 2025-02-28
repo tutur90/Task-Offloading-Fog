@@ -25,13 +25,14 @@ from policies.drl_policy import DRLPolicy
 
 num_epoch = 20
 
-batch_size = 256
+batch_size = 16 * 16
 
 def run_epoch(env, policy, data, refresh_rate=1, train=True):   
     
     m1 = SuccessRate()
     
     m2 = AvgLatency()
+    
             
     last_task_id = 0
     until = 0
@@ -63,7 +64,6 @@ def run_epoch(env, policy, data, refresh_rate=1, train=True):
 
                 dst_name = env.scenario.node_id2name[dst_id]
                 env.process(task=task, dst_name=dst_name)
-                time.sleep(0.1)
                 # print(dst_name)
                 break
 
@@ -80,16 +80,17 @@ def run_epoch(env, policy, data, refresh_rate=1, train=True):
 
             keys = list(env.logger.task_info.keys())
             
-            new_keys = {key: env.logger.task_info[key] for key in keys[last_task_id+1:]}
+            completed_tasks = {key: env.logger.task_info[key] for key in keys[last_task_id+1:]}
+            
             
             last_task_id = len(keys)-1
             
-            r1 = m1.eval(new_keys)
-            r2 = m2.eval(new_keys)
+            r1 = m1.eval(completed_tasks)
+            r2 = m2.eval(completed_tasks)
             
             pbar.set_postfix({"AvgLatency": f"{r2:.3f}", "SuccessRate": f"{r1:.3f}"})
 
-            policy.backward(r2)
+            policy.backward(completed_tasks)
             
 
     # Continue the simulation until the last task successes/fails.
