@@ -64,7 +64,7 @@ def evaluate_individual(individual, scenario, data, refresh_rate=1):
         generated_time = task_info['GenerationTime']
         task = Task(task_id=task_info['TaskID'],
                     task_size=task_info['TaskSize'],
-                    cycles_per_bit=int(task_info['CyclesPerBit'] / 10),
+                    cycles_per_bit=task_info['CyclesPerBit'],
                     trans_bit_rate=task_info['TransBitRate'],
                     ddl=task_info['DDL'],
                     src_name='e0',
@@ -308,8 +308,8 @@ def main():
 
     # Run the Niched Pareto GA.
     final_pareto = niched_pareto_ga(scenario, data,
-                                    population_size=20,
-                                    generations=10,
+                                    population_size=40,
+                                    generations=200,
                                     crossover_rate=0.9,
                                     mutation_rate=0.1)
     print("\n=== Final Pareto Front ===")

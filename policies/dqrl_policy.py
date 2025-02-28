@@ -101,3 +101,7 @@ class DQRLPolicy:
         self.optimizer.step()
         self.replay_buffer.clear()
         return loss_total.item()
+    
+    def update_epsilon(self, factor=0.99):
+        self.epsilon = self.epsilon * factor
+        return self.epsilon

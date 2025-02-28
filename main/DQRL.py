@@ -19,7 +19,6 @@ from core.vis.vis_stats import VisStats
 from eval.benchmarks.Pakistan.scenario import Scenario
 from eval.metrics.metrics import SuccessRate, AvgLatency
 from policies.dqrl_policy import DQRLPolicy
-from policies.qtrans_policy import QTransPolicy
 from core.vis.plot_score import PlotScore
 
 # Global parameters
@@ -62,12 +61,12 @@ def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
                 env.done_task_info.pop(0)
             if env.now >= generated_time:
                 # Get action and current state from the policy.
-                action, state = policy.act(env, task)
+                action, state = policy.act(env, task, eval=not train)
                 dst_name = env.scenario.node_id2name[action]
                 env.process(task=task, dst_name=dst_name)
 
                 # Update previous transition with the new state's observation.
-                if last_task_id is not None:
+                if last_task_id is not None and train:
                     prev_state, prev_action, _ = stored_transitions[last_task_id]
                     stored_transitions[last_task_id] = (prev_state, prev_action, state)
                 break
@@ -76,32 +75,35 @@ def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
             except Exception:
                 pass
             until += refresh_rate
+            
+        if train:
+            # Compute the reward and store the transition.
 
-        done = True  # Each task is treated as an individual episode.
-        last_task_id = task.task_id
-        stored_transitions[last_task_id] = (state, action, None)
-        
-        # print(env.logger.task_info)
+            done = True  # Each task is treated as an individual episode.
+            last_task_id = task.task_id
+            stored_transitions[last_task_id] = (state, action, None)
+            
+            # print(env.logger.task_info)
 
-        # Process stored transitions if the task has been completed.
-        for task_id, (state, action, next_state) in list(stored_transitions.items()):
-            if task_id in env.logger.task_info:
-                val = env.logger.task_info[task_id]
-                if val[0] == 0:
-                    task_trans_time, task_wait_time, task_exe_time = val[1]
-                    total_time = task_trans_time + task_wait_time + task_exe_time
-                    reward = -total_time
-                else:
-                    reward = -1e6
-                policy.store_transition(state, action, reward, next_state, done)
-                del stored_transitions[task_id]
+            # Process stored transitions if the task has been completed.
+            for task_id, (state, action, next_state) in list(stored_transitions.items()):
+                if task_id in env.logger.task_info:
+                    val = env.logger.task_info[task_id]
+                    if val[0] == 0:
+                        task_trans_time, task_wait_time, task_exe_time = val[1]
+                        total_time = task_trans_time + task_wait_time + task_exe_time
+                        reward = -total_time
+                    else:
+                        reward = -1e6
+                    policy.store_transition(state, action, reward, next_state, done)
+                    del stored_transitions[task_id]
 
-        # Update the policy every batch_size tasks during training.
-        if (i + 1) % batch_size == 0 and train:
-            r1 = m1.eval(env.logger.task_info)
-            r2 = m2.eval(env.logger.task_info)
-            pbar.set_postfix({"AvgLatency": f"{r2:.3f}", "SuccessRate": f"{r1:.3f}"})
-            policy.update()
+            # Update the policy every batch_size tasks during training.
+            if (i + 1) % batch_size == 0:
+                r1 = m1.eval(env.logger.task_info)
+                r2 = m2.eval(env.logger.task_info)
+                pbar.set_postfix({"AvgLatency": f"{r2:.3f}", "SuccessRate": f"{r1:.3f}"})
+                policy.update()
 
     # Continue simulation until all tasks are processed.
     while env.process_task_cnt < len(data):
@@ -126,13 +128,13 @@ def main():
     train_data = pd.read_csv(f"eval/benchmarks/Pakistan/data/{flag}/trainset.csv")
     test_data = pd.read_csv(f"eval/benchmarks/Pakistan/data/{flag}/testset.csv")
     
-    log_dir = create_log_dir("DQRL", flag=flag, num_epoch=num_epoch, batch_size=batch_size)
+
     
     
     
     # Initialize the policy.
     env = create_env(scenario)
-    policy = QTransPolicy(env=env, lr=1e-3)
+    policy = DQRLPolicy(env=env, lr=1e-3, epsilon=0.4)
     
     m1 = SuccessRate()
     m2 = AvgLatency()
@@ -150,6 +152,8 @@ def main():
         plotter.append(mode='Training', metric='AvgLatency', value=m2.eval(env.logger.task_info))
         env.close()
         
+        policy.update_epsilon(0.96)
+        
         # Testing phase.
         env = create_env(scenario)
         env = run_epoch(env, policy, test_data, refresh_rate=refresh_rate, train=False)
@@ -166,6 +170,8 @@ def main():
     env = run_epoch(env, policy, test_data, refresh_rate=refresh_rate, train=False)
     print(f"Testing  - AvgLatency: {m2.eval(env.logger.task_info):.4f}, SuccessRate: {m1.eval(env.logger.task_info):.4f}")
     env.close()
+    
+    log_dir = create_log_dir("DQRL", flag=flag, num_epoch=num_epoch, batch_size=batch_size)
     
     vis_stats = VisStats(save_path=log_dir)
     vis_stats.vis(env)

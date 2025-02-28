@@ -19,6 +19,7 @@ class BaseScenario(metaclass=ABCMeta):
         
         self.infrastructure = Infrastructure()
         self.node_id2name = dict()
+        self.node_name2id = {node['NodeName']: node['NodeId'] for node in self.json_nodes}
         
         self.signal_speed = 2.0e8  ## 2.0e8 m/s signal speed in fiber   
         self.hops_delay = 0.0002 / 30000 # 0.2 ms per 30 km ( hop delay * avg hop distance)

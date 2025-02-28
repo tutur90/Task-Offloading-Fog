@@ -6,9 +6,10 @@ import random
 from torch.distributions import Categorical  # (optional for epsilon random selection)
 
 from policies.model.BaseMLP import BaseMLP
+from policies.model.Transformer import Transformer
 
-class DQRLPolicy:
-    def __init__(self, env, lr=1e-3, hidden_size=128, gamma=0.99, epsilon=0.1):
+class QTransPolicy:
+    def __init__(self, env, lr=1e-3, d_model=8, gamma=0.99, epsilon=0.1):
         """
         A simple deep Q-learning policy.
 
@@ -27,7 +28,7 @@ class DQRLPolicy:
         self.gamma = gamma
         self.epsilon = epsilon
 
-        self.model = BaseMLP(dim_in=self.n_observations, dim_out=self.num_actions, hidden_size=hidden_size)
+        self.model = Transformer(d_in=3, d_pos=self.n_observations, d_model=d_model, d_ff=d_model, n_heads=1, n_layers=1, dropout=0.1)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
@@ -42,7 +43,7 @@ class DQRLPolicy:
         cpu_obs = {node_name: env.scenario.get_node(node_name).free_cpu_freq 
                for node_name in env.scenario.get_nodes()}
         # print(env.scenario.get_links())
-        bw_obs ={(link_name[0], link_name[1]):env.scenario.get_link(link_name[0], link_name[1]).free_bandwidth for link_name in env.scenario.get_links()}
+        bw_obs ={link_name:env.scenario.get_link(link_name[0], link_name[1]).free_bandwidth for link_name in env.scenario.get_links()}
         
         # print(cpu_obs)
         # print(bw_obs)
@@ -59,8 +60,6 @@ class DQRLPolicy:
             else:
                 obs[env.scenario.node_name2id[link_name[0]], 2] = bw_obs[link_name]
             
-            
-        
         return obs
 
     def act(self, env, task):

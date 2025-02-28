@@ -22,7 +22,7 @@ from policies.a2c_policy import A2CPolicy  # assuming your A2C policy is defined
 from core.vis.plot_score import PlotScore
 
 # Global parameters
-num_epoch = 50
+num_epoch = 4
 batch_size = 256  # Number of tasks between policy updates
 
 def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
@@ -52,7 +52,7 @@ def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
         generated_time = task_info['GenerationTime']
         task = Task(task_id=task_info['TaskID'],
                     task_size=task_info['TaskSize'],
-                    cycles_per_bit=int(task_info['CyclesPerBit'] / 10),
+                    cycles_per_bit=task_info['CyclesPerBit'] ,
                     trans_bit_rate=task_info['TransBitRate'],
                     ddl=task_info['DDL'],
                     src_name='e0',

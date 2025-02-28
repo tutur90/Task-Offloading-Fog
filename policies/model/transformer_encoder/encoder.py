@@ -16,7 +16,7 @@ class Encoder(nn.Module):
         self.layers = clones(layer, N)
         self.norm = LayerNorm(layer.size)
 
-    def forward(self, x: torch.FloatTensor, mask: torch.ByteTensor) -> torch.FloatTensor:
+    def forward(self, x: torch.FloatTensor, mask: torch.ByteTensor = None) -> torch.FloatTensor:
         """Pass the input (and mask) through each layer in turn."""
         for layer in self.layers:
             x = layer(x, mask)
