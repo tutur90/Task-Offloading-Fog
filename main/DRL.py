@@ -103,9 +103,10 @@ def run_epoch(env, policy, data, refresh_rate=1, train=True):
     
     return env
 
-def create_env(scenario):
-    env = Env(scenario, config_file="core/configs/env_config_null.json", refresh_rate=1, verbose=False)
-    return env
+def create_env(scenario, refresh_rate=1):
+    """Create and return an environment instance."""
+    return Env(scenario, config_file="core/configs/env_config_null.json", refresh_rate=refresh_rate, verbose=False)
+
     
 
 def main():
@@ -118,7 +119,7 @@ def main():
     
     # Create the Env
     scenario=Scenario(config_file=f"eval/benchmarks/Pakistan/data/{flag}/config.json", flag=flag)
-    env = create_env(scenario)
+    env = create_env(scenario, refresh_rate=refresh_rate)
 
     # Load the test dataset
     test_data = pd.read_csv(f"eval/benchmarks/Pakistan/data/{flag}/testset.csv")

@@ -9,7 +9,7 @@ from policies.model.BaseMLP import BaseMLP
 from policies.model.Transformer import Transformer
 
 class QTransPolicy:
-    def __init__(self, env, lr=1e-3, d_model=8, gamma=0.99, epsilon=0.1):
+    def __init__(self, env, lr=1e-3, gamma=0.99, epsilon=0.1, d_model=16, nhead=2, n_layers=3):
         """
         A simple deep Q-learning policy.
 
@@ -28,7 +28,7 @@ class QTransPolicy:
         self.gamma = gamma
         self.epsilon = epsilon
 
-        self.model = Transformer(d_in=3, d_pos=self.n_observations, d_model=d_model, d_ff=d_model, n_heads=1, n_layers=1, dropout=0.1)
+        self.model = Transformer(d_in=3, d_pos=self.n_observations, d_model=d_model, d_ff=d_model, n_heads=1, n_layers=3, dropout=0.1)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
@@ -62,14 +62,14 @@ class QTransPolicy:
             
         return obs
 
-    def act(self, env, task):
+    def act(self, env, task, eval=False):
         """
         Chooses an action using ε-greedy strategy and records the current state.
         """
         state = self._make_observation(env, task)
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         
-        if random.random() < self.epsilon:
+        if random.random() < self.epsilon and not eval:
             action = random.randrange(self.num_actions)
         else:
             with torch.no_grad():
@@ -113,3 +113,7 @@ class QTransPolicy:
         self.optimizer.step()
         self.replay_buffer.clear()
         return loss_total.item()
+    
+    def update_epsilon(self, factor):
+        self.epsilon *= factor
+        print(f"New epsilon: {self.epsilon}")

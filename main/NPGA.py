@@ -3,7 +3,9 @@ import sys
 import random
 import numpy as np
 import pandas as pd
+from multiprocessing import Pool, cpu_count
 
+# Set up the module search path.
 current_file_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_file_path)
 parent_dir = os.path.dirname(current_dir)
@@ -14,6 +16,8 @@ from core.env import Env
 from core.task import Task
 from eval.benchmarks.Pakistan.scenario import Scenario
 from eval.metrics.metrics import SuccessRate, AvgLatency
+from core.vis.plot_score import PlotScore
+from core.utils import create_log_dir   
 
 # --------------------------
 # Candidate Policy Definition
@@ -34,32 +38,28 @@ class GeneticPolicy:
         """
         nodes = env.scenario.get_nodes()
         obs = np.array([env.scenario.get_node(node).free_cpu_freq for node in nodes])
-        # Compute scores by matrix multiplication.
-        scores = obs @ self.weights  # obs is (num_nodes,), weights is (num_nodes, num_nodes)
+        scores = obs @ self.weights  # obs: (num_nodes,), weights: (num_nodes, num_nodes)
         action = int(np.argmax(scores))
         return action, obs
 
 # --------------------------
 # Evaluation Function
 # --------------------------
-def evaluate_individual(individual, scenario, data, refresh_rate=1):
+def evaluate_individual(individual, scenario, data, refresh_rate=0.001):
     """
     Evaluate an individual's performance on a set of tasks.
-    Returns a tuple of objective values:
-      - avg_latency (to minimize)
-      - -success_rate (to minimize, i.e. maximizing success_rate)
+    Returns a tuple of objectives:
+      - Objective 1: -Success rate (minimizing this prioritizes a high success rate)
+      - Objective 2: Average latency (to minimize)
       
-    This function creates a new environment, runs through all tasks in 'data'
-    using the individual's policy, and then computes the metrics.
+    A new environment is created and tasks are processed from 'data' using the individual's policy.
     """
-    # Create a new environment instance.
     env = Env(scenario, config_file="core/configs/env_config_null.json",
-              refresh_rate=1, verbose=False)
+              refresh_rate=refresh_rate, verbose=False)
     m1 = SuccessRate()
     m2 = AvgLatency()
     until = 0
 
-    # Process each task in the dataset.
     for _, task_info in data.iterrows():
         generated_time = task_info['GenerationTime']
         task = Task(task_id=task_info['TaskID'],
@@ -69,7 +69,6 @@ def evaluate_individual(individual, scenario, data, refresh_rate=1):
                     ddl=task_info['DDL'],
                     src_name='e0',
                     task_name=task_info['TaskName'])
-        # Advance simulation until the task's generation time.
         while env.now < generated_time:
             try:
                 env.run(until=until)
@@ -81,7 +80,6 @@ def evaluate_individual(individual, scenario, data, refresh_rate=1):
         dst_name = env.scenario.node_id2name[action]
         env.process(task=task, dst_name=dst_name)
 
-    # Run until all tasks are processed.
     while env.process_task_cnt < len(data):
         until += refresh_rate
         try:
@@ -89,20 +87,22 @@ def evaluate_individual(individual, scenario, data, refresh_rate=1):
         except Exception:
             pass
 
-    # Compute objectives.
-    success = m1.eval(env.logger.task_info)
+    success = m1.eval(env.logger.task_info)   # success in [0,1]
     avg_latency = m2.eval(env.logger.task_info)
     env.close()
-    # Convert success rate into a minimization objective.
-    return avg_latency, -success
+    # Return objectives: minimizing -success (thus maximizing success) and latency.
+    return (-success, avg_latency)
+
+def evaluate_individual_wrapper(args):
+    individual, scenario, data, refresh_rate = args
+    return evaluate_individual(individual, scenario, data, refresh_rate)
 
 # --------------------------
 # Pareto Dominance and Niching Helpers
 # --------------------------
 def dominates(obj1, obj2):
     """
-    Check if objective vector obj1 dominates obj2.
-    (Assumes minimization for both objectives.)
+    Check if objective vector obj1 dominates obj2 (assuming minimization).
     """
     better_or_equal = all(a <= b for a, b in zip(obj1, obj2))
     strictly_better = any(a < b for a, b in zip(obj1, obj2))
@@ -111,7 +111,6 @@ def dominates(obj1, obj2):
 def crowding_distance(fitness_list):
     """
     Compute crowding distance for a list of objective vectors.
-    Used as a niching measure to preserve diversity.
     """
     num_individuals = len(fitness_list)
     if num_individuals == 0:
@@ -134,7 +133,7 @@ def crowding_distance(fitness_list):
 def non_dominated_sort(fitness):
     """
     Perform non-dominated sorting on the population.
-    Returns a list of fronts, each front is a list of indices.
+    Returns a list of fronts (each a list of indices).
     """
     population_size = len(fitness)
     S = [[] for _ in range(population_size)]
@@ -158,7 +157,7 @@ def non_dominated_sort(fitness):
                     next_front.append(q)
         i += 1
         fronts.append(next_front)
-    fronts.pop()  # Remove the last empty front.
+    fronts.pop()  # Remove empty last front.
     return fronts
 
 # --------------------------
@@ -167,24 +166,18 @@ def non_dominated_sort(fitness):
 def tournament_selection(population, fitness, niche_radius):
     """
     Perform a binary tournament selection using Pareto dominance.
-    In case of a tie, use the crowding (niching) measure.
     """
     i, j = random.sample(range(len(population)), 2)
-    f1 = fitness[i]
-    f2 = fitness[j]
-    if dominates(f1, f2):
+    if dominates(fitness[i], fitness[j]):
         return population[i]
-    elif dominates(f2, f1):
+    elif dominates(fitness[j], fitness[i]):
         return population[j]
     else:
-        # Tie-breaker: choose the one with lower local density (i.e. higher crowding distance).
-        # Here, we approximate by simply randomizing.
         return population[i] if random.random() < 0.5 else population[j]
 
 def crossover(parent1, parent2):
     """
-    Perform arithmetic crossover between two parents.
-    Both parents are weight matrices.
+    Perform arithmetic crossover between two parent weight matrices.
     """
     alpha = random.random()
     child1 = alpha * parent1 + (1 - alpha) * parent2
@@ -193,8 +186,7 @@ def crossover(parent1, parent2):
 
 def mutate(weights, mutation_rate, sigma=0.1):
     """
-    Apply Gaussian mutation to a weight matrix.
-    Mutation is applied elementwise.
+    Apply Gaussian mutation elementwise to a weight matrix.
     """
     new_weights = np.copy(weights)
     rows, cols = new_weights.shape
@@ -202,16 +194,14 @@ def mutate(weights, mutation_rate, sigma=0.1):
         for j in range(cols):
             if random.random() < mutation_rate:
                 new_weights[i, j] += np.random.normal(0, sigma)
-    new_weights = np.clip(new_weights, 0, None)
-    return new_weights
+    return np.clip(new_weights, 0, None)
 
 # --------------------------
 # Selection of Next Generation
 # --------------------------
 def select_next_generation(population, fitness, pop_size):
     """
-    Combine non-dominated sorting and crowding distance to select the next generation.
-    A simplified NSGA-II style selection is used.
+    Use non-dominated sorting and crowding distance to select the next generation.
     """
     fronts = non_dominated_sort(fitness)
     new_population = []
@@ -235,32 +225,34 @@ def select_next_generation(population, fitness, pop_size):
     return new_population, new_fitness
 
 # --------------------------
-# Niched Pareto Genetic Algorithm
+# Niched Pareto Genetic Algorithm (NPGA)
 # --------------------------
-def niched_pareto_ga(scenario, data, population_size=20, generations=10,
-                     crossover_rate=0.9, mutation_rate=0.1):
+def niched_pareto_ga(scenario, data, population_size=20, generations=20,
+                     crossover_rate=0.9, mutation_rate=0.1, refresh_rate=0.001,
+                     plotter=None):
     """
-    Evolve a population of GeneticPolicy individuals (with weight matrices)
-    to optimize two objectives:
-      1. Average latency (minimize)
-      2. -Success rate (minimize, i.e. maximize success rate)
+    Evolve a population of GeneticPolicy individuals (weight matrices) to optimize:
+      1. -Success rate (to prioritize high success rate)
+      2. Average latency.
     
-    Returns the final population approximating the Pareto front.
+    Evaluations are performed in parallel. If a PlotScore instance is provided,
+    the best individual's training metrics are appended at each generation.
+    Returns the final Pareto front (population and associated objectives).
     """
     num_nodes = len(scenario.get_nodes())
-    # Initialize population with random weight matrices.
     population = [GeneticPolicy(np.random.rand(num_nodes, num_nodes)) for _ in range(population_size)]
-    fitness = []
-    print("Evaluating initial population...")
-    for individual in population:
-        obj = evaluate_individual(individual, scenario, data)
-        fitness.append(obj)
-        print(f"Weights:\n{individual.weights}\n-> Objectives: Latency={obj[0]:.4f}, -Success={obj[1]:.4f}")
-
+    
+    pool = Pool(processes=cpu_count())
+    args = [(ind, scenario, data, refresh_rate) for ind in population]
+    fitness = pool.map(evaluate_individual_wrapper, args)
+    
+    # Print initial population results.
+    for ind, fit in zip(population, fitness):
+        print(f"Weights:\n{ind.weights}\n-> Objectives: -Success={fit[0]:.4f}, AvgLatency={fit[1]:.4f}")
+    
     for gen in range(generations):
         print(f"\n--- Generation {gen + 1} ---")
         offspring = []
-        # Generate offspring until we have a full population.
         while len(offspring) < population_size:
             parent1 = tournament_selection(population, fitness, niche_radius=0.1)
             parent2 = tournament_selection(population, fitness, niche_radius=0.1)
@@ -274,47 +266,78 @@ def niched_pareto_ga(scenario, data, population_size=20, generations=10,
             offspring.append(GeneticPolicy(child1_weights))
             if len(offspring) < population_size:
                 offspring.append(GeneticPolicy(child2_weights))
-
-        # Evaluate offspring.
-        offspring_fitness = []
-        print("Evaluating offspring...")
-        for individual in offspring:
-            obj = evaluate_individual(individual, scenario, data)
-            offspring_fitness.append(obj)
-            print(f"Weights:\n{individual.weights}\n-> Objectives: Latency={obj[0]:.4f}, -Success={obj[1]:.4f}")
-
-        # Combine current population and offspring.
+        
+        args = [(ind, scenario, data, refresh_rate) for ind in offspring]
+        offspring_fitness = pool.map(evaluate_individual_wrapper, args)
+        for ind, fit in zip(offspring, offspring_fitness):
+            print(f"Weights:\n{ind.weights}\n-> Objectives: -Success={fit[0]:.4f}, AvgLatency={fit[1]:.4f}")
+        
         combined_population = population + offspring
         combined_fitness = fitness + offspring_fitness
-
-        # Select next generation using non-dominated sorting and crowding distance.
         population, fitness = select_next_generation(combined_population, combined_fitness, population_size)
+        
         print("Selected individuals for next generation:")
         for ind, fit in zip(population, fitness):
-            print(f"Weights:\n{ind.weights}\n-> Objectives: Latency={fit[0]:.4f}, -Success={fit[1]:.4f}")
-
-    # Return final Pareto front (population and associated objectives).
+            print(f"Weights:\n{ind.weights}\n-> Objectives: -Success={fit[0]:.4f}, AvgLatency={fit[1]:.4f}")
+        
+        # Identify the best individual (with highest success rate, i.e. smallest -success value).
+        best_individual, best_obj = min(zip(population, fitness), key=lambda x: x[1][0])
+        best_success = -best_obj[0]   # Convert back to positive success rate.
+        best_latency = best_obj[1]
+        print(f"Generation {gen+1} Best -> Success Rate: {best_success:.4f}, AvgLatency: {best_latency:.4f}")
+        
+        # Append training metrics for this generation.
+        if plotter is not None:
+            plotter.append(mode='Training', metric='SuccessRate', value=best_success)
+            plotter.append(mode='Training', metric='AvgLatency', value=best_latency)
+    
+    pool.close()
+    pool.join()
     pareto_front = list(zip(population, fitness))
     return pareto_front
 
 # --------------------------
-# Main Routine
+# Main Routine: Train on trainset, evaluate on testset, and plot results at each generation.
 # --------------------------
 def main():
-    # Set up scenario and load a dataset (e.g., testset).
     flag = 'Tuple30K'
     scenario = Scenario(config_file=f"eval/benchmarks/Pakistan/data/{flag}/config.json", flag=flag)
-    data = pd.read_csv(f"eval/benchmarks/Pakistan/data/{flag}/testset.csv")
-
-    # Run the Niched Pareto GA.
-    final_pareto = niched_pareto_ga(scenario, data,
-                                    population_size=40,
-                                    generations=200,
+    train_data = pd.read_csv(f"eval/benchmarks/Pakistan/data/{flag}/trainset.csv")
+    test_data = pd.read_csv(f"eval/benchmarks/Pakistan/data/{flag}/testset.csv")
+    
+    generations = 20
+    log_dir = create_log_dir("NPGA", flag=flag, generations=generations)
+    plotter = PlotScore(metrics=['SuccessRate', 'AvgLatency'], modes=['Training', 'Testing'], save_dir=log_dir)
+    
+    # Run NPGA on the trainset.
+    final_pareto = niched_pareto_ga(scenario, train_data,
+                                    population_size=16,
+                                    generations=generations,
                                     crossover_rate=0.9,
-                                    mutation_rate=0.1)
-    print("\n=== Final Pareto Front ===")
-    for idx, (ind, obj) in enumerate(final_pareto):
-        print(f"Individual {idx + 1}:\nWeights:\n{ind.weights}\n-> Objectives: Latency={obj[0]:.4f}, -Success={obj[1]:.4f}")
-
+                                    mutation_rate=0.1,
+                                    refresh_rate=0.001,
+                                    plotter=plotter)
+    
+    # Select best individual on the trainset (highest success rate).
+    best_individual, best_obj = min(final_pareto, key=lambda x: x[1][0])
+    best_success_train = -best_obj[0]
+    best_latency_train = best_obj[1]
+    print("\n=== Best Individual on Trainset ===")
+    print(f"Weights:\n{best_individual.weights}\n-> Train Success Rate: {best_success_train:.4f}, AvgLatency: {best_latency_train:.4f}")
+    
+    # Evaluate best individual on the testset.
+    test_obj = evaluate_individual(best_individual, scenario, test_data, refresh_rate=0.001)
+    best_success_test = -test_obj[0]
+    best_latency_test = test_obj[1]
+    print("\n=== Evaluation on Testset ===")
+    print(f"Test Success Rate: {best_success_test:.4f}, AvgLatency: {best_latency_test:.4f}")
+    
+    # Append test metrics.
+    plotter.append(mode='Testing', metric='SuccessRate', value=best_success_test)
+    plotter.append(mode='Testing', metric='AvgLatency', value=best_latency_test)
+    
+    # Plot the results.
+    plotter.plot(generations)
+    
 if __name__ == '__main__':
     main()

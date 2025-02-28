@@ -50,7 +50,7 @@ def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
         generated_time = task_info['GenerationTime']
         task = Task(task_id=task_info['TaskID'],
                     task_size=task_info['TaskSize'],
-                    cycles_per_bit=int(task_info['CyclesPerBit']/10),
+                    cycles_per_bit=task_info['CyclesPerBit'],
                     trans_bit_rate=task_info['TransBitRate'],
                     ddl=task_info['DDL'],
                     src_name='e0',
@@ -61,7 +61,7 @@ def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
             while env.done_task_info:
                 env.done_task_info.pop(0)
             if env.now >= generated_time:
-                # PPO's act returns action, state, log_prob and value.
+                # PPO's act returns action, state, log_prob and val        env = create_env(scenario, refresh_rate=refresh_rate)ue.
                 action, state, log_prob, value = policy.act(env, task)
                 dst_name = env.scenario.node_id2name[action]
                 env.process(task=task, dst_name=dst_name)
@@ -114,9 +114,9 @@ def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
             pass
     return env
 
-def create_env(scenario):
+def create_env(scenario, refresh_rate=1):
     """Create and return an environment instance."""
-    return Env(scenario, config_file="core/configs/env_config_null.json", refresh_rate=1, verbose=False)
+    return Env(scenario, config_file="core/configs/env_config_null.json", refresh_rate=refresh_rate, verbose=False)
 
 def main():
     flag = 'Tuple30K'
@@ -130,7 +130,7 @@ def main():
     log_dir = create_log_dir("PPO", flag=flag, num_epoch=num_epoch)
     
     # Initialize the PPO policy.
-    env = create_env(scenario)
+    env = create_env(scenario, refresh_rate=refresh_rate)
     policy = PPOPolicy(env, lr=1e-3, hidden_size=128, gamma=0.99)
     
     m1 = SuccessRate()
@@ -142,7 +142,7 @@ def main():
         print(f"Epoch {epoch+1}/{num_epoch}")
         
         # Training phase.
-        env = create_env(scenario)
+        env = create_env(scenario, refresh_rate=refresh_rate)
         env = run_epoch(env, policy, train_data, refresh_rate=refresh_rate, train=True)
         print(f"Training - AvgLatency: {m2.eval(env.logger.task_info):.4f}, SuccessRate: {m1.eval(env.logger.task_info):.4f}")
         plotter.append(mode='Training', metric='SuccessRate', value=m1.eval(env.logger.task_info))
@@ -150,7 +150,7 @@ def main():
         env.close()
         
         # Testing phase.
-        env = create_env(scenario)
+        env = create_env(scenario, refresh_rate=refresh_rate)
         env = run_epoch(env, policy, test_data, refresh_rate=refresh_rate, train=False)
         print(f"Testing  - AvgLatency: {m2.eval(env.logger.task_info):.4f}, SuccessRate: {m1.eval(env.logger.task_info):.4f}")
         print("===============================================")
@@ -160,7 +160,7 @@ def main():
         
     # Final testing phase.
     print("Final Testing Phase")
-    env = create_env(scenario)
+    env = create_env(scenario, refresh_rate=refresh_rate)
     env = run_epoch(env, policy, test_data, refresh_rate=refresh_rate, train=False)
     print(f"Testing  - AvgLatency: {m2.eval(env.logger.task_info):.4f}, SuccessRate: {m1.eval(env.logger.task_info):.4f}")
     env.close()

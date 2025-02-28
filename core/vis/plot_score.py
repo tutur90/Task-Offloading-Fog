@@ -16,7 +16,7 @@ class PlotScore:
         self.score[mode][metric].append(value)
         
         
-    def plot(self, num_epoch):
+    def plot(self, num_epoch, save_dir=None):
         
         len_metrics = len(self.metrics)
         len_modes = len(self.modes)
@@ -30,11 +30,27 @@ class PlotScore:
                 ax[i, j].set_xlabel("Epoch")
                 ax[i, j].set_ylabel(metric)
                 
-        if self.save_dir is not None:
-            fig.savefig(f"{self.save_dir}/score_plot.png")
+        if save_dir is not None:
+            fig.savefig(f"{save_dir}/score_plot.png")
 
         if self.display:
             plt.show()
+            
+    def save_results(self, save_dir=None, params=None):
+        if save_dir is not None:
+            with open(f"{save_dir}/score.txt", "w") as f:
+                
+                f.write("Parameters:\n")
+                for key, value in params.items():
+                    f.write(f"{key}: {value}\n")
+                f.write("\n")
+                
+                for mode in self.modes:
+                    f.write(f"{mode}\n")
+                    for metric in self.metrics:
+                        f.write(f"{metric}: {self.score[mode][metric]}\n")
+                    f.write("\n")
+                f.write("\n")
 
         
 

@@ -12,7 +12,7 @@ def create_log_dir(algo_name, **params):
     
     if not os.path.exists(f"logs/{algo_name}"):
         os.makedirs(f"logs/{algo_name}")
-    while os.path.exists(f"logs/{algo_name}/{parametres}{i}"):
+    while os.path.exists(f"logs/{algo_name}/{parametres}{i}") and os.listdir(f"logs/{algo_name}/{parametres}{i}"):
         i += 1
     os.makedirs(f"logs/{algo_name}/{parametres}{i}", exist_ok=True)
     

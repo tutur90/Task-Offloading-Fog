@@ -25,7 +25,7 @@ from core.vis.plot_score import PlotScore
 num_epoch = 4
 batch_size = 256  # Number of tasks between policy updates
 
-def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
+def run_epoch(scenario, policy, data: pd.DataFrame, refresh_rate=1, train=True):
     """
     Run one simulation epoch over the provided task data using the A2C policy.
     
@@ -39,6 +39,9 @@ def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
       
     After every batch_size tasks, update the policy using the collected transitions.
     """
+    
+    env = create_env(scenario, refresh_rate=refresh_rate)
+    
     m1 = SuccessRate()
     m2 = AvgLatency()
     last_task_id = None
@@ -118,9 +121,9 @@ def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
             pass
     return env
 
-def create_env(scenario):
+def create_env(scenario, refresh_rate=1):
     """Create and return an environment instance."""
-    return Env(scenario, config_file="core/configs/env_config_null.json", refresh_rate=1, verbose=False)
+    return Env(scenario, config_file="core/configs/env_config_null.json", refresh_rate=refresh_rate, verbose=False)
 
 def main():
     flag = 'Tuple30K'
@@ -134,7 +137,7 @@ def main():
     log_dir = create_log_dir("A2C", flag=flag, num_epoch=num_epoch, batch_size=batch_size)
     
     # Initialize the A2C policy.
-    env = create_env(scenario)
+    env = create_env(scenario, refresh_rate=refresh_rate)
     policy = A2CPolicy(env=env, lr=1e-3)
     
     m1 = SuccessRate()
@@ -146,16 +149,16 @@ def main():
         print(f"Epoch {epoch+1}/{num_epoch}")
         
         # Training phase.
-        env = create_env(scenario)
-        env = run_epoch(env, policy, train_data, refresh_rate=refresh_rate, train=True)
+        env = create_env(scenario, refresh_rate
+                         )
+        env = run_epoch(scenario, policy, train_data, refresh_rate=refresh_rate, train=True)
         print(f"Training - AvgLatency: {m2.eval(env.logger.task_info):.4f}, SuccessRate: {m1.eval(env.logger.task_info):.4f}")
         plotter.append(mode='Training', metric='SuccessRate', value=m1.eval(env.logger.task_info))
         plotter.append(mode='Training', metric='AvgLatency', value=m2.eval(env.logger.task_info))
         env.close()
         
         # Testing phase.
-        env = create_env(scenario)
-        env = run_epoch(env, policy, test_data, refresh_rate=refresh_rate, train=False)
+        env = run_epoch(scenario, policy, test_data, refresh_rate=refresh_rate, train=False)
         print(f"Testing  - AvgLatency: {m2.eval(env.logger.task_info):.4f}, SuccessRate: {m1.eval(env.logger.task_info):.4f}")
         print("===============================================")
         plotter.append(mode='Testing', metric='SuccessRate', value=m1.eval(env.logger.task_info))
