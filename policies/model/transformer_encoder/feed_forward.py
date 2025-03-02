@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class FeedForward(nn.Module):
-    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1, activation: nn.Module = nn.ReLU):
+    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1, activation: nn.Module = nn.GELU):
         
         """
         Args:

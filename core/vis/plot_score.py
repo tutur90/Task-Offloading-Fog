@@ -36,21 +36,42 @@ class PlotScore:
         if self.display:
             plt.show()
             
-    def save_results(self, save_dir=None, params=None):
+    def save_results(self, save_dir=None, params=None, model_params=None):
         if save_dir is not None:
             with open(f"{save_dir}/score.txt", "w") as f:
-                
-                f.write("Parameters:\n")
-                for key, value in params.items():
-                    f.write(f"{key}: {value}\n")
-                f.write("\n")
-                
-                for mode in self.modes:
-                    f.write(f"{mode}\n")
-                    for metric in self.metrics:
-                        f.write(f"{metric}: {self.score[mode][metric]}\n")
+                # Save parameters if provided.
+                if params is not None:
+                    f.write("Parameters:\n")
+                    for key, value in params.items():
+                        f.write(f"{key}: {value}\n")
                     f.write("\n")
-                f.write("\n")
+                    
+                if model_params is not None:
+                    
+                    f.write("Model Parameters:\n")
+                    for key, value in model_params.items():
+                        f.write(f"{key}: {value}\n")
+                    f.write("\n")
+                    
+                
+                # Determine the number of epochs (assumes all metric lists are the same length).
+                num_epochs = 0
+                if self.modes and self.metrics:
+                    num_epochs = len(self.score[self.modes[0]][self.metrics[0]])
+                
+                # Write the scores by epoch.
+                for epoch in range(num_epochs):
+                    f.write("================\n")
+                    f.write(f"Epoch {epoch+1}:\n")
+                    for mode in self.modes:
+                        f.write(f"{mode}:\n")
+                        for metric in self.metrics:
+                            # Get the value at the current epoch.
+                            value = self.score[mode][metric][epoch]
+                            f.write(f"{metric}: {value}\n")
+                        f.write("\n")
+                    f.write("\n")
+
 
         
 

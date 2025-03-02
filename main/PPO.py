@@ -23,7 +23,7 @@ from policies.a2c_policy import A2CPolicy
 from core.vis.plot_score import PlotScore
 
 # Global parameters
-num_epoch = 20
+num_epoch = 30
 
 def run_epoch(env: Env, policy, data: pd.DataFrame, refresh_rate=1, train=True):
     """

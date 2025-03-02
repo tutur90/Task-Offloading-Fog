@@ -17,3 +17,15 @@ def create_log_dir(algo_name, **params):
     os.makedirs(f"logs/{algo_name}/{parametres}{i}", exist_ok=True)
     
     return f"logs/{algo_name}/{parametres}{i}"
+
+def save_results(save_dir, results, **params):
+    """Save the results to a file."""
+    with open(f"{save_dir}/results.txt", "w") as f:
+        f.write("Parameters:\n")
+        for key, value in params.items():
+            f.write(f"{key}: {value}\n")
+        f.write("\n")
+        f.write("Results:\n")
+        for key, value in results.items():
+            f.write(f"{key}: {value}\n")
+        f.write("\n")

@@ -1,6 +1,7 @@
 
 class GreedyPolicy:
     def __init__(self, env):
+        super().__init__()
         """
         A simple greedy policy that selects the node with the minimal
         predicted total time (transmission + computation).

@@ -9,7 +9,7 @@ from policies.model.BaseMLP import BaseMLP
 from policies.model.Transformer import Transformer
 
 class QTransPolicy:
-    def __init__(self, env, lr=1e-3, gamma=0.99, epsilon=0.1, d_model=16, nhead=2, n_layers=3):
+    def __init__(self, env, lr=1e-3, gamma=0.99, epsilon=0.1, d_model=16, nhead=2, n_layers=3, d_ff=16, dropout=0.1):
         """
         A simple deep Q-learning policy.
 
@@ -28,7 +28,7 @@ class QTransPolicy:
         self.gamma = gamma
         self.epsilon = epsilon
 
-        self.model = Transformer(d_in=3, d_pos=self.n_observations, d_model=d_model, d_ff=d_model, n_heads=1, n_layers=3, dropout=0.1)
+        self.model = Transformer(d_in=3, d_pos=self.n_observations, d_model=d_model, d_ff=d_model, n_heads=1, n_layers=3, dropout=dropout)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 

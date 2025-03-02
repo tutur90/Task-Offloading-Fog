@@ -3,11 +3,33 @@ import torch.nn as nn
 import torch.optim as optim
 import random
 from torch.distributions import Categorical  # (optional for epsilon random selection)
-from core.task import Task
 
 from policies.model.BaseMLP import BaseMLP
 
-class DQRLPolicy:
+class RNN(nn.Module):
+    def __init__(self, task_size, obs_size, hidden_size, num_layers, num_classes):
+        super(RNN, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.mlp = nn.Sequential(
+            nn.Linear(obs_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU())
+            
+            
+        self.rnn = nn.RNN(task_size, hidden_size, batch_first=True)
+        self.fc = nn.Linear(hidden_size, num_classes)
+        
+    def forward(self, obs, task):
+        h = self.mlp(obs)
+        
+        l, h = self.rnn(task, h)
+        h = self.fc(h)
+        return h
+
+
+class QRNNPolicy:
     def __init__(self, env, lr=1e-3, d_model=128, gamma=0.99, epsilon=0.1, incl_link_obs=True):
         """
         A simple deep Q-learning policy.
@@ -29,14 +51,14 @@ class DQRLPolicy:
         self.gamma = gamma
         self.epsilon = epsilon
 
-        self.model = BaseMLP(dim_in=self.n_observations, dim_out=self.num_actions, hidden_size=d_model)
+        self.model = RNN(task_size=4, obs_size=self.n_observations, hidden_size=d_model, num_layers=1, num_classes=self.num_actions)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
         # Replay buffer for transitions
         self.replay_buffer = []
         
-    def _make_observation(self, env, task: Task):
+    def _make_observation(self, env, task):
         """
         Returns a flat observation vector.
         For instance, we return the free CPU frequency for each node.
@@ -55,37 +77,50 @@ class DQRLPolicy:
         else:
             obs = cpu_obs + bw_obs
             
+            
+        task_obs = [
+            task.task_size,
+            task.cycles_per_bit,
+            task.trans_bit_rate,
+            task.ddl,
+        ]
+        
+        return obs, task_obs
 
-        return obs
 
 
     def act(self, env, task, eval=False):
         """
-        Chooses an action using ε-greedy strategy and records the current state.
+        Chooses an action using an ε-greedy strategy. It uses both the environment
+        observation and the task-specific observation to compute Q-values.
         """
-        state = self._make_observation(env, task)
+        # Get the two-part observation.
+        state, task_obs = self._make_observation(env, task)
+        # Convert both parts into tensors.
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        task_tensor = torch.tensor(task_obs, dtype=torch.float32).unsqueeze(0)
         
         if random.random() < self.epsilon and not eval:
             action = random.randrange(self.num_actions)
         else:
             with torch.no_grad():
-                q_values = self.model(state_tensor)
-                
+                # The model now expects two inputs.
+                q_values = self.model(state_tensor, task_tensor)
                 action = torch.argmax(q_values, dim=1).item()
 
-        # Return both the action and the state (to form the transition later).
-        return action, state
+        # Return the chosen action along with the combined observation tuple.
+        return action, (state, task_obs)
 
     def store_transition(self, state, action, reward, next_state, done):
         """
         Stores a transition in the replay buffer.
+        Here, both state and next_state are tuples: (env_observation, task_observation).
         """
         self.replay_buffer.append((state, action, reward, next_state, done))
         
     def update(self):
         """
-        Performs an update over all stored transitions and clears the buffer.
+        Processes all stored transitions, updates the model weights, and clears the replay buffer.
         """
         if not self.replay_buffer:
             return 0.0
@@ -93,20 +128,27 @@ class DQRLPolicy:
         loss_total = 0.0
         self.optimizer.zero_grad()
         for state, action, reward, next_state, done in self.replay_buffer:
-            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-            next_state_tensor = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
+            # Unpack the current state tuple.
+            obs, task_obs = state
+            state_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
+            task_tensor = torch.tensor(task_obs, dtype=torch.float32).unsqueeze(0)
+            
+            # Unpack the next state tuple.
+            next_obs, next_task_obs = next_state
+            next_state_tensor = torch.tensor(next_obs, dtype=torch.float32).unsqueeze(0)
+            next_task_tensor = torch.tensor(next_task_obs, dtype=torch.float32).unsqueeze(0)
+            
             reward_tensor = torch.tensor([reward], dtype=torch.float32)
             done_tensor = torch.tensor([done], dtype=torch.float32)
             
-            q_values = self.model(state_tensor)
+            # Compute predicted Q-value for the taken action.
+            q_values = self.model(state_tensor, task_tensor)
             predicted_q = q_values[0, action]
             with torch.no_grad():
-                next_q_values = self.model(next_state_tensor)
+                next_q_values = self.model(next_state_tensor, next_task_tensor)
                 max_next_q = torch.max(next_q_values)
-                if done or self.gamma == 0:
-                    target_q = reward_tensor
-                else:
-                    target_q = reward_tensor + (1 - done_tensor) * self.gamma * max_next_q
+                # When done is False, (1-done_tensor)==1 and the future reward is considered.
+                target_q = reward_tensor + (1 - done_tensor) * self.gamma * max_next_q
             loss = self.criterion(predicted_q, target_q)
             loss_total += loss
         loss_total.backward()
@@ -115,5 +157,8 @@ class DQRLPolicy:
         return loss_total.item()
     
     def update_epsilon(self, factor=0.99):
-        self.epsilon = self.epsilon * factor
+        """
+        Applies a decay factor to the exploration rate ε.
+        """
+        self.epsilon *= factor
         return self.epsilon

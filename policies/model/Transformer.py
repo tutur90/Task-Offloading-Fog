@@ -6,7 +6,7 @@ import random
 
 
 class Transformer(nn.Module):
-    def __init__(self, d_in, d_pos, d_model=8, d_ff=8, n_heads=1, n_layers=1, dropout=0.1):
+    def __init__(self, d_in, d_pos, d_model=8, d_ff=8, n_heads=1, n_layers=1, dropout=0.2):
         super().__init__()
 
         
