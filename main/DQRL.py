@@ -166,7 +166,7 @@ def main():
             "epsilon": 0.2,
             "d_model": 128,
             "include_link_obs": True,
-            "gamma": 0.9
+            "gamma": 0
         }
         policy = DQRLPolicy(env=env, lr=model_params['lr'], epsilon=model_params['epsilon'], d_model=model_params['d_model'], incl_link_obs=model_params['include_link_obs'], gamma=model_params['gamma'])
     elif policy_name == 'QRNN':
