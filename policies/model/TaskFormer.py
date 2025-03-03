@@ -12,8 +12,10 @@ class AttentionWeights(nn.Module):
     def __init__(self, d_model=8, d_proj=8, dropout=0.1, bias=True):
         super().__init__()
         
-        self.query = nn.Linear(d_model, d_proj, bias=bias, dropout=dropout)
-        self.key = nn.Linear(d_model, d_proj, bias=bias, dropout=dropout)
+        self.query = nn.Linear(d_model, d_proj, bias=bias)
+        self.key = nn.Linear(d_model, d_proj, bias=bias)
+        self.dropout = nn.Dropout(dropout)
+        self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, query, key):
         """
@@ -21,8 +23,9 @@ class AttentionWeights(nn.Module):
             `query`: shape (batch_size, max_len, d_model)
             `key`: shape (batch_size, max_len, d_model)
         """
-        q = self.query(query)
-        k = self.key(key)
+        q = self.dropout(self.query(query))
+        
+        k = self.dropout(self.key(key))
         x = self.scale_dot_product_attention(q, k)
         
         return x
@@ -39,30 +42,45 @@ class AttentionWeights(nn.Module):
         """
         d_k = query.size(-1)
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
-        p_attn = F.softmax(scores, dim=-1)
+        p_attn = self.softmax(scores)
         return p_attn
 
 
 class TaskFormer(nn.Module):
-    def __init__(self, d_in, d_pos, d_task, d_model=8, d_ff=8, n_heads=1, n_layers=1, dropout=0.1):
+    def __init__(self, d_in, d_pos, d_task, d_model=8, d_ff=8, n_heads=1, n_layers=1, dropout=0.1, mode="mixed"):
         super().__init__()
 
         
         self.nodes_embed = nn.Linear(d_in, d_model)
-        self.task_embed = nn.Linear(d_task, d_model)
+        self.task_embed = nn.Linear(d_task, d_model, bias=False)
         self.pos_nodes_embed = nn.Parameter(torch.zeros(d_pos, d_model))
         self.trasformer_encoder = TransformerEncoder(d_model=d_model, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout)
         # self.softmax = nn.Softmax(dim=1)
-        self.attention = AttentionWeights(d_model=d_model, d_proj=d_model, dropout=dropout)
+
+        self.fc = nn.Linear(d_model, 1)
+        self.softmax = nn.Softmax(dim=1)
+
+
+        self.mode = mode
+        
+
         
         
-    def forward(self, nodes, task):
+    def forward(self, nodes, task, use_task=True):
+
         task = self.task_embed(task)
         nodes = self.nodes_embed(nodes)
-        nodes = nodes + self.pos_nodes_embed
-        nodes = self.trasformer_encoder(nodes, None)
+        x = nodes + self.pos_nodes_embed 
         
-        x = self.attention(nodes, task)
+        if use_task:
+            x = x + task.unsqueeze(0).repeat(1, nodes.size(1), 1)
+        
+        
+        x = self.trasformer_encoder(x, None)
+
+
+        x = self.fc(x)
+        x = self.softmax(x)
 
         return x
         

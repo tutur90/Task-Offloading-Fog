@@ -38,13 +38,14 @@ class ScaledDotProductAttention(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, n_heads: int, d_model: int, dropout: float = 0.1):
+    def __init__(self, n_heads: int, d_model: int, dropout: float = 0.1, qkv_bias=False):
         super(MultiHeadAttention, self).__init__()
         assert d_model % n_heads == 0
         # We assume d_v always equals d_k
         self.d_k = d_model // n_heads
         self.h = n_heads
-        self.linears = clones(nn.Linear(d_model, d_model), 4)
+        self.linears = clones(nn.Linear(d_model, d_model, bias=qkv_bias), 3)
+        self.proj = nn.Linear(d_model, d_model)
         self.sdpa = ScaledDotProductAttention()
         self.attn = None
         self.dropout = nn.Dropout(p=dropout)
@@ -76,4 +77,4 @@ class MultiHeadAttention(nn.Module):
 
         # 3) "Concat" using a view and apply a final linear.
         x = x.transpose(1, 2).contiguous().view(batch_size, -1, self.h * self.d_k)
-        return self.linears[-1](x)
+        return self.proj(x)

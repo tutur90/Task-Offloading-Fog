@@ -12,7 +12,7 @@ class BaseMLP(nn.Module):
         
         self.mlp = MLP(in_features=dim_in, hidden_features=hidden_size, out_features=dim_out, num_layers=3)
 
-    def forward(self, x):
+    def forward(self, x, _):
         return self.mlp(x)
     
 
