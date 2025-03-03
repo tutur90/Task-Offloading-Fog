@@ -8,6 +8,8 @@ from torch.distributions import Categorical  # (optional for epsilon random sele
 from policies.model.BaseMLP import BaseMLP
 from policies.model.Transformer import Transformer
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 class QTransPolicy:
     def __init__(self, env, lr=1e-3, gamma=0.99, epsilon=0.1, d_model=16, nhead=2, n_layers=3, d_ff=16, dropout=0.1):
         """
@@ -28,7 +30,7 @@ class QTransPolicy:
         self.gamma = gamma
         self.epsilon = epsilon
 
-        self.model = Transformer(d_in=3, d_pos=self.n_observations, d_model=d_model, d_ff=d_model, n_heads=1, n_layers=3, dropout=dropout)
+        self.model = Transformer(d_in=3, d_pos=self.n_observations, d_model=d_model, d_ff=d_model, n_heads=1, n_layers=3, dropout=dropout).to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
@@ -67,7 +69,7 @@ class QTransPolicy:
         Chooses an action using ε-greedy strategy and records the current state.
         """
         state = self._make_observation(env, task)
-        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device)
         
         if random.random() < self.epsilon and not eval:
             action = random.randrange(self.num_actions)
@@ -96,10 +98,10 @@ class QTransPolicy:
         loss_total = 0.0
         self.optimizer.zero_grad()
         for state, action, reward, next_state, done in self.replay_buffer:
-            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-            next_state_tensor = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
-            reward_tensor = torch.tensor([reward], dtype=torch.float32)
-            done_tensor = torch.tensor([done], dtype=torch.float32)
+            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device)
+            next_state_tensor = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0).to(device)
+            reward_tensor = torch.tensor([reward], dtype=torch.float32).to(device)
+            done_tensor = torch.tensor([done], dtype=torch.float32).to(device)
             
             q_values = self.model(state_tensor)
             predicted_q = q_values[0, action]

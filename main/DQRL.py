@@ -197,6 +197,14 @@ def main():
     else:
         raise ValueError(f"Unknown policy: {policy_name}")
     
+    print("Parameters:")
+    for key, value in params.items():
+        print(f"{key}: {value}")
+    
+    print("Model Parameters:")
+    for key, value in model_params.items():
+        print(f"{key}: {value}")
+    
     m1 = SuccessRate()
     m2 = AvgLatency()
     

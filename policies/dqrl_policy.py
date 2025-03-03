@@ -7,6 +7,8 @@ from core.task import Task
 
 from policies.model.BaseMLP import BaseMLP
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")   
+
 class DQRLPolicy:
     def __init__(self, env, lr=1e-3, d_model=128, gamma=0.99, epsilon=0.1, incl_link_obs=True):
         """
@@ -29,7 +31,7 @@ class DQRLPolicy:
         self.gamma = gamma
         self.epsilon = epsilon
 
-        self.model = BaseMLP(dim_in=self.n_observations, dim_out=self.num_actions, hidden_size=d_model)
+        self.model = BaseMLP(dim_in=self.n_observations, dim_out=self.num_actions, hidden_size=d_model).to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
@@ -76,8 +78,8 @@ class DQRLPolicy:
         # Get the two-part observation.
         state, task_obs = self._make_observation(env, task)
         # Convert both parts into tensors.
-        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-        task_tensor = torch.tensor(task_obs, dtype=torch.float32).unsqueeze(0)
+        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device)
+        task_tensor = torch.tensor(task_obs, dtype=torch.float32).unsqueeze(0).to(device)
         
         if random.random() < self.epsilon and not eval:
             action = random.randrange(self.num_actions)
@@ -109,16 +111,16 @@ class DQRLPolicy:
         for state, action, reward, next_state, done in self.replay_buffer:
             # Unpack the current state tuple.
             obs, task_obs = state
-            state_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
-            task_tensor = torch.tensor(task_obs, dtype=torch.float32).unsqueeze(0)
+            state_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(device)
+            task_tensor = torch.tensor(task_obs, dtype=torch.float32).unsqueeze(0).to(device)
             
             # Unpack the next state tuple.
             next_obs, next_task_obs = next_state
-            next_state_tensor = torch.tensor(next_obs, dtype=torch.float32).unsqueeze(0)
-            next_task_tensor = torch.tensor(next_task_obs, dtype=torch.float32).unsqueeze(0)
+            next_state_tensor = torch.tensor(next_obs, dtype=torch.float32).unsqueeze(0).to(device)
+            next_task_tensor = torch.tensor(next_task_obs, dtype=torch.float32).unsqueeze(0).to(device)
             
-            reward_tensor = torch.tensor([reward], dtype=torch.float32)
-            done_tensor = torch.tensor([done], dtype=torch.float32)
+            reward_tensor = torch.tensor([reward], dtype=torch.float32).to(device)
+            done_tensor = torch.tensor([done], dtype=torch.float32).to(device)
             
             # Compute predicted Q-value for the taken action.
             q_values = self.model(state_tensor, task_tensor)
