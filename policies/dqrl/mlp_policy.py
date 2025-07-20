@@ -75,14 +75,13 @@ class MLPPolicy:
                       for link_name in env.scenario.get_links()]
             obs += bw_obs
 
-        obs = cpu_obs + buffer_obs + bw_obs
         return obs
 
     def act(self, env, task, train=True):
         """
         Chooses an action using an ε-greedy strategy and records the current state.
         """
-        state = self._make_observation(env, task)
+        state = self._make_observation(env, task, self.obs_type)
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device)
         
         if random.random() < self.epsilon and train:
@@ -138,4 +137,22 @@ class MLPPolicy:
         
         self.replay_buffer.clear()
         return loss.item()
+    
+    def save(self, path):
+        """
+        Saves the model state to a file.
+        
+        Args:
+            path (str): The file path where the model will be saved.
+        """
+        torch.save(self.model.state_dict(), path)
 
+    def load(self, path):
+        """
+        Loads the model state from a file.
+
+        Args:
+            path (str): The file path from which the model will be loaded.
+        """
+        self.model.load_state_dict(torch.load(path, map_location=device, weights_only=True))
+        self.model.eval()

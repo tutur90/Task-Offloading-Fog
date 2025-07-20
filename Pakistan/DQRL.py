@@ -17,29 +17,29 @@ import pandas as pd
 from tqdm import tqdm
 import yaml
 
-
+from core.env import Env
 from core.task import Task
 from core.vis import *
 from core.vis.vis_stats import VisStats
-
+from core.vis.logger import Logger
+from eval.benchmarks.Pakistan.scenario import Scenario
 from eval.metrics.metrics import SuccessRate, AvgLatency
 from policies.dqrl.mlp_policy import MLPPolicy
 from policies.dqrl.taskformer_policy import TaskFormerPolicy
-from policies.heuristics.greedy import GreedyPolicy
-from policies.heuristics.random import  RandomPolicy
-from policies.heuristics.round_robin import RoundRobinPolicy
-
 
 import numpy as np
 
-from utils import create_env, error_handler, set_seed, update_metrics
-from utils import Logger, Checkpoint
-
-
+def error_handler(error: Exception):
+    """Customized error handler for different types of errors."""
+    errors = ['DuplicateTaskIdError', 'NetworkXNoPathError', 'IsolatedWirelessNode', 'NetCongestionError', 'InsufficientBufferError']
+    message = error.args[0][0]
+    if message in errors:
+        pass
+    else:
+        raise
 
 def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
-                                                                       ), max_total_time=0, max_total_energy=0,
-              ):
+                                                                       )):
     """
     Run one simulation epoch over the provided task data.
     lambda_ = (fail, time, energy) if time is more important than energy, then lambda_ = (_, 1, 0) and vice versa.
@@ -64,11 +64,11 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
     last_task_id = None
     pbar = tqdm(data.iterrows(), total=len(data))
     stored_transitions = {}
-    number_in_batch = config.get("training", {}).get("batch_size", 32)
-
-    env.max_total_time = max_total_time
-    env.max_total_energy = max_total_energy
-
+    number_in_batch = config["training"]["batch_size"]
+    
+    max_total_time = 0
+    max_total_energy = 0
+    
     for i, task_info in pbar:
         generated_time = task_info['GenerationTime']
         task = Task(task_id=task_info['TaskID'],
@@ -76,7 +76,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
                     cycles_per_bit=task_info['CyclesPerBit'],
                     trans_bit_rate=task_info['TransBitRate'],
                     ddl=task_info['DDL'] ,
-                    src_name=task_info['SrcName'] if 'SrcName' in task_info else 'e0',
+                    src_name='e0',
                     task_name=task_info['TaskName'])
 
         # Wait until the simulation reaches the task's generation time.
@@ -106,10 +106,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
             except Exception as e:
                 # print(f"Error: {e}")
                 error_handler(e)
-                
-        
 
-            
         if train:
             done = False  # Each task is treated as an individual episode.
             last_task_id = task.task_id
@@ -124,20 +121,18 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
                         total_time = task_trans_time + task_wait_time + task_exe_time
                         task_trans_energy, task_exe_energy = val[3]
                         total_energy = task_trans_energy + task_exe_energy
-                        env.max_total_time = max(env.max_total_time, total_time)
-                        env.max_total_energy = max(env.max_total_energy, total_energy)
-                        reward = - ((lambda_[1] * total_time/env.max_total_time) + (lambda_[2] * total_energy/env.max_total_energy))
+                        max_total_time = max(max_total_time, total_time)
+                        max_total_energy = max(max_total_energy, total_energy)
+                        reward = - ((lambda_[1] * total_time/max_total_time) + (lambda_[2] * total_energy/max_total_energy))
                     else:
                         reward = -lambda_[0]
-                        
-                    reward = reward * config["training"].get("reward_scale", 1.0)
                     policy.store_transition(state, action, reward, next_state, done)
                     del stored_transitions[task_id]
             # Update the policy every batch_size tasks during training.
             if number_in_batch < 1:
-                r1 = m1.eval(env.logger) * 100  # Convert to percentage
+                r1 = m1.eval(env.logger)
                 r2 = m2.eval(env.logger)
-                e = env.avg_node_power() * 1000
+                e = env.avg_node_power()
                 pbar.set_postfix({"SR": f"{r1:.3f}", "L": f"{r2:.3f}", "E": f"{e:.3f}"})
                 policy.update()
                 number_in_batch = np.random.randint(config["training"]["batch_size"]//2, config["training"]["batch_size"])
@@ -151,95 +146,36 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
             env.run(until=until)
         except Exception as e:
             error_handler(e)
-            
+    
     return env
 
-def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total_energy=0, max_total_time=0):
-    """ Train the policy using the provided training data and validate it using the validation data. """
-    for epoch in range(config["training"]["num_epochs"]):
 
-        logger.update_epoch(epoch)
-
-        # Training phase.
-        
-        logger.update_mode('Training')
-
-        env = run_epoch(config, policy, train_data, train=True, lambda_=config["eval"]["lambda"], max_total_time=max_total_time, max_total_energy=max_total_energy)
-
-        update_metrics(logger, env, config)
-        
-        max_total_time = env.max_total_time
-        max_total_energy = env.max_total_energy
-
-        env.close()
-        
-
-        
-        # Validation phase.
-
-        logger.update_mode('Validation')
-        
-
-        env = run_epoch(config, policy, valid_data, train=False)
-        
-        env.max_total_energy = max_total_energy
-        env.max_total_time = max_total_time
-
-        score = update_metrics(logger, env, config)
-        
-        if logger.is_best(score[3], epoch):
-            checkpoint.save(policy, epoch)
-
-        env.close()
-
-        policy.epsilon *= config["training"]["epsilon_decay"]
-        
-        for param_group in policy.optimizer.param_groups:
-            param_group['lr'] *= config["training"]["lr_decay"]
-        if config["algo"] == "TaskFormer":
-            # Decay the learning rate of the TaskFormer model.
-            for param_group in policy.optimizer.param_groups:
-                param_group['lr'] *= config["training"]["lr_decay"]
-
-    return max_total_energy, max_total_time
-
-
+def create_env(config):
+    """Create and return an environment instance."""
+    dataset = config["env"]["dataset"]
+    flag = config["env"]["flag"]
+    scenario = Scenario(config_file=f"eval/benchmarks/{dataset}/data/{flag}/config.json", flag=flag)
+    env = Env(scenario, config_file="core/configs/env_config_null.json", verbose=False)
+    env.refresh_rate = config['env']['refresh_rate']
+    return env
 
 def main():
     
-    
-    
-    # config_name = "MLP"
-    # config_name = "MLP"  # or "TaskFormer"
-    # config_name = "Heuristics/Greedy"  # or "Random", "RoundRobin"
-    # config_name = "DQRL/TaskFormer-S"  # or "DQRL/MLP", "DQRL/Greedy", "DQRL/Random", "DQRL/RoundRobin"
-    config_name = "DQRL/MLP"  # or "MLP", "Greedy", "Random", "RoundRobin"
+    config_name = "NodeFormer"
 
-    config_path = f"main/configs/Pakistan/{config_name}.yaml"
-
+    config_path = f"main/configs/DQRL/{config_name}.yaml"
+    
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
 
-    set_seed(config.get("seed", 42))
-
     logger = Logger(config)
-
-
+    
 
     env = create_env(config)
-    
-    
-    if "training" in config.keys():
-        
-        checkpoint = Checkpoint(logger.log_dir)
 
-        valid_size = config["training"].get("valid_size", 0.2)
-
-        # Load train and test datasets.
-        train_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/trainset.csv")
-        train_data, valid_data = train_data.iloc[:int(len(train_data)*(1-valid_size))], train_data.iloc[int(len(train_data)*(1-valid_size)):]
-        valid_data["GenerationTime"] = valid_data["GenerationTime"] - valid_data["GenerationTime"].min()  # Normalize generation time
-        
+    
+    # Load train and test datasets.
+    train_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/trainset.csv")
     test_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/testset.csv")
     
     #         # Load train and test datasets.
@@ -250,43 +186,52 @@ def main():
         policy = MLPPolicy(env=env, config=config)
     elif config["algo"] == "TaskFormer":
         policy = TaskFormerPolicy(env=env, config=config)
-    elif config["algo"] == "Greedy":
-        policy = GreedyPolicy()
-    elif config["algo"] == "Random":
-        policy = RandomPolicy()
-    elif config["algo"] == "RoundRobin":
-        policy = RoundRobinPolicy()
-    else:
-        raise ValueError("Invalid policy name.")
+    
+    
 
-    max_total_time = config.get("eval", {}).get("expected_max_time", 0)
-    max_total_energy = config.get("eval", {}).get("expected_max_energy", 0)
-
-    if "training" in config.keys():
-        max_total_energy, max_total_time = train(config, policy, train_data, valid_data, logger, checkpoint, max_total_energy, max_total_time)
-        checkpoint.load(policy, logger.best_epoch)
+    m1 = SuccessRate()
+    m2 = AvgLatency()
+    
+    
+    for epoch in range(config["training"]["num_epochs"]):
         
-    print(f"Max total energy: {max_total_energy}, Max total time: {max_total_time}")
+        logger.update_epoch(epoch)
 
-    logger.update_mode('Testing')
-    env = run_epoch(config, policy, test_data, train=False)
-    
-    env.max_total_energy = max_total_energy
-    env.max_total_time = max_total_time
-    
-    update_metrics(logger, env, config)
+        # Training phase.
+        
+        logger.update_mode('Training')
+        
+        env = run_epoch(config, policy, train_data, train=True, lambda_=config["training"]["lambda"])
 
+        
+        logger.update_metric('SuccessRate', m1.eval(env.logger))
+        logger.update_metric('AvgLatency', m2.eval(env.logger))
+        logger.update_metric("AvgPower", env.avg_node_power())
+        
+        env.close()
+        
+        # Testing phase.
+        
+        logger.update_mode('Testing')
+        
+        env = run_epoch(config, policy, test_data, train=False)
+        
+        logger.update_metric('SuccessRate', m1.eval(env.logger))
+        logger.update_metric('AvgLatency', m2.eval(env.logger))
+        logger.update_metric("AvgPower", env.avg_node_power())
+        
+        env.close()
+        
+        policy.epsilon *= config["training"]["epsilon_decay"]
 
     logger.plot()
     logger.save_csv()
     
-
+    vis_stats = VisStats(save_path=logger.log_dir)
+    vis_stats.vis(env)
     
     logger.close()
     env.close()
-    
-    vis_stats = VisStats(save_path=logger.log_dir)
-    vis_stats.vis(env)
 
 
 if __name__ == '__main__':

@@ -3,6 +3,8 @@ __pycache__/
 backup/
 log/
 logs/
+.venv/
+test.py
 
 *.sh
 toy_debug.py

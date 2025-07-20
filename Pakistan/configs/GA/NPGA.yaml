@@ -1,0 +1,19 @@
+policy: "NPGA"
+algo: "NPGA"
+
+env:
+  dataset: "Pakistan"
+  flag: "Tuple30K"
+  refresh_rate: 0.01
+
+training:
+  num_epochs: 30        # Number of generations for NPGA
+  pop_size: 40          # Population size for NPGA
+  mutation_rate: 0.1    # Mutation rate for Gaussian mutation
+  niche_size: 5         # Niche size for NPGA tournament selection
+
+model:
+  d_model: 64
+  n_layers: 2
+  # obs_type: ["cpu"]
+  obs_type: ["cpu", "bw", "buffer"]

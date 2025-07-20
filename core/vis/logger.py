@@ -40,6 +40,9 @@ class Logger:
         self.rows = []
         self.current_epoch = None
         self.current_mode = None
+        
+        self.best_epoch = 0
+        self.best_value = np.inf  # Initialize to positive infinity for minimization tasks.
 
     @staticmethod
     def create_log_dir(dataset, flag, policy, **params):
@@ -134,6 +137,10 @@ class Logger:
             metric (str): The metric name.
             value (float): The metric value.
         """
+        
+        if metric is None or value is None:
+            return
+        
         # Use empty string if current_epoch or current_mode is not set.
         epoch_val = self.current_epoch if self.current_epoch is not None else ""
         mode_val = self.current_mode if self.current_mode is not None else ""
@@ -164,7 +171,7 @@ class Logger:
                 writer.writeheader()
             writer.writerow(row)
 
-    def plot(self, display=False):
+    def plot(self, display=False, excluded_modes=['Testing'], excluded_metrics=[]):
         """
         Plots the logged metrics over epochs for each mode and metric. If the Epoch values
         are not numeric, the x-axis is set as the order of appearance.
@@ -179,8 +186,18 @@ class Logger:
             # If conversion fails (e.g., empty string), use the row index.
             df['Epoch_num'] = df.groupby(["Mode", "Metric"]).cumcount() + 1
         
-        modes = df['Mode'].unique()
+        modes = df['Mode'].unique() 
+        # Exclude specified modes from plotting.
+        modes = [mode for mode in modes if mode not in excluded_modes]
+        if not modes:
+            print("No modes to plot after excluding specified modes.")
+            return
         metrics = df['Metric'].unique()
+        # Exclude specified metrics from plotting.
+        metrics = [metric for metric in metrics if metric not in excluded_metrics]
+        if not metrics:
+            print("No metrics to plot after excluding specified metrics.")
+            return
         num_modes = len(modes)
         num_metrics = len(metrics)
         
@@ -224,5 +241,12 @@ class Logger:
         """
         Closes the log file.
         """
+        
+        self.log_file.write("\n====================\n")
+        self.log_file.write(f"Best Epoch: {self.best_epoch}, Best Value: {self.best_value:.4f}\n")
+        self.log_file.write("====================\n")
+        self.log_file.flush()
+        print(f"\nBest Epoch: {self.best_epoch}, Best Value: {self.best_value:.4f}\n")
+        
         if self.log_file:
             self.log_file.close()

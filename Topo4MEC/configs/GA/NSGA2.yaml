@@ -1,5 +1,4 @@
-policy: "NPGA"
-algo: "NPGA"
+policy: "NSGA2"
 
 env:
   dataset: "Pakistan"
@@ -7,10 +6,9 @@ env:
   refresh_rate: 0.01
 
 training:
-  num_epochs: 100        # Number of generations for NPGA
-  pop_size: 40          # Population size for NPGA
+  num_epochs: 30        # Number of generations for NPGA
+  pop_size: 30          # Population size for NPGA
   mutation_rate: 0.1    # Mutation rate for Gaussian mutation
-  niche_size: 5         # Niche size for NPGA tournament selection
 
 model:
   d_model: 128

@@ -1,0 +1,13 @@
+
+policy: "RoundRobin"
+algo: "DemoRoundRobin"
+
+env:
+  dataset: "Topo4MEC"
+  flag: "25N50E"
+  refresh_rate: 0.1
+
+eval:
+  lambda: [1, 0.1, 0.01]
+  expected_max_latency: 250
+  expected_max_energy: 5

@@ -3,7 +3,7 @@ class GreedyPolicy:
     """A simple greedy policy that selects the node with the minimal 
     predicted total time (transmission + computation)."""
 
-    def act(self, env, task):
+    def act(self, env, task, **kwargs):
         """
         Greedily choose the node that yields the lowest estimated total latency.
 
@@ -32,4 +32,4 @@ class GreedyPolicy:
                 best_latency = total_time
                 best_node = node_id
 
-        return best_node
+        return best_node, None

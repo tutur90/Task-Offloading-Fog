@@ -59,31 +59,36 @@ class TaskFormerPolicy:
         # Replay buffer for transitions.
         self.replay_buffer = []
 
-    def _make_observation(self, env, task):
+    def _make_observation(self, env: Env, task: Task, obs_type=["cpu", "buffer", "bw"]):
         """
         Returns a flat observation vector.
         For instance, we return the free CPU frequency for each node.
         """
-        cpu_obs = {node_name: env.scenario.get_node(node_name).free_cpu_freq 
-               for node_name in env.scenario.get_nodes()}
         
-        buffer_obs = {node_name: env.scenario.get_node(node_name).buffer_free_size()
-               for node_name in env.scenario.get_nodes()}
-        # print(env.scenario.get_links())
-        bw_obs = {link_name:env.scenario.get_link(link_name[0], link_name[1]).free_bandwidth for link_name in env.scenario.get_links()}
         
-        obs = np.zeros((len(env.scenario.get_nodes()), 4))
+        obs = np.zeros((len(env.scenario.get_nodes()), len(obs_type)))
         
         for i, node_name in enumerate(env.scenario.get_nodes()):
-            obs[env.scenario.node_name2id[node_name], 0] = cpu_obs[node_name]
-            obs[env.scenario.node_name2id[node_name], 1] = buffer_obs[node_name]
+            if "cpu" in obs_type:
+                obs[env.scenario.node_name2id[node_name], obs_type.index("cpu")] = env.scenario.get_node(node_name).free_cpu_freq 
+            if "buffer" in obs_type:
+                obs[env.scenario.node_name2id[node_name], obs_type.index("buffer")] = env.scenario.get_node(node_name).buffer_free_size()
+            if "bw" in obs_type and task is not None:
+                # Get the bandwidth for the link associated with the task
+                src_node = task.src_name
+                if node_name != src_node:
+                    obs[env.scenario.node_name2id[node_name], obs_type.index("bw")] = min(link.free_bandwidth for link in env.scenario.infrastructure.get_shortest_links(src_node, node_name))
+                else:
+                    obs[env.scenario.node_name2id[node_name], obs_type.index("bw")] = max(link.free_bandwidth for link in env.scenario.infrastructure.get_links().values())
 
-        for i, link_name in enumerate(env.scenario.get_links()):
-            
-            if link_name[0] == 'e0':
-                obs[env.scenario.node_name2id[link_name[1]], 2] = bw_obs[link_name]
-            else:
-                obs[env.scenario.node_name2id[link_name[0]], 3] = bw_obs[link_name]
+        # for i, link_name in enumerate(env.scenario.get_links()):
+        #
+        #     if link_name[0] == 'e0':
+        #         obs[env.scenario.node_name2id[link_name[1]], 2] = bw_obs[link_name]
+        #     else:
+        #         obs[env.scenario.node_name2id[link_name[0]], 3] = bw_obs[link_name]
+        
+
         
         if task is None:
             task_obs = [0, 0, 0, 0]
@@ -94,7 +99,18 @@ class TaskFormerPolicy:
                 task.trans_bit_rate,
                 task.ddl,
             ]
-        
+            # obs["bw"] = {}
+            
+            # src_node = task.src_name
+
+
+            # for node_name in env.scenario.get_nodes():
+            #     if node_name == src_node:
+            #         obs["bw"][node_name] = 0
+            #     for link in env.scenario.infrastructure.get_longest_shortest_path(src_node, dst_node):
+            #         if link[0] == node_name or link[1] == node_name:
+            #             obs["bw"][node_name] = min(env.scenario.get_node(node_name).free_bandwidth for link in env.scenario.infrastructure.get_longest_shortest_path(src_node, dst_node) if link[0] == node_name or link[1] == node_name)
+
         return obs, task_obs
 
     def act(self, env, task, train=True):
@@ -179,4 +195,17 @@ class TaskFormerPolicy:
         self.beta *= self.beta_decay
         
         return loss.item()
+    
+    def save(self, path):
+        """
+        Saves the model to the specified path.
+        """
+        torch.save(self.model.state_dict(), path)   
+
+    def load(self, path):
+        """
+        Loads the model from the specified path.
+        """
+        self.model.load_state_dict(torch.load(path))
+        self.model.eval()
 

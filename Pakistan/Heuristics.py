@@ -16,18 +16,25 @@ from core.env import Env
 from core.task import Task
 from core.vis import *
 from core.vis.vis_stats import VisStats
-from eval.benchmarks.Topo4MEC.scenario import Scenario
+from core.vis.logger import Logger
+from eval.benchmarks.Pakistan.scenario import Scenario
 from eval.metrics.metrics import SuccessRate, AvgLatency  # metric
 from policies.demo.demo_greedy import GreedyPolicy
 from policies.demo.demo_random import DemoRandom
 from policies.demo.demo_round_robin import RoundRobinPolicy
 
-from utils import create_env, error_handler, set_seed, update_metrics
-from utils import Logger, Checkpoint
-
-
 import yaml
 
+def create_env(config):
+    """
+    Creates the environment using configuration parameters.
+    """
+    flag = config["env"]["flag"]
+    # Create scenario using the provided config file.
+    scenario = Scenario(config_file=f"eval/benchmarks/Pakistan/data/{flag}/config.json", flag=flag)
+    env = Env(scenario, config_file="core/configs/env_config_null.json", verbose=False, decimal_places=3)
+    env.refresh_rate = config["env"]["refresh_rate"]
+    return env
 
 # Global statistics for different error types
 dup_task_id_error = []
@@ -47,10 +54,10 @@ def error_handler(error: Exception):
 
 def main():
     
-    config_name = "Greedy"  # Change this to the desired policy name
+    config_name = "RoundRobin"
 
-    config_path = f"Topo4MEC/configs/Heuristics/{config_name}.yaml"
-
+    config_path = f"main/configs/Heuristics/{config_name}.yaml"
+    
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
 
@@ -63,8 +70,7 @@ def main():
     
     # Load the test dataset.
     flag = config["env"]["flag"]
-    dataset = config["env"]["dataset"]
-    data = pd.read_csv(f"eval/benchmarks/{dataset}/data/{flag}/testset.csv")
+    data = pd.read_csv(f"eval/benchmarks/Pakistan/data/{flag}/testset.csv")
         # Load train and test datasets.
     # data = pd.read_csv(f"eval/benchmarks/Topo4MEC/data/25N50E/testset.csv")
 
@@ -90,8 +96,8 @@ def main():
                     task_size=task_info['TaskSize'],
                     cycles_per_bit=task_info['CyclesPerBit'],
                     trans_bit_rate=task_info['TransBitRate'],
-                    ddl=task_info['DDL'],
-                    src_name=task_info['SrcName'],
+                    ddl=task_info['DDL']/10,
+                    src_name='e0',
                     task_name=task_info['TaskName'])
 
         while True:
@@ -129,8 +135,17 @@ def main():
     print("===============================================\n")
 
 
-    # Update metrics.
-    update_metrics(logger, env, config)
+    m1 = SuccessRate()
+    r1 = m1.eval(env.logger)
+    logger.update_metric("SuccessRate", r1)
+
+    m2 = AvgLatency()
+    r2 = m2.eval(env.logger)
+    logger.update_metric("AvgLatency", r2)
+    
+    # avg energy per
+    logger.update_metric("AvgPower", env.avg_node_power())
+    env.close()
     
     # Stats Visualization
     vis = VisStats(logger.log_dir)

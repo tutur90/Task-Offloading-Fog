@@ -10,8 +10,6 @@ class SuccessRate(object):
     """
     def __init__(self) -> None:
         pass
-    
-    
 
     def eval(self, logger) -> float:
         
@@ -22,7 +20,7 @@ class SuccessRate(object):
         for _, val in info.items():
             if val[0] == 0:
                 n += 1
-        return n / m
+        return (1 - n / m) if m > 0 else 0.0
 
 
 class AvgLatency(object):
@@ -47,11 +45,11 @@ class AvgLatency(object):
             if val[statue_code_idx] == 0:
                 task_trans_time, task_wait_time, task_exe_time = val[time_list_idx][0], val[time_list_idx][1], val[time_list_idx][2]
                 latencies.append(task_wait_time + task_exe_time + task_trans_time)
-  
-        if len(latencies) == 0:
+
+        if len(info) == 0:
             return eps
 
-        return sum(latencies) / len(latencies)
+        return sum(latencies) / len(info)
 
 
 class AvgEnergy(object):

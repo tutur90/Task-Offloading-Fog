@@ -76,7 +76,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
                     cycles_per_bit=task_info['CyclesPerBit'],
                     trans_bit_rate=task_info['TransBitRate'],
                     ddl=task_info['DDL'] ,
-                    src_name=task_info['SrcName'] if 'SrcName' in task_info else 'e0',
+                    src_name=task_info['SrcName'],
                     task_name=task_info['TaskName'])
 
         # Wait until the simulation reaches the task's generation time.
@@ -187,8 +187,9 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
 
         score = update_metrics(logger, env, config)
         
-        if logger.is_best(score[3], epoch):
-            checkpoint.save(policy, epoch)
+        if logger.is_best(score[3]):
+            logger.save_best(score[3], epoch)
+            checkpoint.save(policy, logger.best_epoch)
 
         env.close()
 
@@ -207,15 +208,13 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
 
 def main():
     
-    
-    
     # config_name = "MLP"
     # config_name = "MLP"  # or "TaskFormer"
     # config_name = "Heuristics/Greedy"  # or "Random", "RoundRobin"
     # config_name = "DQRL/TaskFormer-S"  # or "DQRL/MLP", "DQRL/Greedy", "DQRL/Random", "DQRL/RoundRobin"
     config_name = "DQRL/MLP"  # or "MLP", "Greedy", "Random", "RoundRobin"
 
-    config_path = f"main/configs/Pakistan/{config_name}.yaml"
+    config_path = f"Topo4MEC/configs/{config_name}.yaml"
 
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
@@ -259,8 +258,8 @@ def main():
     else:
         raise ValueError("Invalid policy name.")
 
-    max_total_time = config.get("eval", {}).get("expected_max_time", 0)
-    max_total_energy = config.get("eval", {}).get("expected_max_energy", 0)
+    max_total_time = config["eval"].get("expected_max_latency", 0)
+    max_total_energy = config["eval"].get("expected_max_energy", 0)
 
     if "training" in config.keys():
         max_total_energy, max_total_time = train(config, policy, train_data, valid_data, logger, checkpoint, max_total_energy, max_total_time)
@@ -280,13 +279,11 @@ def main():
     logger.plot()
     logger.save_csv()
     
-
+    vis_stats = VisStats(save_path=logger.log_dir)
+    vis_stats.vis(env)
     
     logger.close()
     env.close()
-    
-    vis_stats = VisStats(save_path=logger.log_dir)
-    vis_stats.vis(env)
 
 
 if __name__ == '__main__':

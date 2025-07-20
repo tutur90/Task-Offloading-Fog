@@ -155,7 +155,28 @@ class VisStats:
         f.savefig(os.path.join(self.save_path, 'power_consumption_per_node.png'))
         plt.close(f)
         
+        energy_melt = energy[['Node Name', 'Clock', 'Trans Energy', 'Exe Energy', 'Idle Energy', 'Energy']].melt(
+            id_vars=['Node Name', 'Clock'], var_name='Energy Type', value_name='Total')
+        energy_melt['Power'] = energy_melt['Total'] / energy_melt['Clock']
+        
+        for node_name in energy_melt['Node Name'].unique():
+
+            energy_melt[energy_melt['Node Name'] == node_name][ "Power"] = energy_melt[energy_melt['Node Name'] == node_name].loc[:, "Power"] / (self.task_info['Destination'] == node_name).sum()
+
+        f, ax = plt.subplots(figsize=(10, 6))
+        sns.barplot(data=energy_melt, x='Node Name', y='Power', hue='Energy Type', ax=ax)
+        ax.set_title('Power Consumption per Node')
+        ax.set_ylabel('Power (Energy / Clock)')
+        plt.xticks(rotation=45, fontsize=10)
+        plt.tight_layout()
+        if self.display_numbers:
+            annotate_bars(ax, fmt="{:.1f}")
+        f.savefig(os.path.join(self.save_path, 'power_consumption_per_node_per_task.png'))
+        plt.close(f)
+        
         # 6. Bar chart: CPU frequency per node (overlay style).
+        
+        self.node_info = self.node_info.sort_values(by='Node Name')
         f, ax = plt.subplots(figsize=(10, 6))
         plt.xticks(rotation=45, fontsize=10)
         # Normalize CPU frequency by clock.
@@ -173,6 +194,7 @@ class VisStats:
 
         # 7. Bar chart: Percent CPU frequency per node.
         self.node_info['Percent CPU Freq'] = (self.node_info['CPU Freq'] / self.node_info['Max CPU Freq']) * 100
+        
         f, ax = plt.subplots(figsize=(10, 6))
         sns.barplot(data=self.node_info, x='Node Name', y='Percent CPU Freq', ax=ax)
         ax.set_title('Percent CPU Frequency per Node')
