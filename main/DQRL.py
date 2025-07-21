@@ -213,6 +213,7 @@ def main():
     # config_name = "MLP"  # or "TaskFormer"
     # config_name = "Heuristics/Greedy"  # or "Random", "RoundRobin"
     # config_name = "DQRL/TaskFormer-S"  # or "DQRL/MLP", "DQRL/Greedy", "DQRL/Random", "DQRL/RoundRobin"
+    # config_name = "DQRL/NodeFormer-S"  # or "NodeFormer/MLP", "NodeFormer/Greedy", "NodeFormer/Random", "NodeFormer/RoundRobin"
     config_name = "DQRL/MLP"  # or "MLP", "Greedy", "Random", "RoundRobin"
 
     config_path = f"main/configs/Pakistan/{config_name}.yaml"

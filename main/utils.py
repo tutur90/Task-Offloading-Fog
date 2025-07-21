@@ -96,13 +96,26 @@ class Env(BaseEnv):
         self.refresh_rate = refresh_rate
         
 def set_seed(seed):
-    """Set the random seed for reproducibility."""
-
+    """Set the random seed for reproducibility across all libraries."""
+    # Set Python's random module seed
     random.seed(seed)
+    
+    # Set NumPy seed
     np.random.seed(seed)
+    
+    # Set PyTorch seed
     torch.manual_seed(seed)
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    
+    # Set CUDA seed if available
     if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    
+    # Set Python hash seed
+    os.environ['PYTHONHASHSEED'] = str(seed)
         
 # Set a random seed for reproducibility.
 

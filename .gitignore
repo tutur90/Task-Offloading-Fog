@@ -1,8 +1,7 @@
 .idea/
 __pycache__/
 backup/
-log/
-logs/
+log*/
 .venv/
 test.py
 
