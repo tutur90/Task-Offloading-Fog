@@ -53,6 +53,11 @@ def create_env(config):
     scenario = Scenario(config_file=f"eval/benchmarks/{dataset}/data/{flag}/config.json", 
                         dataset=dataset, flag=flag)
     env = Env(scenario, config_file="core/configs/env_config_null.json", verbose=False, refresh_rate=config["env"].get("refresh_rate", 1))
+
+    if "eval" in config and "expected_max_latency" in config["eval"]:
+        env.max_total_time = config["eval"]["expected_max_latency"]
+    if "eval" in config and "expected_max_energy" in config["eval"]:
+        env.max_total_energy = config["eval"]["expected_max_energy"]
     return env
 
 def error_handler(error: Exception):
@@ -119,21 +124,36 @@ def set_seed(seed):
         
 # Set a random seed for reproducibility.
 
-def update_metrics(logger: Logger, env: Env, config: dict):
+def get_metrics(env: Env, config: dict):
+    """
+    Get the metrics from the environment.
+    
+    :param env: The environment instance.
+    :param config: The configuration dictionary.
+    :return: A tuple containing success rate, average latency, and average power.
+    """
     m1 = SuccessRate()
     m2 = AvgLatency()
+    
     ttr = m1.eval(env.logger)
     avg_latency = m2.eval(env.logger)
     avg_power = env.avg_node_power()  # Convert to mW
     
     if "eval" in config and "lambda" in config["eval"]:
-
-        score = (ttr * config["eval"]["lambda"][0] + avg_latency / env.max_total_time * config["eval"]["lambda"][1] + avg_power / env.max_total_energy * config["eval"]["lambda"][2]) * 100
-        logger.update_metric("score", score)
-
+        score = (ttr * config["eval"]["lambda"][0] + 
+                 avg_latency / env.max_total_time * config["eval"]["lambda"][1] + 
+                 avg_power / env.max_total_energy * config["eval"]["lambda"][2]) * 100
+        return ttr, avg_latency, avg_power, score
     else:
-        print(config)
-        score = None
+
+        return ttr, avg_latency, avg_power, None
+
+def update_metrics(logger: Logger, env: Env, config: dict, metrics=None):
+
+    if metrics is None:
+        ttr, avg_latency, avg_power, score = get_metrics(env, config)
+    else:
+        ttr, avg_latency, avg_power, score = metrics
 
     logger.update_metric('TaskThrowRate', ttr *100)
     logger.update_metric('AvgLatency', avg_latency/(1-ttr) if ttr < 1 else np.inf)  # Avoid division by zero

@@ -3,15 +3,21 @@ policy: "NSGA2"
 env:
   dataset: "Pakistan"
   flag: "Tuple30K"
-  refresh_rate: 0.01
+  refresh_rate: 0.005
+
+eval:
+  lambda: [1, 0.1, 0.02]
+  expected_max_latency: 210
+  expected_max_energy: 800
+
 
 training:
-  num_epochs: 30        # Number of generations for NPGA
-  pop_size: 30          # Population size for NPGA
-  mutation_rate: 0.1    # Mutation rate for Gaussian mutation
+  num_epochs: 100        # Number of generations for NPGA
+  pop_size: 45          # Population size for NPGA
+  mutation_rate: 0.4    # Mutation rate for Gaussian mutation
 
 model:
-  d_model: 128
-  n_layers: 3
+  d_model: 64
+  n_layers: 2
   # obs_type: ["cpu"]
   obs_type: ["cpu", "bw", "buffer"]

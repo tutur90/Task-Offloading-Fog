@@ -110,19 +110,6 @@ class NPGAPolicy:
         """
         return [Individual(weights, self.obs_type.copy()) for weights in self.population.copy()]
     
-    def best_individual(self, fitness):
-        """
-        Select a single best individual using a weighted scalarization.
-        Assumes fitness is provided as tuples (success_rate, avg_latency, avg_power)
-        where higher success_rate is better and lower latency/power are better.
-        (If using minimization in NPGA, convert success rate by taking its negative.)
-        """
-        lambda_param = self.config["training"].get("latency_weight", 0.0001)
-        mu_param = self.config["training"].get("power_weight", 0.00001)
-        # Here we assume success rate is maximized; if converted to minimization, adjust accordingly.
-        scores = [sr - lambda_param * l - mu_param * e for (sr, l, e) in fitness]
-        best_idx = np.argmax(scores)
-        return fitness[best_idx]
     
     # ---------------------------
     # NPGA Helper Functions
@@ -201,7 +188,7 @@ class NPGAPolicy:
         Parameters:
           fitness: List of objective tuples for the current population.
                    (If objectives include success rate to be maximized, convert it here to minimization.)
-                   For example, use: ( -success_rate, avg_latency, avg_power )
+                   For example, use: ( ttr, avg_latency, avg_power )
         
         The procedure:
           1. Use NPGA tournament selection (with a niche) to choose parents.

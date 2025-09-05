@@ -8,20 +8,21 @@ env:
   refresh_rate: 0.005
 
 eval:
-  lambda: [1, 0.1, 0.01]
+  lambda: [1, 0.1, 0.1]
   expected_max_latency: 210
   expected_max_energy: 800
+
+
 training:
-  num_epochs: 20
-  batch_size: 256
-  lr: 0.002
+  num_epochs: 10
+  batch_size: 128
+  lr: 0.005
   lr_decay: 0.95
-  gamma: 0.2
+  gamma: 0.1
   epsilon: 0.2
   epsilon_decay: 0.6
-  beta: 0.5
-  beta_decay: 0.6
   reward_scale: 1
+  lambda: [1, 0.1, 0.02]
 
 
 model:

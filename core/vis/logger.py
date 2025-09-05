@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import csv
 
+
 class Logger:
     """
     Logger creates a unique log directory and writes log messages immediately to a log.txt file.
@@ -63,18 +64,11 @@ class Logger:
         if not os.path.exists(base_dir):
             os.makedirs(base_dir)
             
-        params_str = ""
-        j = 0
-        for key, value in params.items():
-            params_str += f"{key}_{value}_"
-            j += 1
-            if j > 2:
-                break
-        index = 0
-        log_dir = os.path.join(base_dir, f"{params_str}{index}")
-        while os.path.exists(log_dir):
-            index += 1
-            log_dir = os.path.join(base_dir, f"{params_str}{index}")
+        # Create a human-readable date-time format for unique directory naming
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        log_dir = os.path.join(base_dir, timestamp)
+
         os.makedirs(log_dir, exist_ok=True)
         return log_dir
 

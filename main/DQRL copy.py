@@ -141,9 +141,8 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
                 pbar.set_postfix({"SR": f"{r1:.3f}", "L": f"{r2:.3f}", "E": f"{e:.3f}"})
                 policy.update()
                 number_in_batch = np.random.randint(config["training"]["batch_size"]//2, config["training"]["batch_size"])
-                # print(f"Policy updated at task {i}, next update in {number_in_batch} tasks.")
                 
-    policy.update()
+
 
     # Continue simulation until all tasks are processed.
     while env.task_count < launched_task_cnt:
@@ -212,10 +211,10 @@ def main():
     
     # config_name = "MLP"
     # config_name = "MLP"  # or "TaskFormer"
-    config_name = "Heuristics/Greedy"  # or "Random", "RoundRobin"
+    # config_name = "Heuristics/Greedy"  # or "Random", "RoundRobin"
     config_name = "DQRL/TaskFormer-S" 
-    # config_name = "DQRL/NodeFormer-S"
-    # config_name = "DQRL/MLP" 
+    # config_name = "DQRL/NodeFormer-S"  # or "NodeFormer/MLP", "NodeFormer/Greedy", "NodeFormer/Random", "NodeFormer/RoundRobin"
+    config_name = "DQRL/MLP" 
 
     config_path = f"main/configs/Pakistan/{config_name}.yaml"
 

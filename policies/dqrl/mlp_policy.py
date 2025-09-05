@@ -40,9 +40,9 @@ class MLPPolicy:
 
         # Build the neural network model.
         self.model = nn.Sequential(
-            nn.Linear(self.n_observations, hidden_size),
+            nn.Linear(self.n_observations, hidden_size, bias=config["model"].get("bias", True)),
             nn.ReLU(),
-            *[nn.Linear(hidden_size, hidden_size), nn.ReLU()] * (n_layers - 2),
+            *[nn.Linear(hidden_size, hidden_size, bias=config["model"].get("bias", True)), nn.ReLU()] * (n_layers - 2),
             nn.Linear(hidden_size, self.num_actions),
         ).to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)

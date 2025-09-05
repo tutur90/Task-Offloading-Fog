@@ -6,6 +6,8 @@ import os
 import sys
 from multiprocessing import Pool, cpu_count
 
+import torch
+
 current_file_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_file_path)
 parent_dir = os.path.dirname(current_dir)
@@ -28,6 +30,8 @@ from policies.npga.nsga_policy import NSGA2Policy
 import numpy as np
 import matplotlib.pyplot as plt
 
+from utils import create_env, get_metrics, update_metrics
+
 def error_handler(error: Exception):
     """Customized error handler for different types of errors."""
     errors = ['DuplicateTaskIdError', 'NetworkXNoPathError', 'IsolatedWirelessNode', 'NetCongestionError', 'InsufficientBufferError']
@@ -37,13 +41,6 @@ def error_handler(error: Exception):
     else:
         raise
 
-def select_best_individual(fitness, lambda_=(1, 0.001, 0.00001)):
-    """
-    Select the best individual based on the fitness values.
-    """
-    scores = [lambda_[0]*f[0] + lambda_[1]*f[1] + lambda_[2]*f[2] for f in fitness]
-    best_idx = np.argmax(scores)
-    return best_idx
 
 def evaluate_individual(args):
     """
@@ -54,6 +51,7 @@ def evaluate_individual(args):
     
     policy, data, config = args
     env = create_env(config)
+    
     
     until = 0
     launched_task_cnt = 0
@@ -95,34 +93,25 @@ def evaluate_individual(args):
         except Exception as e:
             pass
             
-    success_rate = m1.eval(env.logger)
-    avg_latency = m2.eval(env.logger) / (success_rate + 1e-6)
-    avg_power = env.avg_node_power() / (success_rate + 1e-6)
+    ttr, latency, energy, score = get_metrics(env, config)
     
-    return success_rate, avg_latency, avg_power
+    return ttr, latency, energy, score
 
 def run_epoch(config, policy, data: pd.DataFrame, train=True):
-    pool = Pool(processes=cpu_count())
-    args = [(ind, data, config) for ind in policy.individuals()]
-    fitness = pool.map(evaluate_individual, args)
+    with Pool(processes=cpu_count()-1) as pool:
+        args = [(ind, data, config) for ind in policy.individuals()]
+        fitness = pool.map(evaluate_individual, args)
+        
+    fitness = np.array(fitness)
+    
     pool.close()
-    pool.join()
-    
+    pool.join()    
     if train:
-        policy.update(fitness)
-    
-    # Transform fitness if needed (e.g. weight latency and power by success_rate)
-    fitness = [[f[0], f[1]*f[0], f[2]*f[0]] for f in fitness]
+        policy.update(fitness[:, :3])
+
     return fitness
 
-def create_env(config):
-    """Create and return an environment instance."""
-    dataset = config["env"]["dataset"]
-    flag = config["env"]["flag"]
-    scenario = Scenario(config_file=f"eval/benchmarks/{dataset}/data/{flag}/config.json", flag=flag)
-    env = Env(scenario, config_file="core/configs/env_config_null.json", verbose=False)
-    env.refresh_rate = config['env']['refresh_rate']
-    return env
+
 
 def pareto(points, maximize=(True, True)):
     """
@@ -147,8 +136,8 @@ def pareto(points, maximize=(True, True)):
 def plot_pareto(fitness, log_dir, epoch=None):
     """
     Plot Pareto frontiers for:
-     - Success Rate vs. Latency (maximize success rate, minimize latency)
-     - Success Rate vs. Energy (maximize success rate, minimize energy)
+     - Task Throw Rate vs. Latency (maximize Task Throw Rate, minimize latency)
+     - Task Throw Rate vs. Energy (maximize Task Throw Rate, minimize energy)
      - Latency vs. Energy (minimize both)
     
     If 'epoch' is provided, the plot is saved as 'pareto_frontiers_epoch_{epoch}.png'
@@ -162,32 +151,32 @@ def plot_pareto(fitness, log_dir, epoch=None):
     
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     
-    # Success Rate vs. Latency.
+    # Task Throw Rate vs. Latency.
     ax = axes[0]
     ax.scatter(latency, success_rate, color='blue', label='Individuals')
     points = np.array(list(zip(success_rate, latency)))
-    mask = pareto(points, maximize=(True, False))
+    mask = pareto(points, maximize=(False, False))
     pareto_points = points[mask]
     idx_sort = np.argsort(pareto_points[:, 1])
     pareto_points = pareto_points[idx_sort]
     ax.plot(pareto_points[:, 1], pareto_points[:, 0], color='red', marker='o', label='Pareto Frontier')
     ax.set_xlabel('Latency')
-    ax.set_ylabel('Success Rate')
-    ax.set_title('Success Rate vs. Latency')
+    ax.set_ylabel('Task Throw Rate')
+    ax.set_title('Task Throw Rate vs. Latency')
     ax.legend()
     
-    # Success Rate vs. Energy.
+    # Task Throw Rate vs. Energy.
     ax = axes[1]
     ax.scatter(energy, success_rate, color='blue', label='Individuals')
     points = np.array(list(zip(success_rate, energy)))
-    mask = pareto(points, maximize=(True, False))
+    mask = pareto(points, maximize=(False, False))
     pareto_points = points[mask]
     idx_sort = np.argsort(pareto_points[:, 1])
     pareto_points = pareto_points[idx_sort]
     ax.plot(pareto_points[:, 1], pareto_points[:, 0], color='red', marker='o', label='Pareto Frontier')
     ax.set_xlabel('Energy')
-    ax.set_ylabel('Success Rate')
-    ax.set_title('Success Rate vs. Energy')
+    ax.set_ylabel('Task Throw Rate')
+    ax.set_title('Task Throw Rate vs. Energy')
     ax.legend()
     
     # Latency vs. Energy.
@@ -218,7 +207,7 @@ def plot_pareto(fitness, log_dir, epoch=None):
     print(f"Pareto frontier plot saved to {save_path}")
 
 def main():
-    config_path = "main/configs/GA/NPGA.yaml"
+    config_path = "main/configs/Pakistan/GA/NSGA2.yaml"
     
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
@@ -226,14 +215,32 @@ def main():
     logger = Logger(config)
     env = create_env(config)
     
+    valid_size = config["training"].get("valid_size", 0.2)
+    
     # Load train and test datasets.
-    train_data = pd.read_csv(f"eval/benchmarks/Pakistan/data/{config['env']['flag']}/trainset.csv")
-    test_data = pd.read_csv(f"eval/benchmarks/Pakistan/data/{config['env']['flag']}/testset.csv")
+    train_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/trainset.csv")
+    train_data, valid_data = train_data.iloc[:int(len(train_data)*(1-valid_size))], train_data.iloc[int(len(train_data)*(1-valid_size)):]
+    valid_data["GenerationTime"] = valid_data["GenerationTime"] - valid_data["GenerationTime"].min()
+    
+    test_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/testset.csv") 
 
     if config["policy"] == "NPGA":
         policy = NPGAPolicy(env, config)
     if config["policy"] == "NSGA2":
         policy = NSGA2Policy(env, config)
+        
+    best_score = np.inf
+    best_epoch = 0
+    best_individual = None
+    
+    # print(policy.population[0])
+    
+    # print(torch.load(
+        
+    #     "/home/arthur/Documents/Cours/3A/ResearchProject/Task-Offloading-Fog/logs.old2/Pakistan/Tuple30K/MLP/num_epochs_15_batch_size_256_lr_0.005_10/DQRL/checkpoints/checkpoint_epoch_8.pt"
+    # )
+    #       )
+    
     
     # Training and testing loop.
     for epoch in range(config["training"]["num_epochs"]):
@@ -242,38 +249,55 @@ def main():
         # Training phase.
         logger.update_mode('Training')
         tr_fitness = run_epoch(config, policy, train_data, train=True)
-        SR, L, E = tr_fitness[select_best_individual(tr_fitness)]
-        logger.update_metric('SuccessRate', SR)
-        logger.update_metric('AvgLatency', L)
-        logger.update_metric("AvgPower", E)
+        SR, L, E, score = tr_fitness[np.argmin(np.array(tr_fitness)[:, 3])]
+        update_metrics(logger, env, config, metrics=(SR, L, E, score))
+
         
-        # Testing phase.
-        logger.update_mode('Testing')
-        fitness = run_epoch(config, policy, test_data, train=False)
-        SR, L, E = fitness[select_best_individual(fitness)]
-        logger.update_metric('SuccessRate', SR)
-        logger.update_metric('AvgLatency', L)
-        logger.update_metric("AvgPower", E)
+
+        # Validation phase.
+        logger.update_mode('Validation')
+        fitness = run_epoch(config, policy, valid_data, train=False)
+        best_epoch_individual = np.argmin(np.array(fitness)[:, 3])
+        SR, L, E, score = fitness[best_epoch_individual]
+        update_metrics(logger, env, config, metrics=(SR, L, E, score))
         env.close()
+
+
+
+        if score < best_score:
+            best_score = score
+            best_epoch = epoch
+
+            best_individual = policy.individuals()[best_epoch_individual]
+
+        
         
         # Plot Pareto for this epoch.
         plot_pareto(fitness, logger.log_dir, epoch=epoch)
+        
+    # Load the best individual.
     
+    print(f"Best individual found at epoch {best_epoch} with score {best_score}")
+    
+    policy.population = [best_individual]
+    policy.individuals = lambda: [best_individual]
+    
+        
+    ## Final evaluation on test data.
+    logger.update_mode('Testing')
+    fitness = run_epoch(config, policy, test_data, train=False)
+    SR, L, E, score = fitness[np.argmin(np.array(fitness)[:, 3])]
+    update_metrics(logger, env, config, metrics=(SR, L, E, score))
+
     logger.plot()
     logger.save_csv()
     
     vis_stats = VisStats(save_path=logger.log_dir)
     vis_stats.vis(env)
     
-    # Final evaluation on test data.
-    pool = Pool(processes=cpu_count())
-    args = [(ind, test_data, config) for ind in policy.individuals()]
-    final_fitness = pool.map(evaluate_individual, args)
-    pool.close()
-    pool.join()
-    
+
     # Plot final Pareto frontiers.
-    plot_pareto(final_fitness, logger.log_dir)
+    plot_pareto(fitness, logger.log_dir)
     
     logger.close()
     env.close()
