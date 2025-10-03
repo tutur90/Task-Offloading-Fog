@@ -137,13 +137,14 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
             if number_in_batch < 1:
                 r1 = m1.eval(env.logger) * 100  # Convert to percentage
                 r2 = m2.eval(env.logger)
-                e = env.avg_node_power() * 1000
+                e = env.avg_node_power()
                 pbar.set_postfix({"SR": f"{r1:.3f}", "L": f"{r2:.3f}", "E": f"{e:.3f}"})
                 policy.update()
                 number_in_batch = np.random.randint(config["training"]["batch_size"]//2, config["training"]["batch_size"])
                 # print(f"Policy updated at task {i}, next update in {number_in_batch} tasks.")
                 
-    policy.update()
+    if train and stored_transitions:
+        policy.update()
 
     # Continue simulation until all tasks are processed.
     while env.task_count < launched_task_cnt:
@@ -213,7 +214,8 @@ def main():
     # config_name = "MLP"
     # config_name = "MLP"  # or "TaskFormer"
     config_name = "Heuristics/Greedy"  # or "Random", "RoundRobin"
-    config_name = "DQRL/TaskFormer-S" 
+    config_name = "DQRL/NOTE-S"
+    # config_name = "DQRL/TaskFormer-S" 
     # config_name = "DQRL/NodeFormer-S"
     # config_name = "DQRL/MLP" 
 

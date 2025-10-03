@@ -24,7 +24,7 @@ training:
     beta: 0.5
     beta_decay: 0.6
     reward_scale: 1
-    lambda: [1, 0.1, 0.05]
+    lambda: [1, 0.1, 0.08]
 model:
     d_model: 64
     n_layers: 6
