@@ -1,6 +1,6 @@
 
 policy: "RoundRobin"
-algo: "DemoRoundRobin"
+algo: "RoundRobin"
 
 env:
   dataset: "Pakistan"

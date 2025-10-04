@@ -11,4 +11,4 @@ class RoundRobinPolicy(BasePolicy):
         Selects the next node in a round-robin fashion.
         """
         self.idx = (self.idx + 1) % len(env.scenario.get_nodes())
-        return self.idx
+        return self.idx, None

@@ -1,5 +1,5 @@
 
-policy: "TaskFormer-S"
+policy: "T-NOTE"
 algo: "TaskFormer"
 
 env:

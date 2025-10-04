@@ -25,3 +25,18 @@ conda activate raycloudsim
 pip install -r requirements.txt
 ```
 
+
+## Usage
+
+To run the simulation, navigate to the `main` directory and execute the `main.py` script. You can modify the configuration parameters directly in the script or through a configuration file.
+
+```bash
+cd main
+python main.py
+```
+
+## Configuration
+
+The simulation can be configured through the `config` dictionary in the `main.py` file. Key parameters include:
+
+

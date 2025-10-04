@@ -1,6 +1,6 @@
 
 policy: "Random"
-algo: "DemoRandom"
+algo: "Random"
 
 env:
   dataset: "Pakistan"

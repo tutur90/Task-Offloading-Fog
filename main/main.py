@@ -205,16 +205,23 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
 
     return max_total_energy, max_total_time
 
-
+def parse_args():
+    import argparse
+    parser = argparse.ArgumentParser(description="Run DQRL Policy")
+    parser.add_argument('--config', type=str, default='configs/DQRL/MLP.yaml', help='Path to the config file.')
+    args = parser.parse_args()
+    return args
 
 def main():
     
+    args = parse_args()
     
     
     # config_name = "MLP"
     # config_name = "MLP"  # or "TaskFormer"
     config_name = "Heuristics/Greedy"  # or "Random", "RoundRobin"
-    config_name = "DQRL/NOTE-S"
+    config_name = "Heuristics/RoundRobin"
+    # config_name = "DQRL/NOTE-S"
     # config_name = "DQRL/TaskFormer-S" 
     # config_name = "DQRL/NodeFormer-S"
     # config_name = "DQRL/MLP" 
