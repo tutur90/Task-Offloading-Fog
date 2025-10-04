@@ -1,9 +1,0 @@
-
-policy: "Greedy"
-algo: "Greedy"
-
-env:
-  dataset: "Pakistan"
-  flag: "Tuple30K"
-  refresh_rate: 0.005
-

@@ -1,9 +1,0 @@
-
-policy: "Random"
-algo: "DemoRandom"
-
-env:
-  dataset: "Topo4MEC"
-  flag: "25N50E"
-  refresh_rate: 0.1
-  

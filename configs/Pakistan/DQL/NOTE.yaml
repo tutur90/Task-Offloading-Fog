@@ -1,0 +1,37 @@
+
+policy: "NOTE"
+algo: "TaskFormer"
+
+env:
+  dataset: "Pakistan"
+  flag: "Tuple30K"
+  refresh_rate: 0.005
+
+eval:
+  lambda: [1, 0.1, 0.02]
+  expected_max_latency: 210
+  expected_max_energy: 800
+
+
+training:
+  num_epochs: 20
+  batch_size: 1024
+  lr: 0.02
+  lr_decay: 0.95
+  gamma: 0.2
+  epsilon: 0.2
+  epsilon_decay: 0.8
+  beta: 0.5
+  beta_decay: 0.6
+  reward_scale: 1
+  lambda: [1, 0.1, 0.05]
+model:
+  d_model: 64
+  n_layers: 6
+  n_heads: 4
+  mlp_ratio: 4
+  dropout: 0.2
+  mode: node
+
+
+    
