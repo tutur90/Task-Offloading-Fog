@@ -46,7 +46,7 @@ class AvgLatency(object):
                 task_trans_time, task_wait_time, task_exe_time = val[time_list_idx][0], val[time_list_idx][1], val[time_list_idx][2]
                 latencies.append(task_wait_time + task_exe_time + task_trans_time)
 
-        if len(info) == 0:
+        if len(latencies) == 0:
             return eps
 
         return sum(latencies) / len(info)
@@ -72,6 +72,8 @@ class AvgEnergy(object):
 
             task_trans_energy, task_exe_energy = val[energy_list_idx][0], val[energy_list_idx][1]
             energy.append(task_trans_energy + task_exe_energy)
+            
+            print(task_trans_energy)
   
         if len(energy) == 0:
             return eps

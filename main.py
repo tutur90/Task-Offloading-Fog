@@ -13,6 +13,7 @@ current_dir = os.path.dirname(current_file_path)
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
+from networkx import config
 import pandas as pd
 from tqdm import tqdm
 import yaml
@@ -37,8 +38,8 @@ from utils.utils import Logger, Checkpoint
 
 
 
-def run_epoch(config, policy, data: pd.DataFrame, train=True, lambda_=(1, 1, 1
-                                                                       ), max_total_time=0, max_total_energy=0,
+def run_epoch(config, policy, data: pd.DataFrame, train=True, 
+              lambda_=(1, 1, 1), max_total_time=0, max_total_energy=0,
               ):
     """
     Run one simulation epoch over the provided task data.
@@ -174,9 +175,7 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
         max_total_energy = env.max_total_energy
 
         env.close()
-        
 
-        
         # Validation phase.
 
         logger.update_mode('Validation')
@@ -203,28 +202,21 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
             for param_group in policy.optimizer.param_groups:
                 param_group['lr'] *= config["training"]["lr_decay"]
 
-    return max_total_energy, max_total_time
+    return max_total_energy, max_total_time, score
 
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description="Run DQRL Policy")
     parser.add_argument('--config', type=str, default='configs/DQRL/MLP.yaml', help='Path to the config file.')
+    parser.add_argument('--grid_search', action='store_true', help='Enable grid search mode.')
     args = parser.parse_args()
     return args
 
-def main():
-    
-    args = parse_args()
-    config_path = args.config
-
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
+def main(config):
 
     set_seed(config.get("seed", 42))
 
     logger = Logger(config)
-
-
 
     env = create_env(config)
     
@@ -239,6 +231,12 @@ def main():
         train_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/trainset.csv")
         train_data, valid_data = train_data.iloc[:int(len(train_data)*(1-valid_size))], train_data.iloc[int(len(train_data)*(1-valid_size)):]
         valid_data["GenerationTime"] = valid_data["GenerationTime"] - valid_data["GenerationTime"].min()  # Normalize generation time
+        
+        config["training"]["lambda"] = (config["training"]["lambda"][0]/sum(config["training"]["lambda"]),
+                                        config["training"]["lambda"][1]/sum(config["training"]["lambda"]),
+                                        config["training"]["lambda"][2]/sum(config["training"]["lambda"]))
+        
+        print(f"Normalized training lambda values: {config["training"]["lambda"][0]:.3f}, {config["training"]["lambda"][1]:.3f}, {config["training"]["lambda"][2]:.3f}")
         
     test_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/testset.csv")
     
@@ -264,10 +262,12 @@ def main():
 
 
     if "training" in config.keys():
-        max_total_energy, max_total_time = train(config, policy, train_data, valid_data, logger, checkpoint, max_total_energy, max_total_time)
+        max_total_energy, max_total_time, val_metrics = train(config, policy, train_data, valid_data, logger, checkpoint, max_total_energy, max_total_time)
         checkpoint.load(policy, logger.best_epoch)
         
     print(f"Max total energy: {max_total_energy}, Max total time: {max_total_time}")
+    
+    # Testing phase.
 
     logger.update_mode('Testing')
     env = run_epoch(config, policy, test_data, train=False)
@@ -275,7 +275,7 @@ def main():
     env.max_total_energy = max_total_energy
     env.max_total_time = max_total_time
     
-    update_metrics(logger, env, config)
+    test_metrics = update_metrics(logger, env, config)
 
 
     logger.plot()
@@ -288,7 +288,104 @@ def main():
     
     vis_stats = VisStats(save_path=logger.log_dir)
     vis_stats.vis(env)
+    
+    return val_metrics, test_metrics
 
+def generate_probability_grid(n_steps=11):
+    """Generate grid of [l0, l1, l2] where l0 + l1 + l2 = 1"""
+    grid = []
+    step = 1.0 / (n_steps - 1)
+    
+    for i in range(n_steps):
+        l0 = i * step
+        for j in range(n_steps - i):
+            l1 = j * step
+            l2 = 1.0 - l0 - l1
+            if l2 >= -1e-10:  # Handle floating point precision
+                grid.append([l0, l1, max(0, l2)])
+    
+    return np.array(grid)
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_probability_grid(grid, values=None, title='Probability Grid', figsize=(12, 5)):
+    """
+    Plot probability grid in 3D and ternary projection
+    
+    Args:
+        grid: Nx3 array where each row sums to 1
+        values: Optional Nx1 array for color mapping
+        title: Plot title
+        figsize: Figure size
+    """
+    if values is None:
+        values = np.arange(len(grid))
+    
+    fig = plt.figure(figsize=figsize)
+    
+    # 3D scatter
+    ax1 = fig.add_subplot(121, projection='3d')
+    scatter1 = ax1.scatter(grid[:, 0], grid[:, 1], grid[:, 2], 
+                           c=values, cmap='viridis', s=30)
+    ax1.set_xlabel('l0')
+    ax1.set_ylabel('l1')
+    ax1.set_zlabel('l2')
+    ax1.set_title(f'{title} - 3D Simplex')
+    plt.colorbar(scatter1, ax=ax1, shrink=0.5)
+    
+    # Ternary plot
+    ax2 = fig.add_subplot(122)
+    x = 0.5 * (2 * grid[:, 1] + grid[:, 2])
+    y = (np.sqrt(3) / 2) * grid[:, 2]
+    scatter2 = ax2.scatter(x, y, c=values, cmap='viridis', s=30)
+    ax2.plot([0, 1, 0.5, 0], [0, 0, np.sqrt(3)/2, 0], 'k-', linewidth=2)
+    ax2.set_aspect('equal')
+    ax2.set_title(f'{title} - Ternary')
+    ax2.text(-0.1, -0.05, 'l0', fontsize=12, fontweight='bold')
+    ax2.text(1.05, -0.05, 'l1', fontsize=12, fontweight='bold')
+    ax2.text(0.5, np.sqrt(3)/2 + 0.05, 'l2', fontsize=12, fontweight='bold')
+    ax2.axis('off')
+    plt.colorbar(scatter2, ax=ax2, shrink=0.8)
+    
+    plt.tight_layout()
+    return fig, (ax1, ax2)
 
 if __name__ == '__main__':
-    main()
+    
+    from itertools import combinations
+    args = parse_args()
+    config_path = args.config
+
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+        
+    grid = generate_probability_grid(101)
+    
+    val_metrics = np.zeros((len(grid), 4))
+    test_metrics = np.zeros((len(grid), 4))
+        
+    if args.grid_search:
+        
+        for i, lambda_ in enumerate(grid):
+            
+            config["training"]["lambda"] = lambda_.tolist()
+            print(f"Running grid search with lambda: {config["training"]["lambda"]}")
+            val_metrics[i], test_metrics[i] = main(config)
+            print(f"Validation Metrics: {val_metrics[i]}, Test Metrics: {test_metrics[i]}")
+            print
+            
+        plot_probability_grid(grid, values=test_metrics[:, 3], title='Test Score Lambda Grid')
+        plt.savefig(f"logs/{config['env']['dataset']}/{config['env']['flag']}/lambda_grid_search_test.png")
+        plt.show()
+        
+        plot_probability_grid(grid, values=val_metrics[:, 3], title='Validation Score Lambda Grid')
+        plt.savefig(f"logs/{config['env']['dataset']}/{config['env']['flag']}/lambda_grid_search_val.png")
+        plt.show()
+    else:
+        val_metrics, test_metrics = main(config)
+        print(f"Validation Metrics: {val_metrics}, Test Metrics: {test_metrics}")
+            
+            
+
+

@@ -161,7 +161,8 @@ class VisStats:
         
         for node_name in energy_melt['Node Name'].unique():
 
-            energy_melt[energy_melt['Node Name'] == node_name][ "Power"] = energy_melt[energy_melt['Node Name'] == node_name].loc[:, "Power"] / (self.task_info['Destination'] == node_name).sum()
+            mask = energy_melt['Node Name'] == node_name
+            energy_melt.loc[mask, "Power"] = energy_melt.loc[mask, "Power"] / (self.task_info['Destination'] == node_name).sum()
 
         f, ax = plt.subplots(figsize=(10, 6))
         sns.barplot(data=energy_melt, x='Node Name', y='Power', hue='Energy Type', ax=ax)

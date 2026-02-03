@@ -11,7 +11,13 @@ import numpy as np
 from core.env import Env
 from core.task import Task
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")   
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.mps.is_available():
+    device = torch.device("mps")
+else:   
+    device = torch.device("cpu")   
+    
 dtype = torch.float32
 
 class TaskFormerPolicy:

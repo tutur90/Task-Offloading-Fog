@@ -86,7 +86,8 @@ class Logger(BaseLogger):
         if score < self.best_score:
             self.best_score = score
             self.best_epoch = epoch
-            self.log_file.write(f"New best score: {score} at epoch {epoch}\n")
+            self.log_file.write(f"New best score: {score} at epoch {epoch+1}\n")
+            print(f"New best score: {score} at epoch {epoch+1}")
             return True
         return False
         
@@ -145,7 +146,6 @@ def get_metrics(env: Env, config: dict):
                  avg_power / env.max_total_energy * config["eval"]["lambda"][2]) * 100
         return ttr, avg_latency, avg_power, score
     else:
-
         return ttr, avg_latency, avg_power, None
 
 def update_metrics(logger: Logger, env: Env, config: dict, metrics=None):
@@ -155,9 +155,9 @@ def update_metrics(logger: Logger, env: Env, config: dict, metrics=None):
     else:
         ttr, avg_latency, avg_power, score = metrics
 
-    logger.update_metric('TaskThrowRate', ttr *100)
-    logger.update_metric('AvgLatency', avg_latency/(1-ttr) if ttr < 1 else np.inf)  # Avoid division by zero
-    logger.update_metric("AvgPower", avg_power/(1-ttr) * 1000 if ttr < 1 else np.inf)  # Convert to mW
+    logger.update_metric('TaskThrowRate', ttr * 100)
+    logger.update_metric('AvgLatency', avg_latency / (1-ttr) if ttr < 1 else np.inf)  # Avoid division by zero
+    logger.update_metric("AvgPower", avg_power / (1-ttr) if ttr < 1 else np.inf)  # Convert to mW
     
     
     return ttr, avg_latency, avg_power, score

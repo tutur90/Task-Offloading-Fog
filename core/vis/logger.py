@@ -43,7 +43,7 @@ class Logger:
         self.current_mode = None
         
         self.best_epoch = 0
-        self.best_value = np.inf  # Initialize to positive infinity for minimization tasks.
+        self.best_score = np.inf  # Initialize to positive infinity for minimization tasks.
 
     @staticmethod
     def create_log_dir(dataset, flag, policy, **params):
@@ -237,10 +237,10 @@ class Logger:
         """
         
         self.log_file.write("\n====================\n")
-        self.log_file.write(f"Best Epoch: {self.best_epoch}, Best Value: {self.best_value:.4f}\n")
+        self.log_file.write(f"Best Epoch: {self.best_epoch+1}, Best Value: {self.best_score:.4f}\n")
         self.log_file.write("====================\n")
         self.log_file.flush()
-        print(f"\nBest Epoch: {self.best_epoch}, Best Value: {self.best_value:.4f}\n")
-        
+        print(f"\nBest Epoch: {self.best_epoch+1}, Best Value: {self.best_score:.4f}\n")
+            
         if self.log_file:
             self.log_file.close()
