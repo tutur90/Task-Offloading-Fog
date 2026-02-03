@@ -207,7 +207,7 @@ def plot_pareto(fitness, log_dir, epoch=None):
     print(f"Pareto frontier plot saved to {save_path}")
 
 def main():
-    config_path = "main/configs/Pakistan/GA/NSGA2.yaml"
+    config_path = "./configs/Pakistan/GA/NSGA2.yaml"
     
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)

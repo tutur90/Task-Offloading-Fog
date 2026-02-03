@@ -35,6 +35,8 @@ import numpy as np
 
 from utils.utils import create_env, error_handler, set_seed, update_metrics
 from utils.utils import Logger, Checkpoint
+from utils.plots import plot_ternary
+from utils.grid_search import generate_probability_grid, load_grid_search_progress, save_grid_search_progress, lambda_to_key
 
 
 
@@ -291,97 +293,62 @@ def main(config):
     
     return val_metrics, test_metrics
 
-def generate_probability_grid(n_steps=11):
-    """Generate grid of [l0, l1, l2] where l0 + l1 + l2 = 1"""
-    grid = []
-    step = 1.0 / (n_steps - 1)
-    
-    for i in range(n_steps):
-        l0 = i * step
-        for j in range(n_steps - i):
-            l1 = j * step
-            l2 = 1.0 - l0 - l1
-            if l2 >= -1e-10:  # Handle floating point precision
-                grid.append([l0, l1, max(0, l2)])
-    
-    return np.array(grid)
 
-import numpy as np
-import matplotlib.pyplot as plt
-
-def plot_probability_grid(grid, values=None, title='Probability Grid', figsize=(12, 5)):
-    """
-    Plot probability grid in 3D and ternary projection
-    
-    Args:
-        grid: Nx3 array where each row sums to 1
-        values: Optional Nx1 array for color mapping
-        title: Plot title
-        figsize: Figure size
-    """
-    if values is None:
-        values = np.arange(len(grid))
-    
-    fig = plt.figure(figsize=figsize)
-    
-    # 3D scatter
-    ax1 = fig.add_subplot(121, projection='3d')
-    scatter1 = ax1.scatter(grid[:, 0], grid[:, 1], grid[:, 2], 
-                           c=values, cmap='viridis', s=30)
-    ax1.set_xlabel('l0')
-    ax1.set_ylabel('l1')
-    ax1.set_zlabel('l2')
-    ax1.set_title(f'{title} - 3D Simplex')
-    plt.colorbar(scatter1, ax=ax1, shrink=0.5)
-    
-    # Ternary plot
-    ax2 = fig.add_subplot(122)
-    x = 0.5 * (2 * grid[:, 1] + grid[:, 2])
-    y = (np.sqrt(3) / 2) * grid[:, 2]
-    scatter2 = ax2.scatter(x, y, c=values, cmap='viridis', s=30)
-    ax2.plot([0, 1, 0.5, 0], [0, 0, np.sqrt(3)/2, 0], 'k-', linewidth=2)
-    ax2.set_aspect('equal')
-    ax2.set_title(f'{title} - Ternary')
-    ax2.text(-0.1, -0.05, 'l0', fontsize=12, fontweight='bold')
-    ax2.text(1.05, -0.05, 'l1', fontsize=12, fontweight='bold')
-    ax2.text(0.5, np.sqrt(3)/2 + 0.05, 'l2', fontsize=12, fontweight='bold')
-    ax2.axis('off')
-    plt.colorbar(scatter2, ax=ax2, shrink=0.8)
-    
-    plt.tight_layout()
-    return fig, (ax1, ax2)
 
 if __name__ == '__main__':
-    
+
     from itertools import combinations
     args = parse_args()
     config_path = args.config
 
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
-        
-    grid = generate_probability_grid(101)
-    
-    val_metrics = np.zeros((len(grid), 4))
-    test_metrics = np.zeros((len(grid), 4))
-        
+
+
+
     if args.grid_search:
-        
+
+        grid = generate_probability_grid(101)
+
+        # Setup results file for resumable grid search
+        results_dir = f"logs/{config['env']['dataset']}/{config['env']['flag']}"
+        results_file = f"{results_dir}/grid_search_progress.json"
+
+        # Load previous progress
+        progress = load_grid_search_progress(results_file)
+        completed_count = len(progress["completed"])
+        if completed_count > 0:
+            print(f"Resuming grid search: {completed_count}/{len(grid)} iterations already completed")
+
+        val_metrics = np.zeros((len(grid), 4))
+        test_metrics = np.zeros((len(grid), 4))
+
         for i, lambda_ in enumerate(grid):
-            
+            key = lambda_to_key(lambda_)
+
+            # Skip if already completed
+            if key in progress["completed"]:
+                val_metrics[i] = progress["val_metrics"][key]
+                test_metrics[i] = progress["test_metrics"][key]
+                continue
+
             config["training"]["lambda"] = lambda_.tolist()
-            print(f"Running grid search with lambda: {config["training"]["lambda"]}")
+            print(f"Running grid search [{i+1}/{len(grid)}] with lambda: {config['training']['lambda']}")
             val_metrics[i], test_metrics[i] = main(config)
             print(f"Validation Metrics: {val_metrics[i]}, Test Metrics: {test_metrics[i]}")
-            print
-            
-        plot_probability_grid(grid, values=test_metrics[:, 3], title='Test Score Lambda Grid')
-        plt.savefig(f"logs/{config['env']['dataset']}/{config['env']['flag']}/lambda_grid_search_test.png")
-        plt.show()
+
+            # Save progress after each iteration
+            progress["completed"][key] = True
+            progress["val_metrics"][key] = val_metrics[i].tolist()
+            progress["test_metrics"][key] = test_metrics[i].tolist()
+            save_grid_search_progress(results_file, progress)
+            print(f"Progress saved ({i+1}/{len(grid)} completed)")
+
+        plot_ternary(grid, values=test_metrics[:, 3], title='Test Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_test.png")
         
-        plot_probability_grid(grid, values=val_metrics[:, 3], title='Validation Score Lambda Grid')
-        plt.savefig(f"logs/{config['env']['dataset']}/{config['env']['flag']}/lambda_grid_search_val.png")
-        plt.show()
+
+        plot_ternary(grid, values=val_metrics[:, 3], title='Validation Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_val.png")
+
     else:
         val_metrics, test_metrics = main(config)
         print(f"Validation Metrics: {val_metrics}, Test Metrics: {test_metrics}")
