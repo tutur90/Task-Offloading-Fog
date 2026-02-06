@@ -47,8 +47,8 @@ class AttentionWeights(nn.Module):
 
 
 
-class TaskFormer(nn.Module):
-    def __init__(self, d_in, d_pos, d_task, d_model=8, d_ff=8, n_heads=1, n_layers=1, dropout=0.1, mode="mixed"):
+class NOTE(nn.Module):
+    def __init__(self, d_in, d_pos, d_task, d_model=8, d_ff=8, n_heads=1, n_layers=1, dropout=0.1, mode="mixed", **kwargs):
         super().__init__()
 
         
@@ -64,21 +64,26 @@ class TaskFormer(nn.Module):
         
         
     def forward(self, nodes, task, use_task=True):
-
-        task = self.task_embed(task)
+        
+        
+        # nodes = nodes / self.norm
+        
+        
         nodes = self.nodes_embed(nodes)
         x = nodes + self.pos_nodes_embed 
         
         if (use_task and not self.mode == "node") or self.mode == "task":
+            task = self.task_embed(task)
             x = x + task.unsqueeze(1).repeat(1, nodes.size(1), 1)
-        
         
         x = self.trasformer_encoder(x, None)
 
         x = self.fc(x)
         return x
         
-    
+    def register_norm(self, norm, epsilon=1e-8):
+        self.register_buffer('norm', torch.tensor(norm, dtype=torch.float32).max(dim=0, keepdim=True).values + epsilon)  # Register the normalization factor as a buffer
+        print(self.norm)
 
 
 

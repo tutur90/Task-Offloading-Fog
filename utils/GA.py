@@ -24,13 +24,13 @@ from core.vis.vis_stats import VisStats
 from core.vis.logger import Logger
 from eval.benchmarks.Pakistan.scenario import Scenario
 from eval.metrics.metrics import SuccessRate, AvgLatency
-from policies.npga.npga_policy import Individual, NPGAPolicy
-from policies.npga.nsga_policy import NSGA2Policy
+from policies.ga.npga_policy import Individual, NPGAPolicy
+from policies.ga.nsga_policy import NSGA2Policy
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils import create_env, get_metrics, update_metrics
+from utils.utils import create_env, get_metrics, update_metrics
 
 def error_handler(error: Exception):
     """Customized error handler for different types of errors."""
@@ -48,15 +48,15 @@ def evaluate_individual(args):
     """
     m1 = SuccessRate()
     m2 = AvgLatency()
-    
+
     policy, data, config = args
     env = create_env(config)
-    
-    
+
+
     until = 0
     launched_task_cnt = 0
     iter_data = data.iterrows()
-    
+
     for i, task_info in iter_data:
         generated_time = task_info['GenerationTime']
         task = Task(task_id=task_info['TaskID'],
@@ -66,25 +66,25 @@ def evaluate_individual(args):
                     ddl=task_info['DDL'] / 10,
                     src_name='e0',
                     task_name=task_info['TaskName'])
-        
+
         while True:
             # Catch completed task information.
             while env.done_task_info:
                 _ = env.done_task_info.pop(0)
-            
+
             if env.now >= generated_time:
                 dst_id, state = policy.act(env, task)  # offloading decision
                 dst_name = env.scenario.node_id2name[dst_id]
                 env.process(task=task, dst_name=dst_name)
                 launched_task_cnt += 1
                 break
-            
+
             until += env.refresh_rate
             try:
                 env.run(until=until)
             except Exception as e:
                 error_handler(e)
-    
+
     # Continue simulation until all launched tasks are completed.
     while env.task_count < launched_task_cnt:
         until += env.refresh_rate
@@ -92,24 +92,176 @@ def evaluate_individual(args):
             env.run(until=until)
         except Exception as e:
             pass
-            
+
     ttr, latency, energy, score = get_metrics(env, config)
-    
+
     return ttr, latency, energy, score
 
 def run_epoch(config, policy, data: pd.DataFrame, train=True):
     with Pool(processes=cpu_count()-1) as pool:
         args = [(ind, data, config) for ind in policy.individuals()]
         fitness = pool.map(evaluate_individual, args)
-        
+
     fitness = np.array(fitness)
-    
+
     pool.close()
-    pool.join()    
+    pool.join()
     if train:
         policy.update(fitness[:, :3])
 
     return fitness
+
+
+class GAResult:
+    """
+    Wrapper class to make GA results compatible with the train() interface in main.py.
+    Mimics the env object returned by DQL's run_epoch.
+    """
+    def __init__(self, fitness, max_total_time, max_total_energy, logger=None):
+        self.fitness = fitness
+        self.max_total_time = max_total_time
+        self.max_total_energy = max_total_energy
+        self.logger = logger
+
+        # Best individual metrics
+        best_idx = np.argmin(fitness[:, 3])
+        self.best_metrics = fitness[best_idx]
+
+    def close(self):
+        """No-op for compatibility with env.close()"""
+        pass
+
+
+def evaluate_individual_generation(args):
+    """
+    Evaluate an individual solution for a single generation with detailed metrics.
+
+    Args:
+        args: Tuple of (policy/individual, data, config, lambda_, max_total_time, max_total_energy)
+
+    Returns:
+        Tuple of (success_rate, latency, energy, score) for the individual
+    """
+    policy, data, config, lambda_, max_total_time, max_total_energy = args
+
+    env = create_env(config)
+    env.max_total_time = max_total_time
+    env.max_total_energy = max_total_energy
+
+    until = 0
+    launched_task_cnt = 0
+
+    for i, task_info in data.iterrows():
+        generated_time = task_info['GenerationTime']
+        task = Task(
+            task_id=task_info['TaskID'],
+            task_size=task_info['TaskSize'],
+            cycles_per_bit=task_info['CyclesPerBit'],
+            trans_bit_rate=task_info['TransBitRate'],
+            ddl=task_info['DDL'],
+            src_name=task_info['SrcName'] if 'SrcName' in task_info else 'e0',
+            task_name=task_info['TaskName']
+        )
+
+        # Wait until the simulation reaches the task's generation time.
+        while True:
+            while env.done_task_info:
+                _ = env.done_task_info.pop(0)
+
+            if env.now >= generated_time:
+                dst_id, state = policy.act(env, task)
+                dst_name = env.scenario.node_id2name[dst_id]
+                env.process(task=task, dst_name=dst_name)
+                launched_task_cnt += 1
+                break
+
+            until += env.refresh_rate
+            try:
+                env.run(until=until)
+            except Exception as e:
+                error_handler(e)
+
+    # Continue simulation until all launched tasks are completed.
+    while env.task_count < launched_task_cnt:
+        until += env.refresh_rate
+        try:
+            env.run(until=until)
+        except Exception as e:
+            error_handler(e)
+
+    ttr, latency, energy, _ = get_metrics(env, config)
+
+    # Compute weighted score using lambda_ weights (fail, time, energy)
+    # Normalize time and energy if max values are provided
+    norm_latency = latency / max_total_time if max_total_time > 0 else latency
+    norm_energy = energy / max_total_energy if max_total_energy > 0 else energy
+    score = lambda_[0] * ttr + lambda_[1] * norm_latency + lambda_[2] * norm_energy
+
+    return ttr, latency, energy, score
+
+
+def run_generation(config, policy, data: pd.DataFrame, train=True,
+                   lambda_=(1, 1, 1), max_total_time=1.0, max_total_energy=1.0,
+                   n_processes=None):
+    """
+    Run one generation of the genetic algorithm over the provided task data.
+
+    Evaluates all individuals in the population in parallel and optionally
+    performs selection/crossover/mutation if train=True.
+
+    Args:
+        config: Configuration dictionary
+        policy: GA policy with population of individuals
+        data: DataFrame containing task information
+        train: Whether to update the population (selection, crossover, mutation)
+        lambda_: Tuple of (fail_weight, time_weight, energy_weight) for fitness calculation
+        max_total_time: Maximum total time for normalization
+        max_total_energy: Maximum total energy for normalization
+        n_processes: Number of parallel processes (defaults to cpu_count-1)
+
+    Returns:
+        GAResult object compatible with train() interface, containing:
+        - fitness: numpy array with shape (n_individuals, 4) [ttr, latency, energy, score]
+        - max_total_time, max_total_energy: normalization values
+        - best_metrics: metrics of the best individual
+        - close(): no-op method for compatibility
+    """
+    if n_processes is None:
+        n_processes = max(1, cpu_count() - 1)
+
+    individuals = policy.individuals()
+
+    # Prepare arguments for parallel evaluation
+    args = [
+        (ind, data, config, lambda_, max_total_time, max_total_energy)
+        for ind in individuals
+    ]
+
+    # Parallel evaluation of all individuals
+    with Pool(processes=n_processes) as pool:
+        results = list(tqdm(
+            pool.imap(evaluate_individual_generation, args),
+            total=len(individuals),
+            desc="Evaluating generation"
+        ))
+
+    fitness = np.array(results)
+
+    # Update the population if training
+    if train:
+        policy.update(fitness[:, :3])
+
+    # Log generation statistics
+    best_idx = np.argmin(fitness[:, 3])
+    avg_fitness = np.mean(fitness, axis=0)
+    best_fitness = fitness[best_idx]
+
+    print(f"Generation stats - Best: SR={best_fitness[0]:.4f}, L={best_fitness[1]:.4f}, "
+          f"E={best_fitness[2]:.4f}, Score={best_fitness[3]:.4f}")
+    print(f"                   Avg:  SR={avg_fitness[0]:.4f}, L={avg_fitness[1]:.4f}, "
+          f"E={avg_fitness[2]:.4f}, Score={avg_fitness[3]:.4f}")
+
+    return GAResult(fitness, max_total_time, max_total_energy)
 
 
 

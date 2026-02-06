@@ -80,6 +80,7 @@ class Logger(BaseLogger):
             os.makedirs(self.log_dir)
         self.best_epoch = 0
         self.best_score = np.inf
+        self.early_stopping_counter = 0
 
     def is_best(self, score, epoch):
         """Check if the current score is the best."""

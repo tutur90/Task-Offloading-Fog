@@ -25,14 +25,9 @@ from core.vis import *
 from core.vis.vis_stats import VisStats
 
 from eval.metrics.metrics import SuccessRate, AvgLatency
-from policies.dql.mlp_policy import MLPPolicy
-from policies.dql.taskformer_policy import TaskFormerPolicy
-from policies.heuristics.greedy import GreedyPolicy
-from policies.heuristics.random import  RandomPolicy
-from policies.heuristics.round_robin import RoundRobinPolicy
-
+from policies import policies
 from utils.dql import run_epoch
-
+from utils.GA import run_generation
 
 
 from utils.utils import create_env, error_handler, set_seed, update_metrics
@@ -40,53 +35,60 @@ from utils.utils import Logger, Checkpoint
 from utils.plots import plot_ternary
 from utils.grid_search import generate_probability_grid, load_grid_search_progress, save_grid_search_progress, lambda_to_key
 
-
+GA_ALGOS = ["NPGA", "NSGA2"]    
 
 
 def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total_energy=0, max_total_time=0):
     """ Train the policy using the provided training data and validate it using the validation data. """
+    is_ga = config["algo"] in GA_ALGOS
+
     for epoch in range(config["training"]["num_epochs"]):
 
         logger.update_epoch(epoch)
 
         # Training phase.
-        
+
         logger.update_mode('Training')
 
-        env = run_epoch(config, policy, train_data, train=True, lambda_=config["training"]["lambda"], max_total_time=max_total_time, max_total_energy=max_total_energy)
-
-        update_metrics(logger, env, config)
-        
-        max_total_time = env.max_total_time
-        max_total_energy = env.max_total_energy
-
-        env.close()
+        if is_ga:
+            result = run_generation(config, policy, train_data, train=True,  max_total_time=max_total_time, max_total_energy=max_total_energy)
+            update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
+            max_total_time = result.max_total_time
+            max_total_energy = result.max_total_energy
+            result.close()
+        else:
+            env = run_epoch(config, policy, train_data, train=True, lambda_=config["training"]["lambda"], max_total_time=max_total_time, max_total_energy=max_total_energy)
+            update_metrics(logger, env, config)
+            max_total_time = env.max_total_time
+            max_total_energy = env.max_total_energy
+            env.close()
 
         # Validation phase.
 
         logger.update_mode('Validation')
-        
 
-        env = run_epoch(config, policy, valid_data, train=False)
-        
-        env.max_total_energy = max_total_energy
-        env.max_total_time = max_total_time
+        if is_ga:
+            result = run_generation(config, policy, valid_data, train=False, max_total_time=max_total_time, max_total_energy=max_total_energy)
+            score = update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
+            result.close()
+        else:
+            env = run_epoch(config, policy, valid_data, train=False)
+            env.max_total_energy = max_total_energy
+            env.max_total_time = max_total_time
+            score = update_metrics(logger, env, config)
+            env.close()
 
-        score = update_metrics(logger, env, config)
-        
         if logger.is_best(score[3], epoch):
             checkpoint.save(policy, epoch)
 
-        env.close()
+        if not is_ga:
+            policy.epsilon *= config["training"]["epsilon_decay"]
 
-        policy.epsilon *= config["training"]["epsilon_decay"]
-        
-        for param_group in policy.optimizer.param_groups:
-            param_group['lr'] *= config["training"]["lr_decay"]
-        if config["algo"] == "TaskFormer":
-            # Decay the learning rate of the TaskFormer model.
             for param_group in policy.optimizer.param_groups:
                 param_group['lr'] *= config["training"]["lr_decay"]
+            if config["algo"] == "TaskFormer":
+                for param_group in policy.optimizer.param_groups:
+                    param_group['lr'] *= config["training"]["lr_decay"]
 
     return max_total_energy, max_total_time, score
 
@@ -118,11 +120,13 @@ def main(config):
         train_data, valid_data = train_data.iloc[:int(len(train_data)*(1-valid_size))], train_data.iloc[int(len(train_data)*(1-valid_size)):]
         valid_data["GenerationTime"] = valid_data["GenerationTime"] - valid_data["GenerationTime"].min()  # Normalize generation time
         
-        config["training"]["lambda"] = (config["training"]["lambda"][0]/sum(config["training"]["lambda"]),
+        if "lambda" in config["training"]:
+        
+            config["training"]["lambda"] = (config["training"]["lambda"][0]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][1]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][2]/sum(config["training"]["lambda"]))
         
-        print(f"Normalized training lambda values: {config["training"]["lambda"][0]:.3f}, {config["training"]["lambda"][1]:.3f}, {config["training"]["lambda"][2]:.3f}")
+            print(f"Normalized training lambda values: {config["training"]["lambda"][0]:.3f}, {config["training"]["lambda"][1]:.3f}, {config["training"]["lambda"][2]:.3f}")
         
     test_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/testset.csv")
     
@@ -130,18 +134,8 @@ def main(config):
     # train_data = pd.read_csv(f"eval/benchmarks/Topo4MEC/data/25N50E/trainset.csv")
     # test_data = pd.read_csv(f"eval/benchmarks/Topo4MEC/data/25N50E/testset.csv")
 
-    if config["algo"] == "MLP":
-        policy = MLPPolicy(env=env, config=config)
-    elif config["algo"] == "TaskFormer":
-        policy = TaskFormerPolicy(env=env, config=config)
-    elif config["algo"] == "Greedy":
-        policy = GreedyPolicy()
-    elif config["algo"] == "Random":
-        policy = RandomPolicy()
-    elif config["algo"] == "RoundRobin":
-        policy = RoundRobinPolicy()
-    else:
-        raise ValueError("Invalid policy name.")
+    # Initialize the policy.
+    policy = policies[config["policy"]](env, config) 
 
     max_total_time = config.get("eval", {}).get("expected_max_latency", 0)
     max_total_energy = config.get("eval", {}).get("expected_max_energy", 0)
@@ -156,25 +150,28 @@ def main(config):
     # Testing phase.
 
     logger.update_mode('Testing')
-    env = run_epoch(config, policy, test_data, train=False)
-    
-    env.max_total_energy = max_total_energy
-    env.max_total_time = max_total_time
-    
-    test_metrics = update_metrics(logger, env, config)
+
+    if config["algo"] in GA_ALGOS:
+        result = run_generation(config, policy, test_data, train=False, max_total_time=max_total_time, max_total_energy=max_total_energy)
+        test_metrics = update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
+        env = result  # for close() compatibility below
+    else:
+        env = run_epoch(config, policy, test_data, train=False)
+        env.max_total_energy = max_total_energy
+        env.max_total_time = max_total_time
+        test_metrics = update_metrics(logger, env, config)
 
 
     logger.plot()
     logger.save_csv()
-    
 
-    
     logger.close()
     env.close()
-    
-    vis_stats = VisStats(save_path=logger.log_dir)
-    vis_stats.vis(env)
-    
+
+    if config["algo"] not in GA_ALGOS:
+        vis_stats = VisStats(save_path=logger.log_dir)
+        vis_stats.vis(env)
+
     return val_metrics, test_metrics
 
 
@@ -192,7 +189,7 @@ if __name__ == '__main__':
 
     if args.grid_search:
 
-        grid = generate_probability_grid(101)
+        grid = generate_probability_grid(21)
 
         # Setup results file for resumable grid search
         results_dir = f"logs/{config['env']['dataset']}/{config['env']['flag']}"
