@@ -1,5 +1,5 @@
-
-class GreedyPolicy:
+from policies.base_policy import BasePolicy
+class GreedyPolicy(BasePolicy):
     """A simple greedy policy that selects the node with the minimal 
     predicted total time (transmission + computation)."""
 

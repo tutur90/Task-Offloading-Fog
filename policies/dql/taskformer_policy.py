@@ -4,7 +4,7 @@ import torch.optim as optim
 import random
 from torch.distributions import Categorical  # (optional for epsilon random selection)
 
-from policies.model.TaskFormer import TaskFormer
+from policies.model.NOTE import NOTE
 
 import numpy as np
 
@@ -58,7 +58,7 @@ class TaskFormerPolicy:
         mode = config["model"]["mode"]
         
         
-        self.model = TaskFormer(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, d_model=d_model, d_ff=d_model*mlp_ratio, n_heads=n_heads, n_layers=n_layers, dropout=dropout, mode=mode).to(device)
+        self.model = NOTE(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, d_model=d_model, d_ff=d_model*mlp_ratio, n_heads=n_heads, n_layers=n_layers, dropout=dropout, mode=mode).to(device).to(dtype)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
 

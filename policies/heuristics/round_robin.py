@@ -2,8 +2,8 @@ from policies.base_policy import BasePolicy
 
 
 class RoundRobinPolicy(BasePolicy):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, env, config):
+        super().__init__(env, config)
         self.idx = 0
 
     def act(self, env, task, **kwargs):

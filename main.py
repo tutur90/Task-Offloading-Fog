@@ -140,6 +140,7 @@ def main(config):
     max_total_time = config.get("eval", {}).get("expected_max_latency", 0)
     max_total_energy = config.get("eval", {}).get("expected_max_energy", 0)
 
+    val_metrics = None
 
     if "training" in config.keys():
         max_total_energy, max_total_time, val_metrics = train(config, policy, train_data, valid_data, logger, checkpoint, max_total_energy, max_total_time)
@@ -156,7 +157,7 @@ def main(config):
         test_metrics = update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
         env = result  # for close() compatibility below
     else:
-        env = run_epoch(config, policy, test_data, train=False)
+        env = run_epoch(config, policy, test_data, train=False, max_total_time=max_total_time, max_total_energy=max_total_energy)
         env.max_total_energy = max_total_energy
         env.max_total_time = max_total_time
         test_metrics = update_metrics(logger, env, config)

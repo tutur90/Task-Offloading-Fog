@@ -122,5 +122,5 @@ Sources:
     and Neuroscience, 2022.
   - M. Aazam et al., “Cloud of Things (CoT): Cloud-Fog-IoT Task Offloading for 
     Sustainable Internet of Things,” IEEE Transactions on Sustainable Computing, 
-    2022.
+    2020.
 """

@@ -19,20 +19,19 @@ class MLP(nn.Module):
 
     def forward(self, x, task):
         
-        
         x = x / self.norm  # Apply normalization
 
         return self.model(x.view(x.size(0), -1))
     
     def register_norm(self, norm):
-        self.register_buffer('norm', torch.tensor(norm).max(dim=0, keepdim=True).values.to(self.device))  # Register the normalization factor as a buffer
+        self.register_buffer('norm', torch.tensor(norm).max(dim=0, keepdim=True).values)  # Register the normalization factor as a buffer
         print(self.norm)
 
 
 class MLPPolicy(DQLPolicy):
         
     def _init_model(self, env, config):
-        self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, **config["model"]).to(self.device)
+        self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.n_observations, **config["model"]).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
         
