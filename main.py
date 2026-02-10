@@ -7,13 +7,13 @@ is for reference only, and contributions are welcome.
 
 import os
 import sys
+import multiprocessing
 
 current_file_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_file_path)
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
-from networkx import config
 import pandas as pd
 from tqdm import tqdm
 import yaml
@@ -35,7 +35,17 @@ from utils.utils import Logger, Checkpoint
 from utils.plots import plot_ternary
 from utils.grid_search import generate_probability_grid, load_grid_search_progress, save_grid_search_progress, lambda_to_key
 
-GA_ALGOS = ["NPGA", "NSGA2"]    
+GA_ALGOS = ["NPGA", "NSGA2"]
+
+
+def print_top_k_results(grid, metrics, k=10, label="Results"):
+    """Print top k lambdas and metrics sorted by metrics[:, 3] (ascending)."""
+    top_k_indices = np.argsort(metrics[:, 3])[:k]
+    print(f"\n{'='*80}")
+    print(f"Top {k} {label} (by score):")
+    print(f"{'='*80}")
+    for rank, idx in enumerate(top_k_indices, 1):
+        print(f"{rank}. Lambda: {grid[idx]} | Metrics: {metrics[idx]}")
 
 
 def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total_energy=0, max_total_time=0):
@@ -97,6 +107,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Run DQRL Policy")
     parser.add_argument('--config', type=str, default='configs/DQRL/MLP.yaml', help='Path to the config file.')
     parser.add_argument('--grid_search', action='store_true', help='Enable grid search mode.')
+    parser.add_argument('--num_workers', type=int, default=None, help='Number of parallel workers for grid search (default: CPU count).')
     args = parser.parse_args()
     return args
 
@@ -176,6 +187,22 @@ def main(config):
     return val_metrics, test_metrics
 
 
+def run_grid_search_worker(args):
+    """Worker function for parallel grid search."""
+    i, lambda_, config_path = args
+
+    # Load fresh config for each worker
+    with open(config_path, 'r') as file:
+        worker_config = yaml.safe_load(file)
+
+    worker_config["training"]["lambda"] = lambda_.tolist()
+    key = lambda_to_key(lambda_)
+
+    print(f"[Worker] Running grid search [{i+1}] with lambda: {worker_config['training']['lambda']}")
+    val_result, test_result = main(worker_config)
+
+    return i, key, lambda_, val_result, test_result
+
 
 if __name__ == '__main__':
 
@@ -205,31 +232,47 @@ if __name__ == '__main__':
         val_metrics = np.zeros((len(grid), 4))
         test_metrics = np.zeros((len(grid), 4))
 
+        # Prepare work items (skip already completed)
+        work_items = []
         for i, lambda_ in enumerate(grid):
             key = lambda_to_key(lambda_)
-
-            # Skip if already completed
             if key in progress["completed"]:
                 val_metrics[i] = progress["val_metrics"][key]
                 test_metrics[i] = progress["test_metrics"][key]
-                continue
+            else:
+                work_items.append((i, lambda_, config_path))
+                
+        # Run parallel grid search
+        max_workers = args.num_workers if args.num_workers else multiprocessing.cpu_count()
+        num_workers = min(max_workers, len(work_items))
+        if num_workers > 0:
+            print(f"Starting parallel grid search with {num_workers} workers for {len(work_items)} remaining items")
 
-            config["training"]["lambda"] = lambda_.tolist()
-            print(f"Running grid search [{i+1}/{len(grid)}] with lambda: {config['training']['lambda']}")
-            val_metrics[i], test_metrics[i] = main(config)
-            print(f"Validation Metrics: {val_metrics[i]}, Test Metrics: {test_metrics[i]}")
+            with multiprocessing.Pool(num_workers) as pool:
+                for result in pool.imap_unordered(run_grid_search_worker, work_items):
+                    i, key, lambda_, val_result, test_result = result
 
-            # Save progress after each iteration
-            progress["completed"][key] = True
-            progress["val_metrics"][key] = val_metrics[i].tolist()
-            progress["test_metrics"][key] = test_metrics[i].tolist()
-            save_grid_search_progress(results_file, progress)
-            print(f"Progress saved ({i+1}/{len(grid)} completed)")
+                    val_metrics[i] = val_result
+                    test_metrics[i] = test_result
 
-        plot_ternary(grid, values=test_metrics[:, 3], title='Test Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_test.png")
-        
+                    print(f"Validation Metrics: {val_metrics[i]}, Test Metrics: {test_metrics[i]}")
 
-        plot_ternary(grid, values=val_metrics[:, 3], title='Validation Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_val.png")
+                    # Save progress after each iteration
+                    progress["completed"][key] = True
+                    progress["val_metrics"][key] = val_metrics[i].tolist()
+                    progress["test_metrics"][key] = test_metrics[i].tolist()
+                    save_grid_search_progress(results_file, progress)
+                    completed_count += 1
+                    print(f"Progress saved ({completed_count}/{len(grid)} completed)")
+
+        plot_ternary(grid, values=test_metrics[:, 3], title='Test Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_test.png", max_value=0.8)
+
+        plot_ternary(grid, values=val_metrics[:, 3], title='Validation Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_val.png", max_value=0.8)
+
+        # Print top k results based on metrics[:, 3]
+        k = 100
+        print_top_k_results(grid, val_metrics, k=k, label="Validation Results")
+        print_top_k_results(grid, test_metrics, k=k, label="Test Results")
 
     else:
         val_metrics, test_metrics = main(config)

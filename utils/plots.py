@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 
 def plot_ternary(grid, values=None, title='Ternary Plot', output_path=None, figsize=(8, 7), 
-                 labels=None, cmap='viridis_r', s=30):
+                 labels=None, cmap='viridis_r', s=30, max_value=None):
     """
     Plot probability grid in ternary diagram
     
@@ -30,7 +30,11 @@ def plot_ternary(grid, values=None, title='Ternary Plot', output_path=None, figs
     x = 0.5 * (2 * grid[:, 1] + grid[:, 2])
     y = (np.sqrt(3) / 2) * grid[:, 2]
     
-    scatter = ax.scatter(x, y, c=values, cmap=cmap, s=s)
+    # Set up colormap with black for values above max_value
+    cmap_obj = plt.get_cmap(cmap).copy()
+    cmap_obj.set_over('black')
+
+    scatter = ax.scatter(x, y, c=values, cmap=cmap_obj, s=s, vmax=max_value)
     
     # Triangle boundary
     ax.plot([0, 1, 0.5, 0], [0, 0, np.sqrt(3)/2, 0], 'k-', linewidth=2)
@@ -44,7 +48,7 @@ def plot_ternary(grid, values=None, title='Ternary Plot', output_path=None, figs
     ax.set_title(title, fontsize=16)
     ax.axis('off')
     
-    plt.colorbar(scatter, ax=ax, shrink=0.8)
+    plt.colorbar(scatter, ax=ax, shrink=0.8, extend='max')
     plt.tight_layout()
     
     if output_path is not None:

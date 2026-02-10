@@ -15,7 +15,7 @@ eval:
   expected_max_energy: 800
 
 training:
-  num_epochs: 20
+  num_epochs: 30
   batch_size: 1024
   lr: 0.005
   lr_decay: 0.95
@@ -23,7 +23,7 @@ training:
   epsilon: 0.2
   epsilon_decay: 0.8
   reward_scale: 1
-  lambda: [1, 0.1, 0.05]
+  lambda: [0.15, 0.8, 0.05]
 
 model:
   d_model: 256

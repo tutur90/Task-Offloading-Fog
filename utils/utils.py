@@ -35,8 +35,7 @@ class Checkpoint:
     
     def __init__(self, path):
         self.path = os.path.join(path, "checkpoints")
-        if not os.path.exists(self.path):
-            os.makedirs(self.path)
+        os.makedirs(self.path, exist_ok=True)
 
     def save(self, policy, epoch):
         policy.save(os.path.join(self.path, f"checkpoint_epoch_{epoch}.pt"))
@@ -76,8 +75,8 @@ class Logger(BaseLogger):
     def __init__(self, config):
         super().__init__(config)
         self.log_dir = os.path.join(self.log_dir, "DQRL")
-        if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir)
+
+        os.makedirs(self.log_dir, exist_ok=True)
         self.best_epoch = 0
         self.best_score = np.inf
         self.early_stopping_counter = 0
