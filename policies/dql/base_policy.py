@@ -39,7 +39,7 @@ class MLP(nn.Module):
         print(self.norm)
 
 class DQNPolicy:
-    def __init__(self, env, config, allow_mps=False):
+    def __init__(self, env, config, device="auto"):
         """
         A simple deep Q-learning policy.
 
@@ -71,12 +71,15 @@ class DQNPolicy:
         self.replay_buffer = deque(maxlen=self.buffer_size)
         self.update_count = 0
         
-        if allow_mps and torch.backends.mps.is_available():
-            self.device = torch.device("mps")
-        elif torch.cuda.is_available():
-            self.device = torch.device("cuda")
+        if device == "auto":
+            if torch.backends.mps.is_available():
+                self.device = torch.device("mps")
+            elif torch.cuda.is_available():
+                self.device = torch.device("cuda")
+            else:
+                self.device = torch.device("cpu")
         else:
-            self.device = torch.device("cpu")
+            self.device = torch.device(device)
             
         self.dtype = torch.float32
         

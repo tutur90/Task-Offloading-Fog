@@ -30,6 +30,8 @@ class MLP(nn.Module):
 
 
 class MLPPolicy(DQNPolicy):
+    def __init__(self, env, config):
+        super().__init__(env, config, device="cpu")
         
     def _init_model(self, env, config):
         self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"])
