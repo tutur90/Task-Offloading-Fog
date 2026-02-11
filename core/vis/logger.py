@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import csv
+import multiprocessing
 
 
 class Logger:
@@ -49,7 +50,7 @@ class Logger:
     def create_log_dir(dataset, flag, policy, **params):
         """
         Creates a unique log directory with the format:
-            logs/<dataset>/<flag>/<policy>/<params>_<i>
+            logs/<dataset>/<flag>/<policy>/<timestamp>_worker<worker_id>
 
         Args:
             dataset (str): Dataset name.
@@ -63,13 +64,24 @@ class Logger:
         base_dir = os.path.join("logs", dataset, flag, policy)
         if not os.path.exists(base_dir):
             os.makedirs(base_dir)
-            
+
         # Create a human-readable date-time format for unique directory naming
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        log_dir = os.path.join(base_dir, timestamp)
 
-        os.makedirs(log_dir, exist_ok=True)
+        # Include worker_id in the directory name if provided
+        process_name = multiprocessing.current_process().name.split("-")
+        worker_id = process_name[1] if len(process_name) > 1 else None
+
+        
+        if worker_id is not None:
+            dir_name = f"{timestamp}_worker{worker_id}"
+        else:
+            dir_name = timestamp
+        log_dir = os.path.join(base_dir, dir_name)
+            
+
+        os.makedirs(log_dir)
         return log_dir
 
     def _write_header(self):

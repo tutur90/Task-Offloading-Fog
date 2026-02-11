@@ -32,20 +32,28 @@ from utils.GA import run_generation
 
 from utils.utils import create_env, error_handler, set_seed, update_metrics
 from utils.utils import Logger, Checkpoint
-from utils.plots import plot_ternary
-from utils.grid_search import generate_probability_grid, load_grid_search_progress, save_grid_search_progress, lambda_to_key
+from utils.plots import plot_ternary, plot_grid_search_heatmap
+from utils.grid_search import (
+    generate_probability_grid, load_grid_search_progress, save_grid_search_progress,
+    lambda_to_key, params_to_key, generate_parameter_grid, apply_params_to_config, parse_grid_search_params
+)
 
 GA_ALGOS = ["NPGA", "NSGA2"]
 
 
 def print_top_k_results(grid, metrics, k=10, label="Results"):
-    """Print top k lambdas and metrics sorted by metrics[:, 3] (ascending)."""
+    """Print top k parameter combinations and metrics sorted by metrics[:, 3] (ascending)."""
     top_k_indices = np.argsort(metrics[:, 3])[:k]
     print(f"\n{'='*80}")
     print(f"Top {k} {label} (by score):")
     print(f"{'='*80}")
     for rank, idx in enumerate(top_k_indices, 1):
-        print(f"{rank}. Lambda: {grid[idx]} | Metrics: {metrics[idx]}")
+        params = grid[idx]
+        if isinstance(params, dict):
+            params_str = " | ".join(f"{k}={v}" for k, v in params.items())
+        else:
+            params_str = f"Lambda: {params}"
+        print(f"{rank}. {params_str} | Metrics: {metrics[idx]}")
 
 
 def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total_energy=0, max_total_time=0):
@@ -107,6 +115,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Run DQRL Policy")
     parser.add_argument('--config', type=str, default='configs/DQRL/MLP.yaml', help='Path to the config file.')
     parser.add_argument('--grid_search', action='store_true', help='Enable grid search mode.')
+    parser.add_argument('--grid_params', type=str, nargs='+', default=None,
+                        help='Grid search parameters in format "section.param=val1,val2,val3". '
+                             'E.g., --grid_params "model.d_model=64,128,256" "model.n_layers=2,3,4"')
     parser.add_argument('--num_workers', type=int, default=None, help='Number of parallel workers for grid search (default: CPU count).')
     args = parser.parse_args()
     return args
@@ -189,19 +200,29 @@ def main(config):
 
 def run_grid_search_worker(args):
     """Worker function for parallel grid search."""
-    i, lambda_, config_path = args
+    i, params, config_path, is_lambda_search = args
 
     # Load fresh config for each worker
     with open(config_path, 'r') as file:
         worker_config = yaml.safe_load(file)
 
-    worker_config["training"]["lambda"] = lambda_.tolist()
-    key = lambda_to_key(lambda_)
+    # Add worker_id to config to create unique log directories
+    worker_config["worker_id"] = i
 
-    print(f"[Worker] Running grid search [{i+1}] with lambda: {worker_config['training']['lambda']}")
+    if is_lambda_search:
+        # Legacy lambda search
+        worker_config["training"]["lambda"] = params.tolist()
+        key = lambda_to_key(params)
+        print(f"[Worker {i}] Running grid search [{i+1}] with lambda: {worker_config['training']['lambda']}")
+    else:
+        # Generic parameter search
+        apply_params_to_config(worker_config, params)
+        key = params_to_key(params)
+        print(f"[Worker {i}] Running grid search [{i+1}] with params: {params}")
+
     val_result, test_result = main(worker_config)
 
-    return i, key, lambda_, val_result, test_result
+    return i, key, params, val_result, test_result
 
 
 if __name__ == '__main__':
@@ -217,11 +238,22 @@ if __name__ == '__main__':
 
     if args.grid_search:
 
-        grid = generate_probability_grid(21)
+        # Determine if using lambda search or generic parameter search
+        is_lambda_search = args.grid_params is None
+
+        if is_lambda_search:
+            grid = generate_probability_grid(21)
+            search_name = "lambda"
+        else:
+            param_specs = parse_grid_search_params(args.grid_params)
+            grid = generate_parameter_grid(param_specs)
+            search_name = "_".join(k.replace(".", "_") for k in param_specs.keys())
+            print(f"Grid search over parameters: {list(param_specs.keys())}")
+            print(f"Total combinations: {len(grid)}")
 
         # Setup results file for resumable grid search
         results_dir = f"logs/{config['env']['dataset']}/{config['env']['flag']}"
-        results_file = f"{results_dir}/grid_search_progress.json"
+        results_file = f"{results_dir}/grid_search_{search_name}_progress.json"
 
         # Load previous progress
         progress = load_grid_search_progress(results_file)
@@ -234,14 +266,18 @@ if __name__ == '__main__':
 
         # Prepare work items (skip already completed)
         work_items = []
-        for i, lambda_ in enumerate(grid):
-            key = lambda_to_key(lambda_)
+        for i, params in enumerate(grid):
+            if is_lambda_search:
+                key = lambda_to_key(params)
+            else:
+                key = params_to_key(params)
+
             if key in progress["completed"]:
                 val_metrics[i] = progress["val_metrics"][key]
                 test_metrics[i] = progress["test_metrics"][key]
             else:
-                work_items.append((i, lambda_, config_path))
-                
+                work_items.append((i, params, config_path, is_lambda_search))
+
         # Run parallel grid search
         max_workers = args.num_workers if args.num_workers else multiprocessing.cpu_count()
         num_workers = min(max_workers, len(work_items))
@@ -250,7 +286,7 @@ if __name__ == '__main__':
 
             with multiprocessing.Pool(num_workers) as pool:
                 for result in pool.imap_unordered(run_grid_search_worker, work_items):
-                    i, key, lambda_, val_result, test_result = result
+                    i, key, params, val_result, test_result = result
 
                     val_metrics[i] = val_result
                     test_metrics[i] = test_result
@@ -265,14 +301,18 @@ if __name__ == '__main__':
                     completed_count += 1
                     print(f"Progress saved ({completed_count}/{len(grid)} completed)")
 
-        plot_ternary(grid, values=test_metrics[:, 3], title='Test Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_test.png", max_value=0.8)
-
-        plot_ternary(grid, values=val_metrics[:, 3], title='Validation Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_val.png", max_value=0.8)
-
         # Print top k results based on metrics[:, 3]
-        k = 100
+        k = min(100, len(grid))
         print_top_k_results(grid, val_metrics, k=k, label="Validation Results")
         print_top_k_results(grid, test_metrics, k=k, label="Test Results")
+
+        # Only plot ternary for lambda search
+        if is_lambda_search:
+            plot_ternary(grid, values=test_metrics[:, 3], title='Test Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_test.png", max_value=0.8)
+            plot_ternary(grid, values=val_metrics[:, 3], title='Validation Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_val.png", max_value=0.8)
+        elif len(param_specs) == 2:
+            plot_grid_search_heatmap(param_specs, progress, metric_idx=3, metric_name="Score",
+                                     output_path=f"{results_dir}/grid_search_{search_name}_heatmap.png", max_value=0.8)
 
     else:
         val_metrics, test_metrics = main(config)

@@ -19,11 +19,11 @@ training:
   batch_size: 1024
   lr: 0.005
   lr_decay: 0.95
-  gamma: 0.02
-  epsilon: 0.2
+  gamma: 0.95
+  epsilon: 0.9
   epsilon_decay: 0.8
   reward_scale: 1
-  lambda: [0.15, 0.8, 0.05]
+  lambda: [0.2, 0.75, 0.05]
 
 model:
   d_model: 256

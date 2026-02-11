@@ -155,7 +155,7 @@ class DQNPolicy:
             return 0.0
 
         # Unpack transitions
-        states, actions, rewards, next_states, dones = zip(*self.replay_buffer)
+        states, actions, rewards, next_states, dones = zip(*self.replay_buffer.sample)
         obs_batch, task_obs_batch = zip(*states)
         next_obs_batch, next_task_obs_batch = zip(*next_states)
 
