@@ -2,20 +2,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import random
+import copy
+from collections import deque
 
 import numpy as np
 
 from core.env import Env
 from core.task import Task
 
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-# elif torch.mps.is_available():
-#     device = torch.device("mps")
-else:   
-    device = torch.device("cpu")   
-    
-dtype = torch.float32
+
 
 class MLP(nn.Module):   
     def __init__(self, d_in, d_pos,  d_model, output_size, n_layers=2,  bias=True, **kwargs):
@@ -39,12 +34,12 @@ class MLP(nn.Module):
         return self.model(x.view(x.size(0), -1))
     
     def register_norm(self, norm):
-        self.register_buffer('norm', torch.tensor(norm, dtype=dtype).max(dim=0, keepdim=True).values.to(device))  # Register the normalization factor as a buffer
+        self.register_buffer('norm', torch.tensor(norm, dtype=self.dtype).max(dim=0, keepdim=True).values)  # Register the normalization factor as a buffer
         # self.register_buffer('norm', torch.tensor(norm, dtype=dtype).to(device))  # Register the normalization factor as a buffer
         print(self.norm)
 
 class DQNPolicy:
-    def __init__(self, env, config):
+    def __init__(self, env, config, allow_mps=False):
         """
         A simple deep Q-learning policy.
 
@@ -70,14 +65,32 @@ class DQNPolicy:
         self.lr = config["training"]["lr"]
         
         # Replay buffer for transitions.
-        self.replay_buffer = []
+        self.buffer_size = config["training"].get("buffer_size", 10000)
+        self.batch_size = config["training"].get("batch_size", 64)
+        self.target_update_freq = config["training"].get("target_update_freq", 100)
+        self.replay_buffer = deque(maxlen=self.buffer_size)
+        self.update_count = 0
         
+        if allow_mps and torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        elif torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
+            
+        self.dtype = torch.float32
         
-        self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"]).to(device)
+        self._init_model(env, config)
+
+    def _init_model(self, env, config):
+        self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"]).to(self.device).to(self.dtype)
+        self.target_model = copy.deepcopy(self.model)
+        self.target_model.eval()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
-        
-        self.model.register_norm(self._make_observation(env, None, self.obs_type)[0])  # Register the normalization factor for latency
+
+        self.model.register_norm(self._make_observation(env, None, self.obs_type)[0])
+        self.target_model.register_norm(self._make_observation(env, None, self.obs_type)[0])  # Register the normalization factor for latency
         
 
 
@@ -89,7 +102,7 @@ class DQNPolicy:
         """
         
         
-        obs = np.zeros((len(env.scenario.get_nodes()), len(obs_type)))
+        obs = np.zeros((len(env.scenario.get_nodes()), len(obs_type)), dtype=np.float32)
         
         for i, node_name in enumerate(env.scenario.get_nodes()):
             if "cpu" in obs_type:
@@ -106,14 +119,14 @@ class DQNPolicy:
 
 
         if task is None:
-            task_obs = [0, 0, 0, 0]
+            task_obs = np.zeros(4, dtype=np.float32)
         else:
-            task_obs = [
+            task_obs = np.array([
                 task.task_size,
                 task.cycles_per_bit,
                 task.trans_bit_rate,
                 task.ddl,
-            ]
+            ], dtype=np.float32)
 
 
         return obs, task_obs
@@ -124,8 +137,8 @@ class DQNPolicy:
         """
         state = self._make_observation(env, task, self.obs_type)
         obs, task_obs = state
-        obs_tensor = torch.tensor(obs, dtype=dtype).unsqueeze(0).to(device)
-        task_tensor = torch.tensor(task_obs, dtype=dtype).unsqueeze(0).to(device)
+        obs_tensor = torch.tensor(obs, dtype=self.dtype, device=self.device).unsqueeze(0)
+        task_tensor = torch.tensor(task_obs, dtype=self.dtype, device=self.device).unsqueeze(0)
                 
         if random.random() < self.epsilon and train:
             action = random.randrange(self.num_actions)
@@ -148,39 +161,41 @@ class DQNPolicy:
 
     def update(self):
         """
-        Performs an update over all stored transitions using batched operations,
-        moves tensors to the appropriate device and dtype, and clears the replay buffer.
+        Performs an update over a sampled batch of transitions using batched operations,
+        moves tensors to the appropriate device and dtype.
         """
-        if not self.replay_buffer:
+        if len(self.replay_buffer) < self.batch_size:
             return 0.0
 
-        # Unpack transitions
-        states, actions, rewards, next_states, dones = zip(*self.replay_buffer.sample)
+        # Sample a batch from the replay buffer
+        batch = random.sample(self.replay_buffer, self.batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
         obs_batch, task_obs_batch = zip(*states)
         next_obs_batch, next_task_obs_batch = zip(*next_states)
 
         # Convert lists to batched tensors and move them to the device with the appropriate dtype
-        obs_tensor = torch.tensor(np.array(obs_batch), dtype=dtype, device=device)
-        task_tensor = torch.tensor(np.array(task_obs_batch), dtype=dtype, device=device)
-        next_obs_tensor = torch.tensor(np.array(next_obs_batch), dtype=dtype, device=device)
-        next_task_tensor = torch.tensor(np.array(next_task_obs_batch), dtype=dtype, device=device)
+        obs_tensor = torch.tensor(np.array(obs_batch), dtype=self.dtype, device=self.device)
+        task_tensor = torch.tensor(np.array(task_obs_batch), dtype=self.dtype, device=self.device)
+        next_obs_tensor = torch.tensor(np.array(next_obs_batch), dtype=self.dtype, device=self.device)
+        next_task_tensor = torch.tensor(np.array(next_task_obs_batch), dtype=self.dtype, device=self.device)
 
-        actions_tensor = torch.tensor(np.array(actions), dtype=torch.int64).to(device).unsqueeze(-1)  # Actions remain long dtype
-        rewards_tensor = torch.tensor(rewards, dtype=dtype).to(device)
-        dones_tensor = torch.tensor(dones, dtype=dtype).to(device)
-        
+        actions_tensor = torch.tensor(np.array(actions), dtype=torch.int64, device=self.device).unsqueeze(-1)
+        rewards_tensor = torch.tensor(rewards, dtype=self.dtype, device=self.device)
+        dones_tensor = torch.tensor(dones, dtype=self.dtype, device=self.device)
+
 
         self.optimizer.zero_grad()
 
         # Compute Q-values for the current states
+        self.model.train()
         q_values = self.model(obs_tensor, task_tensor).squeeze()  # Shape: [batch_size, num_actions]
 
         predicted_q = q_values.gather(1, actions_tensor).squeeze()
 
 
-        # Compute target Q-values from next states
+        # Compute target Q-values from next states using target network
         with torch.no_grad():
-            next_q_values = self.model(next_obs_tensor, next_task_tensor).squeeze()  # Shape: [batch_size, num_actions]
+            next_q_values = self.target_model(next_obs_tensor, next_task_tensor).squeeze()  # Shape: [batch_size, num_actions]
             max_next_q, _ = torch.max(next_q_values, dim=1)
             target_q = rewards_tensor if self.gamma == 0 else rewards_tensor + (1 - dones_tensor) * self.gamma * max_next_q
 
@@ -189,10 +204,18 @@ class DQNPolicy:
         loss.backward()
         self.optimizer.step()
 
-        self.replay_buffer.clear()
-        
-        
+        # Update target network periodically
+        self.update_count += 1
+        if self.update_count % self.target_update_freq == 0:
+            self.update_target_network()
+
         return loss.item()
+
+    def update_target_network(self):
+        """
+        Copies the weights from the main model to the target model.
+        """
+        self.target_model.load_state_dict(self.model.state_dict())
     
     def save(self, path):
         """
@@ -205,5 +228,7 @@ class DQNPolicy:
         Loads the model from the specified path.
         """
         self.model.load_state_dict(torch.load(path))
+        self.target_model.load_state_dict(self.model.state_dict())
         self.model.eval()
+        self.target_model.eval()
 

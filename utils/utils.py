@@ -142,8 +142,8 @@ def get_metrics(env: Env, config: dict):
     
     if "eval" in config and "lambda" in config["eval"]:
         score = (ttr * config["eval"]["lambda"][0] + 
-                 avg_latency / env.max_total_time * config["eval"]["lambda"][1] + 
-                 avg_power / env.max_total_energy * config["eval"]["lambda"][2]) * 100
+                 avg_latency  * config["eval"]["lambda"][1] + 
+                 avg_power * config["eval"]["lambda"][2]) / 3
         return ttr, avg_latency, avg_power, score
     else:
         return ttr, avg_latency, avg_power, None

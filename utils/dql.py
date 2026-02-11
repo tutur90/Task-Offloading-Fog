@@ -1,5 +1,3 @@
-
-import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -36,7 +34,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
     last_task_id = None
     pbar = tqdm(data.iterrows(), total=len(data))
     stored_transitions = {}
-    number_in_batch = config.get("training", {}).get("batch_size", 32)
+    update_freq = config.get("training", {}).get("update_freq", 32)
 
     env.max_total_time = max_total_time
     env.max_total_energy = max_total_energy
@@ -62,7 +60,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
                 dst_name = env.scenario.node_id2name[action]
                 env.process(task=task, dst_name=dst_name)
                 launched_task_cnt += 1
-                number_in_batch -= 1
+                update_freq -= 1
 
                 # Update previous transition with the new state's observation.
                 if last_task_id is not None and train:
@@ -95,6 +93,9 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
                         total_energy = task_trans_energy + task_exe_energy
                         # env.max_total_time = max(env.max_total_time, total_time)
                         # env.max_total_energy = max(env.max_total_energy, total_energy)
+                        env.max_total_energy = env.max_total_energy*0.999 + total_energy*0.001
+                        env.max_total_time = env.max_total_time*0.999 + total_time*0.001
+
                         reward = - ((lambda_[1] * total_time/env.max_total_time) + (lambda_[2] * total_energy/env.max_total_energy))
                     else:
                         reward = -lambda_[0]
@@ -102,14 +103,14 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
                     reward = reward * config["training"].get("reward_scale", 1.0)
                     policy.store_transition(state, action, reward, next_state, done)
                     del stored_transitions[task_id]
-            # Update the policy every batch_size tasks during training.
-            if number_in_batch < 1:
+            # Update the policy every update_freq tasks during training.
+            if update_freq < 1:
                 r1 = m1.eval(env.logger) * 100  # Convert to percentage
                 r2 = m2.eval(env.logger)
                 e = env.avg_node_power()
                 pbar.set_postfix({"SR": f"{r1:.3f}", "L": f"{r2:.3f}", "E": f"{e:.3f}"})
                 policy.update()
-                number_in_batch = np.random.randint(config["training"]["batch_size"]//2, config["training"]["batch_size"])
+                update_freq = config.get("training", {}).get("update_freq", 32)
                 # print(f"Policy updated at task {i}, next update in {number_in_batch} tasks.")
                 
     if train and stored_transitions:

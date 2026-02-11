@@ -9,19 +9,22 @@ env:
 
 eval:
   lambda: [5.294, 0.2276, 0.002952]
-  expected_max_latency: 210
-  expected_max_energy: 800
+  expected_max_latency: 4
+  expected_max_energy: 300
 
 training:
   num_epochs: 20
-  batch_size: 1024
-  lr: 0.02
+  buffer_size: 10000      # max replay buffer size
+  batch_size: 512          # samples per update
+  target_update_freq: 10 # steps between target network syncs
+  update_freq: 100
+  lr: 0.005
   lr_decay: 0.95
-  gamma: 0.2
+  gamma: 0.9
   epsilon: 0.2
-  epsilon_decay: 0.8
+  epsilon_decay: 0.9
   beta: 0.5
-  beta_decay: 0.6
+  beta_decay: 0.9
   reward_scale: 1
   lambda: [0.8, 0.1, 0.1]
 

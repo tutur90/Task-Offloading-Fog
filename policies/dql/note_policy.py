@@ -1,16 +1,30 @@
 
 import torch
-from policies.dql_policy import DQLPolicy
+from policies.dql.base_policy import DQNPolicy
 from policies.dql.mlp_policy import MLPPolicy
 from policies.model.NOTE import NOTE
+import copy
+import torch.nn as nn
+import torch.optim as optim
 
 
-class NOTEPolicy(DQLPolicy):
+class NOTEPolicy(DQNPolicy):
+    def __init__(self, env, config):
+        super().__init__(env, config, allow_mps=False)
+        
+        
     def _init_model(self, env, config):
         self.model = NOTE(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"]).to(self.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-        self.criterion = torch.nn.MSELoss()
+        self.target_model = copy.deepcopy(self.model)
+        self.target_model.eval()
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+        self.criterion = nn.MSELoss()
+
+        self.model.register_norm(self._make_observation(env, None, self.obs_type)[0], self.device)
+        self.target_model.register_norm(self._make_observation(env, None, self.obs_type)[0], self.device)  # Register the normalization factor for latency
         
-        self.model.register_norm(self._make_observation(env, None, self.obs_type)[0])  # Register the normalization factor for latency
+
+
+
         
     

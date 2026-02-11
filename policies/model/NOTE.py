@@ -64,10 +64,8 @@ class NOTE(nn.Module):
         
         
     def forward(self, nodes, task, use_task=True):
-        
-        
-        # nodes = nodes / self.norm
-        
+
+        nodes = nodes / self.norm
         
         nodes = self.nodes_embed(nodes)
         x = nodes + self.pos_nodes_embed 
@@ -81,8 +79,9 @@ class NOTE(nn.Module):
         x = self.fc(x)
         return x
         
-    def register_norm(self, norm, epsilon=1e-8):
-        self.register_buffer('norm', torch.tensor(norm, dtype=torch.float32).max(dim=0, keepdim=True).values + epsilon)  # Register the normalization factor as a buffer
+    def register_norm(self, norm, device, epsilon=1e-8):
+        self.register_buffer('norm', torch.tensor(norm, dtype=torch.float32, device=device).max(dim=0, keepdim=True).values + epsilon)  # Register the normalization factor as a buffer
+        self.norm = self.norm.to(device)
         print(self.norm)
 
 

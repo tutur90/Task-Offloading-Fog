@@ -1,6 +1,6 @@
 
 policy: "MLP"
-algo: "DLQ"
+algo: "DQL"
 
 seed: 42
 
@@ -11,19 +11,22 @@ env:
 
 eval:
   lambda: [5.294, 0.2276, 0.002952]
-  expected_max_latency: 210
-  expected_max_energy: 800
+  expected_max_latency: 4
+  expected_max_energy: 300
 
 training:
   num_epochs: 30
-  batch_size: 1024
+  buffer_size: 10000      # max replay buffer size
+  batch_size: 512          # samples per update
+  target_update_freq: 100 # steps between target network syncs
+  
   lr: 0.005
   lr_decay: 0.95
-  gamma: 0.95
-  epsilon: 0.9
-  epsilon_decay: 0.8
+  gamma: 0.9
+  epsilon: 0.2
+  epsilon_decay: 0.9
   reward_scale: 1
-  lambda: [0.2, 0.75, 0.05]
+  lambda: [0.8, 0.1, 0.1]
 
 model:
   d_model: 256
