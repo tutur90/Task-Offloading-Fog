@@ -111,7 +111,7 @@ def set_seed(seed):
     
     # Set PyTorch seed
     torch.manual_seed(seed)
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    # 
     
     # Set CUDA seed if available
     if torch.cuda.is_available():
@@ -119,6 +119,9 @@ def set_seed(seed):
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+        
+    else:
+        torch.use_deterministic_algorithms(True, warn_only=True)
     
     # Set Python hash seed
     os.environ['PYTHONHASHSEED'] = str(seed)
