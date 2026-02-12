@@ -1,4 +1,7 @@
 policy: "NSGA2"
+algo: "NSGA2" 
+
+seed: 42
 
 env:
   dataset: "Pakistan"
@@ -6,15 +9,15 @@ env:
   refresh_rate: 0.005
 
 eval:
-  lambda: [1, 0.1, 0.02]
-  expected_max_latency: 210
-  expected_max_energy: 800
+  lambda: [5.294, 0.2276, 0.002952]
+  expected_max_latency: 4
+  expected_max_energy: 300
 
 
 training:
-  num_epochs: 100        # Number of generations for NPGA
-  pop_size: 45          # Population size for NPGA
-  mutation_rate: 0.4    # Mutation rate for Gaussian mutation
+  num_epochs: 200        # Number of generations for NPGA
+  pop_size: 50          # Population size for NPGA
+  mutation_rate: 0.1    # Mutation rate for Gaussian mutation
 
 model:
   d_model: 64

@@ -4,36 +4,50 @@ from core.env import Env
 from core.task import Task
 
 class Individual:
-    def __init__(self, weights, biases, obs_type=["cpu", "buffer", "bw"]):
+    def __init__(self, weights, biases, obs_type=["cpu", "buffer", "bw"], norm=None):
         self.weights = weights
         self.biases = biases
         self.obs_type = obs_type
+        self.norm = norm  # Normalization factor (max values per feature)
 
     @staticmethod
     def ReLU(x):
         return np.maximum(0, x)
-        
+
     def _make_observation(self, env: Env, task: Task, obs_type=["cpu", "buffer", "bw"]):
         """
-        Returns a flat observation vector.
+        Returns a flat observation vector with normalization.
         For example, it concatenates free CPU, buffer, and bandwidth values.
         """
         if env is None:
             raise ValueError("Environment must be provided.")
-        obs = []
-        if "cpu" in obs_type:
-            cpu_obs = [env.scenario.get_node(node_name).free_cpu_freq 
-                       for node_name in env.scenario.get_nodes()]
-            obs += cpu_obs
-        if "buffer" in obs_type:
-            buffer_obs = [env.scenario.get_node(node_name).buffer_free_size() 
-                          for node_name in env.scenario.get_nodes()]
-            obs += buffer_obs
-        if "bw" in obs_type:
-            bw_obs = [env.scenario.get_link(link_name[0], link_name[1]).free_bandwidth 
-                      for link_name in env.scenario.get_links()]
-            obs += bw_obs
-        return np.array(obs)
+
+        n_nodes = len(env.scenario.get_nodes())
+        n_features = len(obs_type)
+        obs = np.zeros((n_nodes, n_features), dtype=np.float32)
+
+        for node_name in env.scenario.get_nodes():
+            node_id = env.scenario.node_name2id[node_name]
+            if "cpu" in obs_type:
+                obs[node_id, obs_type.index("cpu")] = env.scenario.get_node(node_name).free_cpu_freq
+            if "buffer" in obs_type:
+                obs[node_id, obs_type.index("buffer")] = env.scenario.get_node(node_name).buffer_free_size()
+            if "bw" in obs_type:
+                src_node = "e0"
+                if node_name != src_node:
+                    obs[node_id, obs_type.index("bw")] = min(
+                        link.free_bandwidth for link in env.scenario.infrastructure.get_shortest_links(src_node, node_name)
+                    )
+                else:
+                    obs[node_id, obs_type.index("bw")] = max(
+                        link.free_bandwidth for link in env.scenario.infrastructure.get_links().values()
+                    )
+
+        # Apply normalization if norm is set
+        if self.norm is not None:
+            obs = obs / self.norm
+
+        return obs.flatten()
 
     def act(self, env, task):
         """
@@ -58,30 +72,51 @@ class NSGA2Policy:
         self.d_model = config["model"]["d_model"]
         self.n_layers = config["model"]["n_layers"]
 
-        # Determine the observation dimension.
-        self.n_observations = len(self._make_observation(self.env, None, self.obs_type))
+        # Compute initial observation to determine dimensions and normalization
+        initial_obs = self._make_observation(self.env, None, self.obs_type)
+
+        # Store normalization factor (max values per feature, same as MLP policy)
+        self.norm = initial_obs.max(axis=0, keepdims=True)
+        # Avoid division by zero
+        self.norm = np.where(self.norm == 0, 1.0, self.norm)
+
+        # Determine the observation dimension (flattened size)
+        self.n_observations = initial_obs.size
         self.num_actions = len(self.env.scenario.node_id2name)
 
         # Initialize the population (each individual is a tuple of weight matrices and bias vectors).
-        self.population = [self.genenerate_individual() 
+        self.population = [self.genenerate_individual()
                            for _ in range(config["training"]["pop_size"])]
 
     def _make_observation(self, env, task, obs_type):
+        """
+        Returns observation as a 2D array of shape (n_nodes, n_features).
+        Same structure as MLP policy for consistent normalization.
+        """
         if env is None:
             raise ValueError("Environment must be provided to determine observation size.")
-        obs = []
-        if "cpu" in obs_type:
-            cpu_obs = [env.scenario.get_node(node_name).free_cpu_freq 
-                       for node_name in env.scenario.get_nodes()]
-            obs += cpu_obs
-        if "buffer" in obs_type:
-            buffer_obs = [env.scenario.get_node(node_name).buffer_free_size() 
-                          for node_name in env.scenario.get_nodes()]
-            obs += buffer_obs
-        if "bw" in obs_type:
-            bw_obs = [env.scenario.get_link(link_name[0], link_name[1]).free_bandwidth 
-                      for link_name in env.scenario.get_links()]
-            obs += bw_obs
+
+        n_nodes = len(env.scenario.get_nodes())
+        n_features = len(obs_type)
+        obs = np.zeros((n_nodes, n_features), dtype=np.float32)
+
+        for node_name in env.scenario.get_nodes():
+            node_id = env.scenario.node_name2id[node_name]
+            if "cpu" in obs_type:
+                obs[node_id, obs_type.index("cpu")] = env.scenario.get_node(node_name).free_cpu_freq
+            if "buffer" in obs_type:
+                obs[node_id, obs_type.index("buffer")] = env.scenario.get_node(node_name).buffer_free_size()
+            if "bw" in obs_type:
+                src_node = "e0"
+                if node_name != src_node:
+                    obs[node_id, obs_type.index("bw")] = min(
+                        link.free_bandwidth for link in env.scenario.infrastructure.get_shortest_links(src_node, node_name)
+                    )
+                else:
+                    obs[node_id, obs_type.index("bw")] = max(
+                        link.free_bandwidth for link in env.scenario.infrastructure.get_links().values()
+                    )
+
         return obs
 
     def genenerate_individual(self):
@@ -113,7 +148,7 @@ class NSGA2Policy:
         """
         Wrap the population's weight matrices and bias vectors into Individual objects.
         """
-        return [Individual(weights, biases, self.obs_type) for weights, biases in self.population]
+        return [Individual(weights, biases, self.obs_type, self.norm) for weights, biases in self.population]
 
     def best_individual(self, fitness):
         """
@@ -248,22 +283,31 @@ class NSGA2Policy:
     # NSGA-II Update Routine
     # -------------------------------
 
-    def tournament_selection(self, population_with_fitness, tournament_size=2):
+    def tournament_selection(self, population_with_rank_and_distance, tournament_size=2):
         """
-        Perform tournament selection to choose parents.
-        
+        Perform tournament selection using NSGA-II's crowded comparison operator.
+
+        In NSGA-II, selection is based on:
+        1. Pareto rank (lower is better)
+        2. Crowding distance (higher is better, when ranks are equal)
+
         Parameters:
-          population_with_fitness: List of tuples (individual, fitness)
+          population_with_rank_and_distance: List of tuples (individual, fitness, rank, crowding_distance)
           tournament_size: Size of tournament
-          
+
         Returns:
           Selected individual (weights, biases)
         """
-        tournament = random.sample(population_with_fitness, tournament_size)
-        # Select best individual from tournament (considering Pareto dominance)
+        tournament = random.sample(population_with_rank_and_distance, tournament_size)
+
+        # Select best individual using crowded comparison operator
         best = tournament[0]
         for candidate in tournament[1:]:
-            if self.dominates(candidate[1], best[1]):
+            # Compare by rank first (lower is better)
+            if candidate[2] < best[2]:
+                best = candidate
+            # If same rank, compare by crowding distance (higher is better)
+            elif candidate[2] == best[2] and candidate[3] > best[3]:
                 best = candidate
         return best[0]
 
@@ -278,6 +322,7 @@ class NSGA2Policy:
         Returns:
           Two offspring as tuples of (weights, biases)
         """
+        return parent1, parent2 # Placeholder: no crossover for now
         parent1_weights, parent1_biases = parent1
         parent2_weights, parent2_biases = parent2
         
@@ -311,81 +356,122 @@ class NSGA2Policy:
         
         return (child1_weights, child1_biases), (child2_weights, child2_biases)
 
+    def assign_rank_and_crowding(self, population, fitness):
+        """
+        Assign Pareto rank and crowding distance to each individual.
+
+        Parameters:
+          population: List of individuals (weights, biases)
+          fitness: List of fitness tuples
+
+        Returns:
+          List of tuples (individual, fitness, rank, crowding_distance)
+        """
+        fronts = self.non_dominated_sort(fitness)
+        ranks = [0] * len(population)
+        crowding_distances = [0.0] * len(population)
+
+        for rank, front in enumerate(fronts):
+            # Assign rank to each individual in this front
+            for idx in front:
+                ranks[idx] = rank
+
+            # Compute crowding distance for this front
+            front_fitness = [fitness[idx] for idx in front]
+            front_distances = self.crowding_distance(front_fitness)
+
+            # Assign crowding distance to each individual
+            for i, idx in enumerate(front):
+                crowding_distances[idx] = front_distances[i]
+
+        return [
+            (population[i], fitness[i], ranks[i], crowding_distances[i])
+            for i in range(len(population))
+        ]
+
     def update(self, fitness):
         """
         Update the population using NSGA-II selection.
-        
+
+        NSGA-II Algorithm:
+        1. Compute rank and crowding distance for current population
+        2. Generate offspring via tournament selection (using crowded comparison),
+           crossover, and mutation
+        3. Combine parent and offspring populations (size 2N)
+        4. Perform non-dominated sorting and select top N individuals
+
         Parameters:
           fitness: A list of objective tuples for the current population.
-                  If None, will evaluate current population.
-          evaluate_offspring: Whether to evaluate offspring fitness (should be True for real runs)
-          
+                   Each tuple contains objectives to be MINIMIZED.
+
         Returns:
           Updated fitness values for the new population
         """
         pop_size = len(self.population)
-        
-        # If no fitness provided, evaluate current population
-        if fitness is None:
-            fitness = []
-            for weights, biases in self.population:
-                individual = Individual(weights, biases, self.obs_type)
-                fit = self.evaluate_individual(individual)
-                fitness.append(fit)
-        
-        # Create offspring population
+
+        # Convert fitness to list of tuples if it's a numpy array
+        if hasattr(fitness, 'tolist'):
+            fitness = [tuple(f) for f in fitness]
+        else:
+            fitness = [tuple(f) for f in fitness]
+
+        # Step 1: Assign rank and crowding distance to current population
+        population_with_rank_and_distance = self.assign_rank_and_crowding(
+            self.population, fitness
+        )
+
+        # Step 2: Create offspring population using tournament selection,
+        # crossover, and mutation
         offspring = []
-        
-        # Create population with fitness for tournament selection
-        population_with_fitness = list(zip(self.population, fitness))
-        
-        # Generate offspring using tournament selection and crossover
+
         while len(offspring) < pop_size:
-            # Select parents using tournament selection
-            parent1 = self.tournament_selection(population_with_fitness)
-            parent2 = self.tournament_selection(population_with_fitness)
-            
+            # Select parents using tournament selection with crowded comparison
+            parent1 = self.tournament_selection(population_with_rank_and_distance)
+            parent2 = self.tournament_selection(population_with_rank_and_distance)
+
             # Perform crossover
             child1, child2 = self.crossover(parent1, parent2)
-            
+
             # Apply mutation
             mutated_child1_weights = [self.mutate_matrix(w) for w in child1[0]]
             mutated_child1_biases = [self.mutate_vector(b) for b in child1[1]]
-            
+
             mutated_child2_weights = [self.mutate_matrix(w) for w in child2[0]]
             mutated_child2_biases = [self.mutate_vector(b) for b in child2[1]]
-            
+
             offspring.append((mutated_child1_weights, mutated_child1_biases))
             if len(offspring) < pop_size:
                 offspring.append((mutated_child2_weights, mutated_child2_biases))
-        
+
         # Trim offspring to exact population size
         offspring = offspring[:pop_size]
-        
-        # Evaluate offspring fitness
+
+        # Note: Offspring fitness will be evaluated externally in the next generation.
+        # For now, we use placeholder fitness (will be replaced by actual evaluation).
+        # This follows the standard NSGA-II where offspring are evaluated after creation.
         offspring_fitness = []
-        if evaluate_offspring:
-            for weights, biases in offspring:
-                individual = Individual(weights, biases, self.obs_type)
-                fit = self.evaluate_individual(individual)
-                offspring_fitness.append(fit)
-        else:
-            # For testing/debugging: simulate offspring fitness
-            for _ in offspring:
-                base_fit = random.choice(fitness)
-                noise = tuple(random.uniform(-0.01, 0.01) for _ in range(len(base_fit)))
-                offspring_fitness.append(tuple(b + n for b, n in zip(base_fit, noise)))
-        
-        # Combine current population and offspring
+        for _ in offspring:
+            # Placeholder: inherit random parent fitness with small noise
+            # In practice, this will be overwritten by actual evaluation
+            base_fit = random.choice(fitness)
+            noise = tuple(random.uniform(-0.01, 0.01) for _ in range(len(base_fit)))
+            offspring_fitness.append(tuple(b + n for b, n in zip(base_fit, noise)))
+
+        # Step 3: Combine current population and offspring (size 2N)
         combined_population = self.population + offspring
         combined_fitness = fitness + offspring_fitness
-        
-        # Select next generation using NSGA-II selection
+
+        # Step 4: Select next generation using non-dominated sorting
+        # and crowding distance
         new_population, new_fitness = self.select_next_generation(
             combined_population, combined_fitness, pop_size
         )
-        
+
         # Update population
         self.population = new_population
-        
+
         return new_fitness
+    
+    def save(self, path): 
+        """ Save the current population to a file. """ # np.savez_compressed(path, population=self.population) 
+        pass

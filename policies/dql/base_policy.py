@@ -72,9 +72,8 @@ class DQNPolicy:
         self.update_count = 0
         
         if device == "auto":
-            if torch.backends.mps.is_available():
-                self.device = torch.device("mps")
-            elif torch.cuda.is_available():
+
+            if torch.cuda.is_available():
                 self.device = torch.device("cuda")
             else:
                 self.device = torch.device("cpu")

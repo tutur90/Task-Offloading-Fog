@@ -189,13 +189,7 @@ def evaluate_individual_generation(args):
         except Exception as e:
             error_handler(e)
 
-    ttr, latency, energy, _ = get_metrics(env, config)
-
-    # Compute weighted score using lambda_ weights (fail, time, energy)
-    # Normalize time and energy if max values are provided
-    norm_latency = latency / max_total_time if max_total_time > 0 else latency
-    norm_energy = energy / max_total_energy if max_total_energy > 0 else energy
-    score = lambda_[0] * ttr + lambda_[1] * norm_latency + lambda_[2] * norm_energy
+    ttr, latency, energy, score = get_metrics(env, config)
 
     return ttr, latency, energy, score
 
