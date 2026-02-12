@@ -10,7 +10,7 @@ import torch.optim as optim
 
 class NOTEPolicy(DQNPolicy):
     def __init__(self, env, config):
-        super().__init__(env, config, allow_mps=False)
+        super().__init__(env, config)
         
         
     def _init_model(self, env, config):

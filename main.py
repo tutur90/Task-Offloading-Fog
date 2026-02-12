@@ -312,7 +312,7 @@ if __name__ == '__main__':
             plot_ternary(grid, values=val_metrics[:, 3], title='Validation Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_val.png", max_value=0.8)
         elif len(param_specs) == 2:
             plot_grid_search_heatmap(param_specs, progress, metric_idx=3, metric_name="Score",
-                                     output_path=f"{results_dir}/grid_search_{search_name}_heatmap.png", max_value=0.8)
+                                     output_path=f"{results_dir}/grid_search_{search_name}_heatmap.png")
 
     else:
         val_metrics, test_metrics = main(config)

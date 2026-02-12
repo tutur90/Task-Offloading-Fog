@@ -10,7 +10,8 @@ Main Dependent Modules:
 - **simpy**: SimPy is a process-based discrete-event simulation framework based on standard Python.
 - **numpy**: NumPy is a Python library used for working with arrays.
 - **pandas**: Pandas is a fast, powerful, flexible and easy to use open source data analysis and manipulation tool.
-  
+
+python main.py --config configs/Pakistan/DQL/MLP.yaml --grid_search     --grid_params "training.gamma=0.99,0.95,0.9,0.85" "training.epsilon=0.3,0.2,0.15,0.1,0.05,0" --num_workers 16
 
 Users are recommended to use the Anaconda to configure the RayCloudSim:
 

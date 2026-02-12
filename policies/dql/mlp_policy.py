@@ -5,7 +5,7 @@ import torch.optim as optim
 from policies.dql.base_policy import DQNPolicy
 
 class MLP(nn.Module):   
-    def __init__(self, d_in, d_pos,  d_model, output_size, n_layers=2,  bias=True, **kwargs):
+    def __init__(self, d_in, d_pos,  d_model, output_size, n_layers=2, dropout=0.2,  bias=True, **kwargs):
         super(MLP, self).__init__()
         
         
@@ -13,7 +13,7 @@ class MLP(nn.Module):
             raise ValueError("The number of layers must be at least 2.")
         layers = [nn.Linear(d_in*d_pos, d_model, bias=bias), nn.ReLU()]
         for _ in range(n_layers - 2):
-            layers += [nn.Linear(d_model, d_model, bias=bias), nn.ReLU()]
+            layers += [nn.Linear(d_model, d_model, bias=bias), nn.ReLU(), nn.Dropout(dropout)]
         layers.append(nn.Linear(d_model, output_size))
         self.model = nn.Sequential(*layers)
         

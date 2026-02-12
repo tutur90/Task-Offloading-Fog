@@ -18,11 +18,11 @@ training:
   num_epochs: 30
   buffer_size: 10000      # max replay buffer size
   batch_size: 512          # samples per update
-  target_update_freq: 100 # steps between target network syncs
-  
+  target_update_freq: 32 # steps between target network syncs
+  update_freq: 128          # steps between policy updates
   lr: 0.005
   lr_decay: 0.95
-  gamma: 0.9
+  gamma: 0.99
   epsilon: 0.2
   epsilon_decay: 0.9
   reward_scale: 1
@@ -35,4 +35,5 @@ model:
   # obs_type: ["cpu", "buffer"]
   obs_type: ["cpu", "bw", "buffer"]
   bias: true
+  dropout: 0
 

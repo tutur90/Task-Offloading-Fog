@@ -13,27 +13,27 @@ eval:
   expected_max_energy: 300
 
 training:
-  num_epochs: 20
+  num_epochs: 30
   buffer_size: 10000      # max replay buffer size
   batch_size: 512          # samples per update
-  target_update_freq: 10 # steps between target network syncs
-  update_freq: 100
+  target_update_freq: 32 # steps between target network syncs
+  update_freq: 128          # steps between policy updates
   lr: 0.005
   lr_decay: 0.95
-  gamma: 0.9
+  gamma: 0.99
   epsilon: 0.2
   epsilon_decay: 0.9
-  beta: 0.5
-  beta_decay: 0.9
+  # beta: 0.5
+  # beta_decay: 0.9
   reward_scale: 1
-  lambda: [0.8, 0.1, 0.1]
+  lambda: [0.8, 0.15, 0.05]
 
 model:
   d_model: 64
-  n_layers: 6
+  n_layers: 3
   n_heads: 4
   mlp_ratio: 4
-  dropout: 0.2
+  dropout: 0
   mode: node
   obs_type: ["cpu", "bw", "buffer"]
 
