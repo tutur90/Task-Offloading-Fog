@@ -224,3 +224,31 @@ class NPGAPolicy:
         # Replace current population with the offspring.
         self.population = new_population
         return new_fitness
+
+    def save(self, path):
+        """Save the current population to a file."""
+        # Convert .pt extension to .npz for numpy format
+        if path.endswith('.pt'):
+            path = path[:-3] + '.npz'
+        save_dict = {
+            'n_individuals': len(self.population),
+            'n_layers': self.n_layers,
+        }
+        for i, weights in enumerate(self.population):
+            for j, w in enumerate(weights):
+                save_dict[f'ind_{i}_weight_{j}'] = w
+        np.savez_compressed(path, **save_dict)
+
+    def load(self, path):
+        """Load the population from a file."""
+        # Convert .pt extension to .npz for numpy format
+        if path.endswith('.pt'):
+            path = path[:-3] + '.npz'
+        data = np.load(path)
+        n_individuals = int(data['n_individuals'])
+        n_layers = int(data['n_layers'])
+
+        self.population = []
+        for i in range(n_individuals):
+            weights = [data[f'ind_{i}_weight_{j}'] for j in range(n_layers)]
+            self.population.append(weights)

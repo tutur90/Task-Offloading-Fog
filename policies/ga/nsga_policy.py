@@ -150,18 +150,6 @@ class NSGA2Policy:
         """
         return [Individual(weights, biases, self.obs_type, self.norm) for weights, biases in self.population]
 
-    def best_individual(self, fitness):
-        """
-        Select a single best individual via a weighted scalarization.
-        Here, fitness is assumed to be tuples: (success_rate, avg_latency, avg_power),
-        with success_rate to be maximized and latency/power to be minimized.
-        """
-        lambda_param = self.config["training"].get("latency_weight", 0.1)
-        mu_param = self.config["training"].get("power_weight", 0.1)
-        scores = [sr - lambda_param * l - mu_param * e for (sr, l, e) in fitness]
-        best_idx = np.argmax(scores)
-        return fitness[best_idx]
-
     # -------------------------------
     # NSGA-II Helper Functions
     # -------------------------------
@@ -472,6 +460,36 @@ class NSGA2Policy:
 
         return new_fitness
     
-    def save(self, path): 
-        """ Save the current population to a file. """ # np.savez_compressed(path, population=self.population) 
-        pass
+    def save(self, path):
+        """Save the current population to a file."""
+        # Convert .pt extension to .npz for numpy format
+        if path.endswith('.pt'):
+            path = path[:-3] + '.npz'
+        # Flatten population into separate arrays for weights and biases
+        save_dict = {
+            'norm': self.norm,
+            'n_individuals': len(self.population),
+            'n_layers': self.n_layers,
+        }
+        for i, (weights, biases) in enumerate(self.population):
+            for j, w in enumerate(weights):
+                save_dict[f'ind_{i}_weight_{j}'] = w
+            for j, b in enumerate(biases):
+                save_dict[f'ind_{i}_bias_{j}'] = b
+        np.savez_compressed(path, **save_dict)
+
+    def load(self, path):
+        """Load the population from a file."""
+        # Convert .pt extension to .npz for numpy format
+        if path.endswith('.pt'):
+            path = path[:-3] + '.npz'
+        data = np.load(path)
+        self.norm = data['norm']
+        n_individuals = int(data['n_individuals'])
+        n_layers = int(data['n_layers'])
+
+        self.population = []
+        for i in range(n_individuals):
+            weights = [data[f'ind_{i}_weight_{j}'] for j in range(n_layers)]
+            biases = [data[f'ind_{i}_bias_{j}'] for j in range(n_layers)]
+            self.population.append((weights, biases))

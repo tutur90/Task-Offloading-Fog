@@ -60,6 +60,9 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
     """ Train the policy using the provided training data and validate it using the validation data. """
     is_ga = config["algo"] in GA_ALGOS
 
+    early_stop_patience = config["training"].get("early_stop_patience", None)
+    epochs_without_improvement = 0
+
     for epoch in range(config["training"]["num_epochs"]):
 
         logger.update_epoch(epoch)
@@ -98,6 +101,13 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
 
         if logger.is_best(score[3], epoch):
             checkpoint.save(policy, epoch)
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+
+        if early_stop_patience is not None and epochs_without_improvement >= early_stop_patience:
+            print(f"Early stopping at epoch {epoch + 1} (no improvement for {early_stop_patience} epochs)")
+            break
 
         if not is_ga:
             policy.epsilon *= config["training"]["epsilon_decay"]
