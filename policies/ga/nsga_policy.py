@@ -377,23 +377,16 @@ class NSGA2Policy:
             for i in range(len(population))
         ]
 
-    def update(self, fitness):
+    def create_offspring(self, fitness):
         """
-        Update the population using NSGA-II selection.
-
-        NSGA-II Algorithm:
-        1. Compute rank and crowding distance for current population
-        2. Generate offspring via tournament selection (using crowded comparison),
-           crossover, and mutation
-        3. Combine parent and offspring populations (size 2N)
-        4. Perform non-dominated sorting and select top N individuals
+        Create offspring population using tournament selection, crossover, and mutation.
 
         Parameters:
           fitness: A list of objective tuples for the current population.
                    Each tuple contains objectives to be MINIMIZED.
 
         Returns:
-          Updated fitness values for the new population
+          List of offspring individuals (weights, biases) that need to be evaluated.
         """
         pop_size = len(self.population)
 
@@ -403,12 +396,12 @@ class NSGA2Policy:
         else:
             fitness = [tuple(f) for f in fitness]
 
-        # Step 1: Assign rank and crowding distance to current population
+        # Assign rank and crowding distance to current population
         population_with_rank_and_distance = self.assign_rank_and_crowding(
             self.population, fitness
         )
 
-        # Step 2: Create offspring population using tournament selection,
+        # Create offspring population using tournament selection,
         # crossover, and mutation
         offspring = []
 
@@ -432,33 +425,104 @@ class NSGA2Policy:
                 offspring.append((mutated_child2_weights, mutated_child2_biases))
 
         # Trim offspring to exact population size
-        offspring = offspring[:pop_size]
+        return offspring[:pop_size]
 
-        # Note: Offspring fitness will be evaluated externally in the next generation.
-        # For now, we use placeholder fitness (will be replaced by actual evaluation).
-        # This follows the standard NSGA-II where offspring are evaluated after creation.
-        offspring_fitness = []
-        for _ in offspring:
-            # Placeholder: inherit random parent fitness with small noise
-            # In practice, this will be overwritten by actual evaluation
-            base_fit = random.choice(fitness)
-            noise = tuple(random.uniform(-0.01, 0.01) for _ in range(len(base_fit)))
-            offspring_fitness.append(tuple(b + n for b, n in zip(base_fit, noise)))
+    def offspring_individuals(self, offspring):
+        """
+        Wrap offspring (weights, biases) tuples into Individual objects for evaluation.
+        """
+        return [Individual(weights, biases, self.obs_type, self.norm) for weights, biases in offspring]
 
-        # Step 3: Combine current population and offspring (size 2N)
+    def select_from_combined(self, parent_fitness, offspring, offspring_fitness):
+        """
+        Combine parents and offspring, then select next generation using
+        non-dominated sorting and crowding distance.
+
+        Parameters:
+          parent_fitness: Full fitness values for current population (parents) - can be 3 or 4 values
+          offspring: List of offspring individuals (weights, biases)
+          offspring_fitness: Full evaluated fitness values for offspring - can be 3 or 4 values
+
+        Returns:
+          Tuple of (selected_indices, full_fitness) where selected_indices maps to combined population
+        """
+        pop_size = len(self.population)
+
+        # Convert fitness to list of tuples
+        if hasattr(parent_fitness, 'tolist'):
+            parent_fitness = [tuple(f) for f in parent_fitness]
+        else:
+            parent_fitness = [tuple(f) for f in parent_fitness]
+
+        if hasattr(offspring_fitness, 'tolist'):
+            offspring_fitness = [tuple(f) for f in offspring_fitness]
+        else:
+            offspring_fitness = [tuple(f) for f in offspring_fitness]
+
+        # Store full fitness for later retrieval
+        combined_full_fitness = parent_fitness + offspring_fitness
+
+        # Use only first 3 objectives for selection (ttr, latency, energy)
+        combined_selection_fitness = [f[:3] for f in combined_full_fitness]
+
+        # Combine current population and offspring (size 2N)
         combined_population = self.population + offspring
-        combined_fitness = fitness + offspring_fitness
 
-        # Step 4: Select next generation using non-dominated sorting
-        # and crowding distance
-        new_population, new_fitness = self.select_next_generation(
-            combined_population, combined_fitness, pop_size
-        )
+        # Select next generation using non-dominated sorting and crowding distance
+        # Modified to track indices
+        fronts = self.non_dominated_sort(combined_selection_fitness)
+        new_population = []
+        new_fitness = []
+        selected_indices = []
+
+        for front in fronts:
+            if len(new_population) + len(front) <= pop_size:
+                for idx in front:
+                    new_population.append(combined_population[idx])
+                    new_fitness.append(combined_full_fitness[idx])
+                    selected_indices.append(idx)
+            else:
+                front_fitness = [combined_selection_fitness[idx] for idx in front]
+                distances = self.crowding_distance(front_fitness)
+                sorted_front = sorted(list(zip(front, distances)), key=lambda x: -x[1])
+                for idx, _ in sorted_front:
+                    if len(new_population) < pop_size:
+                        new_population.append(combined_population[idx])
+                        new_fitness.append(combined_full_fitness[idx])
+                        selected_indices.append(idx)
+                    else:
+                        break
+                break
 
         # Update population
         self.population = new_population
 
         return new_fitness
+
+    def update(self, fitness):
+        """
+        Legacy update method - creates offspring and immediately selects.
+        WARNING: This uses fake offspring fitness! Use create_offspring() and
+        select_from_combined() for proper NSGA-II with real fitness evaluation.
+
+        Parameters:
+          fitness: A list of objective tuples for the current population.
+
+        Returns:
+          Updated fitness values for the new population
+        """
+        # Create offspring
+        offspring = self.create_offspring(fitness)
+
+        # WARNING: This assigns fake fitness - use select_from_combined() with
+        # real evaluated fitness instead
+        offspring_fitness = []
+        for _ in offspring:
+            base_fit = random.choice([tuple(f) for f in fitness])
+            noise = tuple(random.uniform(-0.01, 0.01) for _ in range(len(base_fit)))
+            offspring_fitness.append(tuple(b + n for b, n in zip(base_fit, noise)))
+
+        return self.select_from_combined(fitness, offspring, offspring_fitness)
     
     def save(self, path):
         """Save the current population to a file."""

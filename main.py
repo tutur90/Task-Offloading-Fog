@@ -63,6 +63,9 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
     early_stop_patience = config["training"].get("early_stop_patience", None)
     epochs_without_improvement = 0
 
+    # Track fitness across generations for GA (avoids re-evaluating parents)
+    cached_fitness = None
+
     for epoch in range(config["training"]["num_epochs"]):
 
         logger.update_epoch(epoch)
@@ -72,10 +75,15 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
         logger.update_mode('Training')
 
         if is_ga:
-            result = run_generation(config, policy, train_data, train=True,  max_total_time=max_total_time, max_total_energy=max_total_energy)
+            # Pass cached fitness to avoid re-evaluating parents (except first epoch)
+            result = run_generation(config, policy, train_data, train=True,
+                                    max_total_time=max_total_time, max_total_energy=max_total_energy,
+                                    parent_fitness=cached_fitness)
             update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
             max_total_time = result.max_total_time
             max_total_energy = result.max_total_energy
+            # Cache fitness for next generation (these are the selected individuals)
+            cached_fitness = result.fitness
             result.close()
         else:
             env = run_epoch(config, policy, train_data, train=True, lambda_=config["training"]["lambda"], max_total_time=max_total_time, max_total_energy=max_total_energy)

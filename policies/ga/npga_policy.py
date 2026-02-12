@@ -181,28 +181,22 @@ class NPGAPolicy:
     # ---------------------------
     # NPGA Update Routine
     # ---------------------------
-    def update(self, fitness):
+    def create_offspring(self, fitness):
         """
-        Update the population using an NPGA approach.
-        
+        Create offspring population using NPGA tournament selection, crossover, and mutation.
+
         Parameters:
           fitness: List of objective tuples for the current population.
-                   (If objectives include success rate to be maximized, convert it here to minimization.)
-                   For example, use: ( ttr, avg_latency, avg_power )
-        
-        The procedure:
-          1. Use NPGA tournament selection (with a niche) to choose parents.
-          2. Generate offspring via arithmetic crossover and Gaussian mutation.
-          3. For demonstration, simulate offspring fitness by perturbing a parent's fitness.
-          4. Replace the current population with the offspring.
+
+        Returns:
+          List of offspring individuals (weights) that need to be evaluated.
         """
         pop_size = len(self.population)
-        new_population = []
-        new_fitness = []
+        offspring = []
         niche_size = self.config["training"].get("niche_size", 5)
-        
+
         # Generate offspring population.
-        while len(new_population) < pop_size:
+        while len(offspring) < pop_size:
             parent1 = self.npga_tournament_selection(self.population, fitness, niche_size)
             parent2 = self.npga_tournament_selection(self.population, fitness, niche_size)
             child = []
@@ -212,18 +206,120 @@ class NPGAPolicy:
                 child.append(child_w)
             # Mutation step.
             mutated_child = [self.mutate_matrix(w) for w in child]
-            new_population.append(mutated_child)
-            # For demonstration, simulate offspring fitness by perturbing a random parent's fitness.
+            offspring.append(mutated_child)
+
+        return offspring
+
+    def offspring_individuals(self, offspring):
+        """
+        Wrap offspring weights into Individual objects for evaluation.
+        """
+        return [Individual(weights, self.obs_type.copy()) for weights in offspring]
+
+    def select_from_combined(self, parent_fitness, offspring, offspring_fitness):
+        """
+        Select the next generation from combined parents and offspring based on
+        Pareto dominance (NPGA-style selection).
+
+        Parameters:
+          parent_fitness: Full fitness values for current population (parents) - can be 3 or 4 values
+          offspring: List of offspring individuals (weights)
+          offspring_fitness: Full evaluated fitness values for offspring - can be 3 or 4 values
+
+        Returns:
+          Full fitness values for the new population (preserves all columns)
+        """
+        pop_size = len(self.population)
+
+        # Convert to lists
+        parent_fitness = [tuple(f) for f in parent_fitness]
+        offspring_fitness = [tuple(f) for f in offspring_fitness]
+
+        # Combine populations and full fitness
+        combined_population = self.population + offspring
+        combined_full_fitness = parent_fitness + offspring_fitness
+
+        # Use only first 3 objectives for selection (ttr, latency, energy)
+        combined_selection_fitness = [f[:3] for f in combined_full_fitness]
+
+        # Use non-dominated sorting to select best individuals
+        population_size = len(combined_selection_fitness)
+        S = [[] for _ in range(population_size)]
+        n = [0] * population_size
+
+        for p in range(population_size):
+            for q in range(population_size):
+                if self.dominates(combined_selection_fitness[p], combined_selection_fitness[q]):
+                    S[p].append(q)
+                elif self.dominates(combined_selection_fitness[q], combined_selection_fitness[p]):
+                    n[p] += 1
+
+        # Assign fronts
+        fronts = [[]]
+        for p in range(population_size):
+            if n[p] == 0:
+                fronts[0].append(p)
+
+        i = 0
+        while fronts[i]:
+            next_front = []
+            for p in fronts[i]:
+                for q in S[p]:
+                    n[q] -= 1
+                    if n[q] == 0:
+                        next_front.append(q)
+            i += 1
+            fronts.append(next_front)
+        fronts.pop()  # Remove empty front
+
+        # Select top pop_size individuals from fronts
+        new_population = []
+        new_fitness = []
+        for front in fronts:
+            if len(new_population) + len(front) <= pop_size:
+                for idx in front:
+                    new_population.append(combined_population[idx])
+                    new_fitness.append(combined_full_fitness[idx])
+            else:
+                # Fill remaining slots randomly from this front
+                remaining = pop_size - len(new_population)
+                selected = random.sample(front, remaining)
+                for idx in selected:
+                    new_population.append(combined_population[idx])
+                    new_fitness.append(combined_full_fitness[idx])
+                break
+
+        self.population = new_population
+        return new_fitness
+
+    def update(self, fitness):
+        """
+        Legacy update method - creates offspring and replaces population.
+        WARNING: This uses fake offspring fitness! Use create_offspring() and
+        select_from_combined() for proper NPGA with real fitness evaluation.
+
+        Parameters:
+          fitness: List of objective tuples for the current population.
+
+        Returns:
+          Updated fitness values for the new population
+        """
+        # Create offspring
+        offspring = self.create_offspring(fitness)
+
+        # WARNING: This assigns fake fitness - use select_from_combined() with
+        # real evaluated fitness instead
+        offspring_fitness = []
+        for _ in offspring:
             base_fit = random.choice(fitness)
             noise = (random.uniform(-0.01, 0.01),
                      random.uniform(-0.01, 0.01),
                      random.uniform(-0.01, 0.01))
-            new_fit = tuple(b + n for b, n in zip(base_fit, noise))
-            new_fitness.append(new_fit)
-        
-        # Replace current population with the offspring.
-        self.population = new_population
-        return new_fitness
+            offspring_fitness.append(tuple(b + n for b, n in zip(base_fit, noise)))
+
+        # Replace population with offspring (original behavior)
+        self.population = offspring
+        return offspring_fitness
 
     def save(self, path):
         """Save the current population to a file."""

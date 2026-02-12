@@ -97,17 +97,44 @@ def evaluate_individual(args):
 
     return ttr, latency, energy, score
 
-def run_epoch(config, policy, data: pd.DataFrame, train=True):
-    with Pool(processes=cpu_count()-1) as pool:
-        args = [(ind, data, config) for ind in policy.individuals()]
-        fitness = pool.map(evaluate_individual, args)
+def run_epoch(config, policy, data: pd.DataFrame, train=True, parent_fitness=None):
+    """
+    Run one epoch of GA training/evaluation.
 
-    fitness = np.array(fitness)
+    IMPORTANT: This now properly evaluates offspring fitness before selection,
+    fixing the bug where fake/random fitness was assigned to offspring.
 
-    pool.close()
-    pool.join()
+    Args:
+        parent_fitness: Pre-computed fitness from previous generation (avoids re-evaluation)
+    """
+    n_processes = max(1, cpu_count() - 1)
+
+    # Only evaluate parents if fitness not provided (first generation or validation)
+    if parent_fitness is None:
+        with Pool(processes=n_processes) as pool:
+            args = [(ind, data, config) for ind in policy.individuals()]
+            parent_results = pool.map(evaluate_individual, args)
+        parent_fitness = np.array(parent_results)
+
     if train:
-        policy.update(fitness[:, :3])
+        # Step 1: Create offspring using parent fitness for selection
+        offspring = policy.create_offspring(parent_fitness[:, :3])
+
+        # Step 2: Evaluate offspring fitness (the fix - no more fake fitness!)
+        offspring_individuals = policy.offspring_individuals(offspring)
+        offspring_args = [(ind, data, config) for ind in offspring_individuals]
+
+        with Pool(processes=n_processes) as pool:
+            offspring_results = pool.map(evaluate_individual, offspring_args)
+
+        offspring_fitness = np.array(offspring_results)
+
+        # Step 3: Select next generation using real fitness values
+        # Pass full fitness (all 4 columns) - selection uses first 3, returns all 4
+        new_fitness = policy.select_from_combined(parent_fitness, offspring, offspring_fitness)
+        fitness = np.array(new_fitness)
+    else:
+        fitness = parent_fitness
 
     return fitness
 
@@ -196,12 +223,15 @@ def evaluate_individual_generation(args):
 
 def run_generation(config, policy, data: pd.DataFrame, train=True,
                    lambda_=(1, 1, 1), max_total_time=1.0, max_total_energy=1.0,
-                   n_processes=None):
+                   n_processes=None, parent_fitness=None):
     """
     Run one generation of the genetic algorithm over the provided task data.
 
     Evaluates all individuals in the population in parallel and optionally
     performs selection/crossover/mutation if train=True.
+
+    IMPORTANT: This now properly evaluates offspring fitness before selection,
+    fixing the bug where fake/random fitness was assigned to offspring.
 
     Args:
         config: Configuration dictionary
@@ -212,6 +242,7 @@ def run_generation(config, policy, data: pd.DataFrame, train=True,
         max_total_time: Maximum total time for normalization
         max_total_energy: Maximum total energy for normalization
         n_processes: Number of parallel processes (defaults to cpu_count-1)
+        parent_fitness: Pre-computed fitness from previous generation (avoids re-evaluation)
 
     Returns:
         GAResult object compatible with train() interface, containing:
@@ -223,27 +254,50 @@ def run_generation(config, policy, data: pd.DataFrame, train=True,
     if n_processes is None:
         n_processes = max(1, cpu_count() - 1)
 
-    individuals = policy.individuals()
+    # Only evaluate parents if fitness not provided (first generation or validation)
+    if parent_fitness is None:
+        individuals = policy.individuals()
+        args = [
+            (ind, data, config, lambda_, max_total_time, max_total_energy)
+            for ind in individuals
+        ]
 
-    # Prepare arguments for parallel evaluation
-    args = [
-        (ind, data, config, lambda_, max_total_time, max_total_energy)
-        for ind in individuals
-    ]
+        with Pool(processes=n_processes) as pool:
+            results = list(tqdm(
+                pool.imap(evaluate_individual_generation, args),
+                total=len(individuals),
+                desc="Evaluating parents"
+            ))
 
-    # Parallel evaluation of all individuals
-    with Pool(processes=n_processes) as pool:
-        results = list(tqdm(
-            pool.imap(evaluate_individual_generation, args),
-            total=len(individuals),
-            desc="Evaluating generation"
-        ))
-
-    fitness = np.array(results)
+        parent_fitness = np.array(results)
 
     # Update the population if training
     if train:
-        policy.update(fitness[:, :3])
+        # Step 1: Create offspring using parent fitness for selection
+        offspring = policy.create_offspring(parent_fitness[:, :3])
+
+        # Step 2: Evaluate offspring fitness (the fix - no more fake fitness!)
+        offspring_individuals = policy.offspring_individuals(offspring)
+        offspring_args = [
+            (ind, data, config, lambda_, max_total_time, max_total_energy)
+            for ind in offspring_individuals
+        ]
+
+        with Pool(processes=n_processes) as pool:
+            offspring_results = list(tqdm(
+                pool.imap(evaluate_individual_generation, offspring_args),
+                total=len(offspring_individuals),
+                desc="Evaluating offspring"
+            ))
+
+        offspring_fitness = np.array(offspring_results)
+
+        # Step 3: Select next generation using real fitness values
+        # Pass full fitness (all 4 columns) - selection uses first 3, returns all 4
+        new_fitness = policy.select_from_combined(parent_fitness, offspring, offspring_fitness)
+        fitness = np.array(new_fitness)
+    else:
+        fitness = parent_fitness
 
     # Log generation statistics
     best_idx = np.argmin(fitness[:, 3])
@@ -352,101 +406,4 @@ def plot_pareto(fitness, log_dir, epoch=None):
     plt.close()
     print(f"Pareto frontier plot saved to {save_path}")
 
-def main():
-    config_path = "./configs/Pakistan/GA/NSGA2.yaml"
-    
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
 
-    logger = Logger(config)
-    env = create_env(config)
-    
-    valid_size = config["training"].get("valid_size", 0.2)
-    
-    # Load train and test datasets.
-    train_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/trainset.csv")
-    train_data, valid_data = train_data.iloc[:int(len(train_data)*(1-valid_size))], train_data.iloc[int(len(train_data)*(1-valid_size)):]
-    valid_data["GenerationTime"] = valid_data["GenerationTime"] - valid_data["GenerationTime"].min()
-    
-    test_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/testset.csv") 
-
-    if config["policy"] == "NPGA":
-        policy = NPGAPolicy(env, config)
-    if config["policy"] == "NSGA2":
-        policy = NSGA2Policy(env, config)
-        
-    best_score = np.inf
-    best_epoch = 0
-    best_individual = None
-    
-    # print(policy.population[0])
-    
-    # print(torch.load(
-        
-    #     "/home/arthur/Documents/Cours/3A/ResearchProject/Task-Offloading-Fog/logs.old2/Pakistan/Tuple30K/MLP/num_epochs_15_batch_size_256_lr_0.005_10/DQRL/checkpoints/checkpoint_epoch_8.pt"
-    # )
-    #       )
-    
-    
-    # Training and testing loop.
-    for epoch in range(config["training"]["num_epochs"]):
-        logger.update_epoch(epoch)
-        
-        # Training phase.
-        logger.update_mode('Training')
-        tr_fitness = run_epoch(config, policy, train_data, train=True)
-        SR, L, E, score = tr_fitness[np.argmin(np.array(tr_fitness)[:, 3])]
-        update_metrics(logger, env, config, metrics=(SR, L, E, score))
-
-        
-
-        # Validation phase.
-        logger.update_mode('Validation')
-        fitness = run_epoch(config, policy, valid_data, train=False)
-        best_epoch_individual = np.argmin(np.array(fitness)[:, 3])
-        SR, L, E, score = fitness[best_epoch_individual]
-        update_metrics(logger, env, config, metrics=(SR, L, E, score))
-        env.close()
-
-
-
-        if score < best_score:
-            best_score = score
-            best_epoch = epoch
-
-            best_individual = policy.individuals()[best_epoch_individual]
-
-        
-        
-        # Plot Pareto for this epoch.
-        plot_pareto(fitness, logger.log_dir, epoch=epoch)
-        
-    # Load the best individual.
-    
-    print(f"Best individual found at epoch {best_epoch} with score {best_score}")
-    
-    policy.population = [best_individual]
-    policy.individuals = lambda: [best_individual]
-    
-        
-    ## Final evaluation on test data.
-    logger.update_mode('Testing')
-    fitness = run_epoch(config, policy, test_data, train=False)
-    SR, L, E, score = fitness[np.argmin(np.array(fitness)[:, 3])]
-    update_metrics(logger, env, config, metrics=(SR, L, E, score))
-
-    logger.plot()
-    logger.save_csv()
-    
-    vis_stats = VisStats(save_path=logger.log_dir)
-    vis_stats.vis(env)
-    
-
-    # Plot final Pareto frontiers.
-    plot_pareto(fitness, logger.log_dir)
-    
-    logger.close()
-    env.close()
-
-if __name__ == '__main__':
-    main()
