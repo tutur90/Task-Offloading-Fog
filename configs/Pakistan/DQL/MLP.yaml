@@ -27,6 +27,7 @@ training:
   epsilon_decay: 0.9
   reward_scale: 1
   lambda: [0.8, 0.1, 0.1]
+  early_stop_patience: 10 # Early stopping patience (generations without improvement)
 
 model:
   d_model: 256

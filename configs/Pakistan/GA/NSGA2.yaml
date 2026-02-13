@@ -18,7 +18,7 @@ training:
   num_epochs: 200         # Number of generations for NPGA
   pop_size: 50            # Population size for NPGA
   mutation_rate: 0.1      # Mutation rate for Gaussian mutation
-  early_stop_patience: 20 # Early stopping patience (generations without improvement)
+  early_stop_patience: 40 # Early stopping patience (generations without improvement)
 
 model:
   d_model: 64

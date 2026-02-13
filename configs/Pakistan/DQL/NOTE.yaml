@@ -26,7 +26,8 @@ training:
   # beta: 0.5
   # beta_decay: 0.9
   reward_scale: 1
-  lambda: [0.8, 0.15, 0.05]
+  lambda: [0.6, 0.25, 0.15]
+  early_stop_patience: 15 # Early stopping patience (generations without improvement)
 
 model:
   d_model: 64

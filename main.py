@@ -418,7 +418,7 @@ if __name__ == '__main__':
             # Run parallel search
             max_workers = args.num_workers if args.num_workers else multiprocessing.cpu_count()
             num_workers = min(max_workers, len(work_items))
-            if num_workers > 0:
+            if num_workers > 1:
                 print(f"Starting parallel {search_type} search with {num_workers} workers for {len(work_items)} remaining items")
 
                 with multiprocessing.Pool(num_workers) as pool:
@@ -439,6 +439,26 @@ if __name__ == '__main__':
                         save_grid_search_progress(results_file, progress)
                         completed_count += 1
                         print(f"Progress saved ({completed_count}/{len(samples)} completed, best epoch: {best_epoch})")
+            else:
+                print(f"Running {search_type} search sequentially for {len(work_items)} items")
+                for item in work_items:
+                    result = run_search_worker(item)
+                    i, key, params, val_result, test_result, best_epoch = result
+
+                    val_metrics[i] = val_result
+                    test_metrics[i] = test_result
+
+                    print(f"Validation Metrics: {val_metrics[i]}, Test Metrics: {test_metrics[i]}")
+
+                    # Save progress after each iteration
+                    progress["completed"][key] = True
+                    progress["val_metrics"][key] = val_metrics[i].tolist()
+                    progress["test_metrics"][key] = test_metrics[i].tolist()
+                    progress["best_epoch"] = progress.get("best_epoch", {})
+                    progress["best_epoch"][key] = best_epoch
+                    save_grid_search_progress(results_file, progress)
+                    completed_count += 1
+                    print(f"Progress saved ({completed_count}/{len(samples)} completed, best epoch: {best_epoch})")
 
         # Print top k results based on metrics[:, 3]
         k = min(100, len(samples))
