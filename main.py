@@ -35,7 +35,8 @@ from utils.utils import Logger, Checkpoint
 from utils.plots import plot_ternary, plot_grid_search_heatmap
 from utils.grid_search import (
     generate_probability_grid, load_grid_search_progress, save_grid_search_progress,
-    lambda_to_key, params_to_key, generate_parameter_grid, apply_params_to_config, parse_grid_search_params
+    lambda_to_key, params_to_key, generate_parameter_grid, generate_random_samples,
+    apply_params_to_config, parse_grid_search_params, BayesianOptimizer
 )
 
 GA_ALGOS = ["NPGA", "NSGA2"]
@@ -132,11 +133,19 @@ def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description="Run DQRL Policy")
     parser.add_argument('--config', type=str, default='configs/DQRL/MLP.yaml', help='Path to the config file.')
-    parser.add_argument('--grid_search', action='store_true', help='Enable grid search mode.')
-    parser.add_argument('--grid_params', type=str, nargs='+', default=None,
+    parser.add_argument('--grid', type=str, nargs='+', default=None,
                         help='Grid search parameters in format "section.param=val1,val2,val3". '
-                             'E.g., --grid_params "model.d_model=64,128,256" "model.n_layers=2,3,4"')
-    parser.add_argument('--num_workers', type=int, default=None, help='Number of parallel workers for grid search (default: CPU count).')
+                             'E.g., --grid "model.d_model=64,128,256" "model.n_layers=2,3,4"')
+    parser.add_argument('--random', type=str, nargs='+', default=None,
+                        help='Random search parameters in format "section.param=val1,val2,val3". '
+                             'E.g., --random "model.d_model=64,128,256" "model.n_layers=2,3,4"')
+    parser.add_argument('--bayesian', type=str, nargs='+', default=None,
+                        help='Bayesian optimization parameters in format "section.param=val1,val2,val3". '
+                             'E.g., --bayesian "model.d_model=64,128,256" "model.n_layers=2,3,4"')
+    parser.add_argument('--n_samples', type=int, default=50, help='Number of samples for random/bayesian search (default: 50).')
+    parser.add_argument('--method', type=str, default='lhs', choices=['random', 'lhs', 'sobol'],
+                        help='Sampling method for random search: "random", "lhs" (Latin Hypercube), "sobol" (default: lhs).')
+    parser.add_argument('--num_workers', type=int, default=None, help='Number of parallel workers for grid/random search (default: CPU count).')
     args = parser.parse_args()
     return args
 
@@ -218,9 +227,9 @@ def main(config):
     return val_metrics, test_metrics, best_epoch
 
 
-def run_grid_search_worker(args):
-    """Worker function for parallel grid search."""
-    i, params, config_path, is_lambda_search = args
+def run_search_worker(args):
+    """Worker function for parallel grid/random search."""
+    i, params, config_path, search_type = args
 
     # Load fresh config for each worker
     with open(config_path, 'r') as file:
@@ -229,16 +238,16 @@ def run_grid_search_worker(args):
     # Add worker_id to config to create unique log directories
     worker_config["worker_id"] = i
 
-    if is_lambda_search:
+    if search_type == "lambda":
         # Legacy lambda search
         worker_config["training"]["lambda"] = params.tolist()
         key = lambda_to_key(params)
-        print(f"[Worker {i}] Running grid search [{i+1}] with lambda: {worker_config['training']['lambda']}")
+        print(f"[Worker {i}] Running {search_type} search [{i+1}] with lambda: {worker_config['training']['lambda']}")
     else:
-        # Generic parameter search
+        # Generic parameter search (grid or random)
         apply_params_to_config(worker_config, params)
         key = params_to_key(params)
-        print(f"[Worker {i}] Running grid search [{i+1}] with params: {params}")
+        print(f"[Worker {i}] Running {search_type} search [{i+1}] with params: {params}")
 
     val_result, test_result, best_epoch = main(worker_config)
 
@@ -254,87 +263,195 @@ if __name__ == '__main__':
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
 
+    # Determine search mode
+    search_params = None
+    if args.grid is not None:
+        search_type = "grid"
+        search_params = args.grid
+    elif args.random is not None:
+        search_type = "random"
+        search_params = args.random
+    elif args.bayesian is not None:
+        search_type = "bayesian"
+        search_params = args.bayesian
 
-
-    if args.grid_search:
-
-        # Determine if using lambda search or generic parameter search
-        is_lambda_search = args.grid_params is None
+    if search_params is not None:
+        # Check if lambda search (no params provided) or parameter search
+        is_lambda_search = search_params == []
 
         if is_lambda_search:
-            grid = generate_probability_grid(21)
+            samples = generate_probability_grid(21)
             search_name = "lambda"
+            param_specs = None
         else:
-            param_specs = parse_grid_search_params(args.grid_params)
-            grid = generate_parameter_grid(param_specs)
+            param_specs = parse_grid_search_params(search_params)
             search_name = "_".join(k.replace(".", "_") for k in param_specs.keys())
-            print(f"Grid search over parameters: {list(param_specs.keys())}")
-            print(f"Total combinations: {len(grid)}")
+            print(f"{search_type.capitalize()} search over parameters: {list(param_specs.keys())}")
 
-        # Setup results file for resumable grid search
+            if search_type == "grid":
+                samples = generate_parameter_grid(param_specs)
+                print(f"Total combinations: {len(samples)}")
+            elif search_type == "random":
+                samples = generate_random_samples(param_specs, args.n_samples, method=args.method)
+                print(f"Total samples: {len(samples)} (method: {args.method})")
+            else:  # bayesian
+                samples = None  # Bayesian generates samples iteratively
+                print(f"Running {args.n_samples} iterations")
+
+        # Setup results file for resumable search
         results_dir = f"logs/{config['env']['dataset']}/{config['env']['flag']}/{config['policy']}"
-        results_file = f"{results_dir}/grid_search_{search_name}_progress.json"
+        results_file = f"{results_dir}/{search_type}_search_{search_name}_progress.json"
 
         # Load previous progress
         progress = load_grid_search_progress(results_file)
         completed_count = len(progress["completed"])
-        if completed_count > 0:
-            print(f"Resuming grid search: {completed_count}/{len(grid)} iterations already completed")
 
-        val_metrics = np.zeros((len(grid), 4))
-        test_metrics = np.zeros((len(grid), 4))
+        if search_type == "bayesian" and not is_lambda_search:
+            # Bayesian optimization (sequential)
+            optimizer = BayesianOptimizer(param_specs, n_initial_points=min(5, args.n_samples))
 
-        # Prepare work items (skip already completed)
-        work_items = []
-        for i, params in enumerate(grid):
-            if is_lambda_search:
-                key = lambda_to_key(params)
-            else:
+            # Replay history to warm-start optimizer
+            for key, score in progress.get("scores", {}).items():
+                # Reconstruct params from key
+                params = {}
+                for part in key.split("|"):
+                    k, v = part.split("=")
+                    try:
+                        params[k] = int(v)
+                    except ValueError:
+                        try:
+                            params[k] = float(v)
+                        except ValueError:
+                            params[k] = v
+                optimizer.tell(params, score)
+
+            if completed_count > 0:
+                print(f"Resuming bayesian search: {completed_count}/{args.n_samples} iterations already completed")
+
+            all_samples = []
+            val_metrics_list = []
+            test_metrics_list = []
+
+            for i in range(completed_count, args.n_samples):
+                params = optimizer.ask()
                 key = params_to_key(params)
 
-            if key in progress["completed"]:
-                val_metrics[i] = progress["val_metrics"][key]
-                test_metrics[i] = progress["test_metrics"][key]
-            else:
-                work_items.append((i, params, config_path, is_lambda_search))
+                # Skip if already evaluated (shouldn't happen but just in case)
+                if key in progress["completed"]:
+                    continue
 
-        # Run parallel grid search
-        max_workers = args.num_workers if args.num_workers else multiprocessing.cpu_count()
-        num_workers = min(max_workers, len(work_items))
-        if num_workers > 0:
-            print(f"Starting parallel grid search with {num_workers} workers for {len(work_items)} remaining items")
+                print(f"[Bayesian {i+1}/{args.n_samples}] Trying params: {params}")
 
-            with multiprocessing.Pool(num_workers) as pool:
-                for result in pool.imap_unordered(run_grid_search_worker, work_items):
-                    i, key, params, val_result, test_result, best_epoch = result
+                # Run evaluation
+                worker_config = yaml.safe_load(open(config_path, 'r'))
+                worker_config["worker_id"] = i
+                apply_params_to_config(worker_config, params)
 
-                    val_metrics[i] = val_result
-                    test_metrics[i] = test_result
+                val_result, test_result, best_epoch = main(worker_config)
 
-                    print(f"Validation Metrics: {val_metrics[i]}, Test Metrics: {test_metrics[i]}")
+                # Use validation score for optimization (minimize)
+                score = val_result[3]
+                optimizer.tell(params, score)
 
-                    # Save progress after each iteration
-                    progress["completed"][key] = True
-                    progress["val_metrics"][key] = val_metrics[i].tolist()
-                    progress["test_metrics"][key] = test_metrics[i].tolist()
-                    progress["best_epoch"] = progress.get("best_epoch", {})
-                    progress["best_epoch"][key] = best_epoch
-                    save_grid_search_progress(results_file, progress)
-                    completed_count += 1
-                    print(f"Progress saved ({completed_count}/{len(grid)} completed, best epoch: {best_epoch})")
+                print(f"Validation Metrics: {val_result}, Test Metrics: {test_result}")
+
+                # Save progress
+                progress["completed"][key] = True
+                progress["val_metrics"][key] = list(val_result)
+                progress["test_metrics"][key] = list(test_result)
+                progress["best_epoch"] = progress.get("best_epoch", {})
+                progress["best_epoch"][key] = best_epoch
+                progress["scores"] = progress.get("scores", {})
+                progress["scores"][key] = score
+                save_grid_search_progress(results_file, progress)
+                completed_count += 1
+                print(f"Progress saved ({completed_count}/{args.n_samples} completed, best epoch: {best_epoch})")
+
+                all_samples.append(params)
+                val_metrics_list.append(val_result)
+                test_metrics_list.append(test_result)
+
+            # Convert to arrays for printing
+            samples = list(progress["completed"].keys())
+            val_metrics = np.array([progress["val_metrics"][k] for k in samples])
+            test_metrics = np.array([progress["test_metrics"][k] for k in samples])
+
+            # Reconstruct samples as dicts for print_top_k_results
+            samples_dicts = []
+            for key in samples:
+                params = {}
+                for part in key.split("|"):
+                    k, v = part.split("=")
+                    try:
+                        params[k] = int(v)
+                    except ValueError:
+                        try:
+                            params[k] = float(v)
+                        except ValueError:
+                            params[k] = v
+                samples_dicts.append(params)
+            samples = samples_dicts
+
+        else:
+            # Grid or Random search (parallel)
+            if completed_count > 0:
+                print(f"Resuming {search_type} search: {completed_count}/{len(samples)} iterations already completed")
+
+            val_metrics = np.zeros((len(samples), 4))
+            test_metrics = np.zeros((len(samples), 4))
+
+            # Prepare work items (skip already completed)
+            work_items = []
+            search_type_key = "lambda" if is_lambda_search else search_type
+            for i, params in enumerate(samples):
+                if is_lambda_search:
+                    key = lambda_to_key(params)
+                else:
+                    key = params_to_key(params)
+
+                if key in progress["completed"]:
+                    val_metrics[i] = progress["val_metrics"][key]
+                    test_metrics[i] = progress["test_metrics"][key]
+                else:
+                    work_items.append((i, params, config_path, search_type_key))
+
+            # Run parallel search
+            max_workers = args.num_workers if args.num_workers else multiprocessing.cpu_count()
+            num_workers = min(max_workers, len(work_items))
+            if num_workers > 0:
+                print(f"Starting parallel {search_type} search with {num_workers} workers for {len(work_items)} remaining items")
+
+                with multiprocessing.Pool(num_workers) as pool:
+                    for result in pool.imap_unordered(run_search_worker, work_items):
+                        i, key, params, val_result, test_result, best_epoch = result
+
+                        val_metrics[i] = val_result
+                        test_metrics[i] = test_result
+
+                        print(f"Validation Metrics: {val_metrics[i]}, Test Metrics: {test_metrics[i]}")
+
+                        # Save progress after each iteration
+                        progress["completed"][key] = True
+                        progress["val_metrics"][key] = val_metrics[i].tolist()
+                        progress["test_metrics"][key] = test_metrics[i].tolist()
+                        progress["best_epoch"] = progress.get("best_epoch", {})
+                        progress["best_epoch"][key] = best_epoch
+                        save_grid_search_progress(results_file, progress)
+                        completed_count += 1
+                        print(f"Progress saved ({completed_count}/{len(samples)} completed, best epoch: {best_epoch})")
 
         # Print top k results based on metrics[:, 3]
-        k = min(100, len(grid))
-        print_top_k_results(grid, val_metrics, k=k, label="Validation Results")
-        print_top_k_results(grid, test_metrics, k=k, label="Test Results")
+        k = min(100, len(samples))
+        print_top_k_results(samples, val_metrics, k=k, label="Validation Results")
+        print_top_k_results(samples, test_metrics, k=k, label="Test Results")
 
         # Only plot ternary for lambda search
         if is_lambda_search:
-            plot_ternary(grid, values=test_metrics[:, 3], title='Test Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_test.png", max_value=0.8)
-            plot_ternary(grid, values=val_metrics[:, 3], title='Validation Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_val.png", max_value=0.8)
-        elif len(param_specs) == 2:
+            plot_ternary(samples, values=test_metrics[:, 3], title='Test Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_{search_type}_search_test.png", max_value=0.8)
+            plot_ternary(samples, values=val_metrics[:, 3], title='Validation Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_{search_type}_search_val.png", max_value=0.8)
+        elif param_specs is not None and len(param_specs) == 2:
             plot_grid_search_heatmap(param_specs, progress, metric_idx=3, metric_name="Score",
-                                     output_path=f"{results_dir}/grid_search_{search_name}_heatmap.png")
+                                     output_path=f"{results_dir}/{search_type}_search_{search_name}_heatmap.png")
 
     else:
         val_metrics, test_metrics, best_epoch = main(config)

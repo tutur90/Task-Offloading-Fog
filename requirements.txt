@@ -11,3 +11,5 @@ PyQt5
 
 torch
 PyYAML
+scipy
+scikit-optimize
