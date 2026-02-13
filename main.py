@@ -206,6 +206,8 @@ def main(config):
     logger.plot()
     logger.save_csv()
 
+    best_epoch = logger.best_epoch
+
     logger.close()
     env.close()
 
@@ -213,7 +215,7 @@ def main(config):
         vis_stats = VisStats(save_path=logger.log_dir)
         vis_stats.vis(env)
 
-    return val_metrics, test_metrics
+    return val_metrics, test_metrics, best_epoch
 
 
 def run_grid_search_worker(args):
@@ -238,9 +240,9 @@ def run_grid_search_worker(args):
         key = params_to_key(params)
         print(f"[Worker {i}] Running grid search [{i+1}] with params: {params}")
 
-    val_result, test_result = main(worker_config)
+    val_result, test_result, best_epoch = main(worker_config)
 
-    return i, key, params, val_result, test_result
+    return i, key, params, val_result, test_result, best_epoch
 
 
 if __name__ == '__main__':
@@ -270,7 +272,7 @@ if __name__ == '__main__':
             print(f"Total combinations: {len(grid)}")
 
         # Setup results file for resumable grid search
-        results_dir = f"logs/{config['env']['dataset']}/{config['env']['flag']}"
+        results_dir = f"logs/{config['env']['dataset']}/{config['env']['flag']}/{config['policy']}"
         results_file = f"{results_dir}/grid_search_{search_name}_progress.json"
 
         # Load previous progress
@@ -304,7 +306,7 @@ if __name__ == '__main__':
 
             with multiprocessing.Pool(num_workers) as pool:
                 for result in pool.imap_unordered(run_grid_search_worker, work_items):
-                    i, key, params, val_result, test_result = result
+                    i, key, params, val_result, test_result, best_epoch = result
 
                     val_metrics[i] = val_result
                     test_metrics[i] = test_result
@@ -315,9 +317,11 @@ if __name__ == '__main__':
                     progress["completed"][key] = True
                     progress["val_metrics"][key] = val_metrics[i].tolist()
                     progress["test_metrics"][key] = test_metrics[i].tolist()
+                    progress["best_epoch"] = progress.get("best_epoch", {})
+                    progress["best_epoch"][key] = best_epoch
                     save_grid_search_progress(results_file, progress)
                     completed_count += 1
-                    print(f"Progress saved ({completed_count}/{len(grid)} completed)")
+                    print(f"Progress saved ({completed_count}/{len(grid)} completed, best epoch: {best_epoch})")
 
         # Print top k results based on metrics[:, 3]
         k = min(100, len(grid))
@@ -333,8 +337,8 @@ if __name__ == '__main__':
                                      output_path=f"{results_dir}/grid_search_{search_name}_heatmap.png")
 
     else:
-        val_metrics, test_metrics = main(config)
-        print(f"Validation Metrics: {val_metrics}, Test Metrics: {test_metrics}")
+        val_metrics, test_metrics, best_epoch = main(config)
+        print(f"Validation Metrics: {val_metrics}, Test Metrics: {test_metrics}, Best Epoch: {best_epoch}")
             
             
 
