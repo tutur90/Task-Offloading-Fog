@@ -67,6 +67,10 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
     # Track fitness across generations for GA (avoids re-evaluating parents)
     cached_fitness = None
 
+    if not is_ga and hasattr(policy, 'set_training_steps'):
+        total_steps = config["training"]["num_epochs"] * len(train_data)
+        policy.set_training_steps(total_steps)
+
     for epoch in range(config["training"]["num_epochs"]):
 
         logger.update_epoch(epoch)
@@ -119,8 +123,6 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
             break
 
         if not is_ga:
-            policy.epsilon *= config["training"]["epsilon_decay"]
-
             for param_group in policy.optimizer.param_groups:
                 param_group['lr'] *= config["training"]["lr_decay"]
             if config["algo"] == "TaskFormer":

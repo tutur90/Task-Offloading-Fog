@@ -61,15 +61,21 @@ class DQNPolicy:
 
         # Retrieve configuration parameters.
         self.gamma = config["training"]["gamma"]
-        self.epsilon = config["training"]["epsilon"]
+        self.epsilon_start = config["training"]["epsilon"]
+        self.epsilon = self.epsilon_start
+        self.epsilon_min = config["training"].get("epsilon_min", 0.01)
+        self.epsilon_decay = config["training"].get("epsilon_decay", 0.9)
         self.lr = config["training"]["lr"]
-        
+
         # Replay buffer for transitions.
         self.buffer_size = config["training"].get("buffer_size", 10000)
         self.batch_size = config["training"].get("batch_size", 64)
         self.target_update_freq = config["training"].get("target_update_freq", 100)
+        self.learning_starts = config["training"].get("learning_starts", 0)
+        self.total_training_steps = None  # set by set_training_steps()
         self.replay_buffer = deque(maxlen=self.buffer_size)
         self.update_count = 0
+        self.total_steps = 0
         
         if device == "auto":
 
@@ -133,6 +139,23 @@ class DQNPolicy:
 
         return obs, task_obs
 
+    def set_training_steps(self, total_steps):
+        """Set total training steps for linear epsilon schedule."""
+        self.total_training_steps = total_steps
+
+    def _update_epsilon(self):
+        """Linearly decay epsilon from epsilon_start to epsilon_min over epsilon_decay fraction of training."""
+        if self.total_training_steps is None:
+            return
+        decay_steps = int(self.total_training_steps * self.epsilon_decay)
+        steps_since_learn = self.total_steps - self.learning_starts
+        if steps_since_learn <= 0:
+            self.epsilon = self.epsilon_start
+        elif steps_since_learn >= decay_steps:
+            self.epsilon = self.epsilon_min
+        else:
+            self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_min) * (steps_since_learn / decay_steps)
+
     def act(self, env, task, train=True):
         """
         Chooses an action using an ε-greedy strategy and records the current state.
@@ -141,8 +164,14 @@ class DQNPolicy:
         obs, task_obs = state
         obs_tensor = torch.tensor(obs, dtype=self.dtype, device=self.device).unsqueeze(0)
         task_tensor = torch.tensor(task_obs, dtype=self.dtype, device=self.device).unsqueeze(0)
-                
-        if random.random() < self.epsilon and train:
+
+        if train:
+            self.total_steps += 1
+            self._update_epsilon()
+
+        if train and self.total_steps <= self.learning_starts:
+            action = random.randrange(self.num_actions)
+        elif random.random() < self.epsilon and train:
             action = random.randrange(self.num_actions)
         else:
             with torch.no_grad():
@@ -166,7 +195,7 @@ class DQNPolicy:
         Performs an update over a sampled batch of transitions using batched operations,
         moves tensors to the appropriate device and dtype.
         """
-        if len(self.replay_buffer) < self.batch_size:
+        if len(self.replay_buffer) < self.batch_size or self.total_steps <= self.learning_starts:
             return 0.0
 
         # Sample a batch from the replay buffer

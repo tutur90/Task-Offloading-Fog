@@ -1,0 +1,41 @@
+
+policy: "MLP"
+algo: "DQL"
+
+seed: 42
+
+env:
+  dataset: "Pakistan"
+  flag: "Tuple30K"
+  refresh_rate: 0.005
+
+eval:
+  lambda: [5.294, 0.2276, 0.002952]
+  expected_max_latency: 4
+  expected_max_energy: 300
+
+training:
+  num_epochs: 30
+  learning_starts: 2000    # random steps before learning begins
+  buffer_size: 50000      # max replay buffer size
+  batch_size: 64          # samples per update
+  target_update_freq: 1000 # steps between target network syncs
+  update_freq: 1          # steps between policy updates
+  lr: 3e.-4
+  lr_decay: 1
+  gamma: 0.99
+  epsilon: 0.8
+  epsilon_decay: 0.6
+  reward_scale: 1
+  lambda: [0.8, 0.1, 0.1]
+  early_stop_patience: 10 # Early stopping patience (generations without improvement)
+
+model:
+  d_model: 256
+  n_layers: 2
+  # obs_type: ["cpu"]
+  # obs_type: ["cpu", "buffer"]
+  obs_type: ["cpu", "bw", "buffer"]
+  bias: true
+  dropout: 0
+
