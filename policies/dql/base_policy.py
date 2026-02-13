@@ -63,7 +63,7 @@ class DQNPolicy:
         self.gamma = config["training"]["gamma"]
         self.epsilon_start = config["training"]["epsilon"]
         self.epsilon = self.epsilon_start
-        self.epsilon_min = config["training"].get("epsilon_min", 0.001)
+        self.epsilon_min = config["training"].get("epsilon_min", 0.01)
         self.epsilon_decay = config["training"].get("epsilon_decay", 0.9)
         self.lr = config["training"]["lr"]
 
