@@ -235,9 +235,9 @@ class DQNPolicy:
         loss.backward()
         self.optimizer.step()
 
-        # Update target network periodically
+        # Update target network periodically (based on total task steps, not gradient steps)
         self.update_count += 1
-        if self.update_count % self.target_update_freq == 0:
+        if self.total_steps % self.target_update_freq == 0:
             self.update_target_network()
 
         return loss.item()

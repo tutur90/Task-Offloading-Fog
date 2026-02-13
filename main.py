@@ -63,6 +63,7 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
 
     early_stop_patience = config["training"].get("early_stop_patience", None)
     epochs_without_improvement = 0
+    best_val_metrics = None
 
     # Track fitness across generations for GA (avoids re-evaluating parents)
     cached_fitness = None
@@ -114,6 +115,7 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
 
         if logger.is_best(score[3], epoch):
             checkpoint.save(policy, epoch)
+            best_val_metrics = score
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
@@ -129,7 +131,7 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
                 for param_group in policy.optimizer.param_groups:
                     param_group['lr'] *= config["training"]["lr_decay"]
 
-    return max_total_energy, max_total_time, score
+    return max_total_energy, max_total_time, best_val_metrics
 
 def parse_args():
     import argparse

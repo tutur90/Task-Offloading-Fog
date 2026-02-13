@@ -16,16 +16,16 @@ eval:
 
 training:
   num_epochs: 30
-  learning_starts: 2000    # random steps before learning begins
-  buffer_size: 20000      # max replay buffer size
+  learning_starts: 2048    # random steps before learning begins
+  buffer_size: 50000      # max replay buffer size
   batch_size: 64          # samples per update
-  target_update_freq: 1000 # steps between target network syncs
+  target_update_freq: 1024 # steps between target network syncs
   update_freq: 1          # steps between policy updates
   lr: 3.e-4
   lr_decay: 1
   gamma: 0.99
-  epsilon: 0.2
-  epsilon_decay: 0.2
+  epsilon: 1
+  epsilon_decay: 0.3
   reward_scale: 1
   lambda: [0.8, 0.1, 0.1]
   early_stop_patience: 10 # Early stopping patience (generations without improvement)
