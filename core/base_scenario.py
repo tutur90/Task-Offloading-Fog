@@ -170,8 +170,8 @@ class BaseScenario(metaclass=ABCMeta):
         else:
             node_list = [self.get_node(node_name) for node_name in node_name_list]
         
-        total_power = sum(node.energy_consumption/node.clock for node in node_list)
-        return total_power / len(node_list)
+        total_power = sum(node.energy_consumption/node.clock if node.clock > 0 else 0 for node in node_list)
+        return total_power / len(node_list) if node_list else 0
         
 
     def get_node(self, name: str) -> Node:
