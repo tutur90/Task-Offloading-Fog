@@ -1,9 +1,9 @@
 from core.env import Env as BaseEnv
-from core.vis.logger import Logger as BaseLogger
+from core.logger import Logger as BaseLogger
 from core.base_scenario import BaseScenario
 import random
 import torch
-from eval.metrics.metrics import SuccessRate, AvgLatency
+from eval.metrics.metrics import SuccessRate, AvgLatency, AvgEnergy, get_metrics
 
 import os
 import numpy as np
@@ -128,28 +128,7 @@ def set_seed(seed):
         
 # Set a random seed for reproducibility.
 
-def get_metrics(env: Env, config: dict):
-    """
-    Get the metrics from the environment.
-    
-    :param env: The environment instance.
-    :param config: The configuration dictionary.
-    :return: A tuple containing success rate, average latency, and average power.
-    """
-    m1 = SuccessRate()
-    m2 = AvgLatency()
-    
-    ttr = m1.eval(env.logger)
-    avg_latency = m2.eval(env.logger)
-    avg_power = env.avg_node_power()  # Convert to mW
-    
-    if "eval" in config and "lambda" in config["eval"]:
-        score = (ttr * config["eval"]["lambda"][0] + 
-                 avg_latency  * config["eval"]["lambda"][1] + 
-                 avg_power * config["eval"]["lambda"][2]) / 3
-        return ttr, avg_latency, avg_power, score
-    else:
-        return ttr, avg_latency, avg_power, None
+
 
 def update_metrics(logger: Logger, env: Env, config: dict, metrics=None):
 
@@ -159,8 +138,8 @@ def update_metrics(logger: Logger, env: Env, config: dict, metrics=None):
         ttr, avg_latency, avg_power, score = metrics
 
     logger.update_metric('TaskThrowRate', ttr * 100)
-    logger.update_metric('AvgLatency', avg_latency / (1-ttr) if ttr < 1 else np.inf)  # Avoid division by zero
-    logger.update_metric("AvgPower", avg_power / (1-ttr) if ttr < 1 else np.inf)  # Convert to mW
+    logger.update_metric('AvgLatency', avg_latency)
+    logger.update_metric("AvgPower", avg_power)  
     
     
     return ttr, avg_latency, avg_power, score

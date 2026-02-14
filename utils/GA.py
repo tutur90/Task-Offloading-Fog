@@ -19,13 +19,8 @@ import yaml
 
 from core.env import Env
 from core.task import Task
-from core.vis import *
-from core.vis.vis_stats import VisStats
-from core.vis.logger import Logger
-from eval.benchmarks.Pakistan.scenario import Scenario
 from eval.metrics.metrics import SuccessRate, AvgLatency
-from policies.ga.npga_policy import Individual, NPGAPolicy
-from policies.ga.nsga_policy import NSGA2Policy
+
 
 import numpy as np
 import matplotlib.pyplot as plt

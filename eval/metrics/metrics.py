@@ -1,3 +1,7 @@
+from core.logger import Logger
+from core.base_scenario import BaseScenario
+from core.env import Env
+
 class SuccessRate(object):
     """The success rate of all tasks.
         
@@ -49,7 +53,7 @@ class AvgLatency(object):
         if len(latencies) == 0:
             return eps
 
-        return sum(latencies) / len(info)
+        return sum(latencies) / len(latencies)
 
 
 class AvgEnergy(object):
@@ -61,21 +65,44 @@ class AvgEnergy(object):
     def __init__(self) -> None:
         pass
 
-    def eval(self, logger, eps=1e-6) -> float:
+    def eval(self, logger : Logger, eps=1e-6) -> float:
         
         energy = []
         info = logger.task_info
 
-        energy_list_idx = logger.get_value_idx("time_list")
+        energy_list_idx = logger.get_value_idx("energy_list")
         
         for _, val in info.items():
-
-            task_trans_energy, task_exe_energy = val[energy_list_idx][0], val[energy_list_idx][1]
-            energy.append(task_trans_energy + task_exe_energy)
             
-            print(task_trans_energy)
-  
+            status_code_idx = logger.get_value_idx("status_code")
+            
+            if val[status_code_idx] == 0:
+
+                task_trans_energy, task_exe_energy = val[energy_list_idx][0], val[energy_list_idx][1]
+                energy.append(task_trans_energy + task_exe_energy)
+
         if len(energy) == 0:
             return eps
 
         return sum(energy) / len(energy)
+    
+def get_metrics(env: Env, config: dict):
+    """
+    Get the metrics from the environment.
+    
+    :param env: The environment instance.
+    :param config: The configuration dictionary.
+    :return: A tuple containing success rate, average latency, and average power.
+    """
+
+    ttr = SuccessRate().eval(env.logger)
+    avg_latency = AvgLatency().eval(env.logger)
+    avg_power = AvgEnergy().eval(env.logger)
+    
+    if "eval" in config and "lambda" in config["eval"]:
+        score = (ttr * config["eval"]["lambda"][0] + 
+                 avg_latency  * config["eval"]["lambda"][1] + 
+                 avg_power * config["eval"]["lambda"][2]) / 3
+        return ttr, avg_latency, avg_power, score
+    else:
+        return ttr, avg_latency, avg_power, None

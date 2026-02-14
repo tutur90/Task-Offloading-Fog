@@ -20,7 +20,6 @@ import yaml
 
 import numpy as np
 
-from core.task import Task
 from core.vis import *
 from core.vis.vis_stats import VisStats
 

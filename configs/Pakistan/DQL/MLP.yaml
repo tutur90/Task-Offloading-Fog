@@ -10,7 +10,7 @@ env:
   refresh_rate: 0.005
 
 eval:
-  lambda: [5.294, 0.2276, 0.002952]
+  lambda: [5.2941176470586, 0.22760484532528744, 0.0038384767437279347]
   expected_max_latency: 4
   expected_max_energy: 300
 

@@ -1,7 +1,51 @@
+from core.env import Env
+from core.task import Task
 from policies.base_policy import BasePolicy
+
+import numpy as np
 class GreedyPolicy(BasePolicy):
     """A simple greedy policy that selects the node with the minimal 
     predicted total time (transmission + computation)."""
+    def __init__(self, env, config):
+        super().__init__(env, config)
+        
+        self.obs_type = config["obs_type"] if "obs_type" in config else "cpu"
+        
+    def _make_observation(self, env: Env, task: Task, obs_type=["cpu", "buffer", "bw"]):
+        """
+        Returns a flat observation vector.
+        For instance, we return the free CPU frequency for each node.
+        """
+        
+        
+        obs = np.zeros((len(env.scenario.get_nodes()), len(obs_type)), dtype=np.float32)
+        
+        for i, node_name in enumerate(env.scenario.get_nodes()):
+            if "cpu" in obs_type:
+                obs[env.scenario.node_name2id[node_name], obs_type.index("cpu")] = env.scenario.get_node(node_name).free_cpu_freq 
+            if "buffer" in obs_type:
+                obs[env.scenario.node_name2id[node_name], obs_type.index("buffer")] = env.scenario.get_node(node_name).buffer_free_size()
+            if "bw" in obs_type:
+                # Get the bandwidth for the link associated with the task
+                src_node =  "e0"
+                if node_name != src_node:
+                    obs[env.scenario.node_name2id[node_name], obs_type.index("bw")] = min(link.free_bandwidth for link in env.scenario.infrastructure.get_shortest_links(src_node, node_name))
+                else:
+                    obs[env.scenario.node_name2id[node_name], obs_type.index("bw")] = max(link.free_bandwidth for link in env.scenario.infrastructure.get_links().values())
+
+
+        if task is None:
+            task_obs = np.zeros(4, dtype=np.float32)
+        else:
+            task_obs = np.array([
+                task.task_size,
+                task.cycles_per_bit,
+                task.trans_bit_rate,
+                task.ddl,
+            ], dtype=np.float32)
+
+
+        return obs, task_obs
 
     def act(self, env, task, **kwargs):
         """
@@ -16,20 +60,9 @@ class GreedyPolicy(BasePolicy):
         """
         best_node = None
         best_latency = float('inf')
-
-        # Iterate through all possible node IDs in the environment
-        for node_id in range(len(env.scenario.node_id2name)):
-            node_name = env.scenario.node_id2name[node_id]
-
-            cpu_speed = env.scenario.get_node(node_name).free_cpu_freq
-            transmission_time = task.task_size / task.trans_bit_rate  # seconds
-            computation_time = (task.task_size * task.cycles_per_bit) /( cpu_speed + 1)
-            
-            total_time = transmission_time + computation_time
-
-            # Greedy choice: pick the node with the lowest total_time
-            if total_time < best_latency:
-                best_latency = total_time
-                best_node = node_id
+        
+        obs = self._make_observation(env, task)[0][:,["cpu", "buffer", "bw"].index(self.obs_type)]  # Get the CPU frequency part of the observation
+        
+        best_node = np.argmax(obs)  # Select the node with the minimum value in the selected observation type
 
         return best_node, None
