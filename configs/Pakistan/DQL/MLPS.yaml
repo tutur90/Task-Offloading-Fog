@@ -10,7 +10,7 @@ env:
   refresh_rate: 0.005
 
 eval:
-  lambda: [5.294, 0.2276, 0.002952]
+  lambda: [5.2941176470586, 0.22760484532528744, 0.0038384767437279347]
   expected_max_latency: 4
   expected_max_energy: 300
 
@@ -25,10 +25,10 @@ training:
   lr_decay: 1
   gamma: 0.99
   epsilon: 1
-  epsilon_decay: 0.5
+  epsilon_decay: 0.3
   reward_scale: 1
   lambda: [0.8, 0.1, 0.1]
-  early_stop_patience: 15 # Early stopping patience (generations without improvement)
+  early_stop_patience: 20 # Early stopping patience (generations without improvement)
 
 model:
   d_model: 256
