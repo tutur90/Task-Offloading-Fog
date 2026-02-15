@@ -16,9 +16,9 @@ training:
   num_epochs: 30
   learning_starts: 5000    # random steps before learning begins
   buffer_size: 50000      # max replay buffer size
-  batch_size: 64          # samples per update
+  batch_size: 512          # samples per update
   target_update_freq: 1024 # steps between target network syncs
-  update_freq: 1          # steps between policy updates
+  update_freq: 8          # steps between policy updates
   lr: 3.e-4
   lr_decay: 1
   gamma: 0.99
