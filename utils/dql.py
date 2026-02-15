@@ -4,11 +4,38 @@ from tqdm import tqdm
 from core.task import Task
 from core.env import Env
 from utils.utils import create_env, error_handler
-from eval.metrics.metrics import SuccessRate, AvgLatency
+from eval.metrics.metrics import SuccessRate, AvgLatency, AvgEnergy, get_metrics
+
+def update_transitions(policy, env, stored_transitions, lambda_, config):
+    
+    done = False  # Each task is treated as an individual episode.
+
+    for task_id, (state, action, next_state) in list(stored_transitions.items()):
+        if task_id in env.logger.task_info and next_state is not None:
+            val = env.logger.task_info[task_id]
+            if val[0] == 0:
+                task_trans_time, task_wait_time, task_exe_time = val[2]
+                total_time = task_trans_time + task_wait_time + task_exe_time
+                task_trans_energy, task_exe_energy = val[3]
+                total_energy = task_trans_energy + task_exe_energy
+                # env.max_total_time = max(env.max_total_time, total_time)
+                # env.max_total_energy = max(env.max_total_energy, total_energy)
+                env.max_total_energy = env.max_total_energy*0.999 + total_energy*0.001
+                env.max_total_time = env.max_total_time*0.999 + total_time*0.001
+
+                reward = - ((lambda_[1] * total_time/env.max_total_time) + (lambda_[2] * total_energy/env.max_total_energy))
+            else:
+                reward = -lambda_[0]
+                
+            reward = reward * config["training"].get("reward_scale", 1.0)
+            policy.store_transition(state, action, reward, next_state, done)
+            del stored_transitions[task_id]
+    # Update the policy every update_freq tasks during training.
+            policy.update()
 
 
 def run_epoch(config, policy, data: pd.DataFrame, train=True, 
-              lambda_=(1, 1, 1), max_total_time=0, max_total_energy=0,
+              lambda_=(1, 1, 1), max_total_time=0, max_total_energy=0
               ):
     """
     Run one simulation epoch over the provided task data.
@@ -24,18 +51,18 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
     Every 'batch_size' tasks, update the policy.
     """
 
-    m1 = SuccessRate()
-    m2 = AvgLatency()
     
     env = create_env(config)
+    
+    disp_progress = config["training"].get("disp_progress", True)
     
     until = 0
     launched_task_cnt = 0
     last_task_id = None
-    pbar = tqdm(data.iterrows(), total=len(data))
+    pbar = tqdm(data.iterrows(), total=len(data)) if disp_progress else data.iterrows()
     stored_transitions = {}
-    update_freq = config.get("training", {}).get("update_freq", 32)
-
+    
+    
     env.max_total_time = max_total_time
     env.max_total_energy = max_total_energy
 
@@ -60,7 +87,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
                 dst_name = env.scenario.node_id2name[action]
                 env.process(task=task, dst_name=dst_name)
                 launched_task_cnt += 1
-                update_freq -= 1
+
 
                 # Update previous transition with the new state's observation.
                 if last_task_id is not None and train:
@@ -82,39 +109,14 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
             last_task_id = task.task_id
             stored_transitions[last_task_id] = (state, action, None)
             
-            # Process stored transitions if the task has been completed.
-            for task_id, (state, action, next_state) in list(stored_transitions.items()):
-                if task_id in env.logger.task_info:
-                    val = env.logger.task_info[task_id]
-                    if val[0] == 0:
-                        task_trans_time, task_wait_time, task_exe_time = val[2]
-                        total_time = task_trans_time + task_wait_time + task_exe_time
-                        task_trans_energy, task_exe_energy = val[3]
-                        total_energy = task_trans_energy + task_exe_energy
-                        # env.max_total_time = max(env.max_total_time, total_time)
-                        # env.max_total_energy = max(env.max_total_energy, total_energy)
-                        env.max_total_energy = env.max_total_energy*0.999 + total_energy*0.001
-                        env.max_total_time = env.max_total_time*0.999 + total_time*0.001
-
-                        reward = - ((lambda_[1] * total_time/env.max_total_time) + (lambda_[2] * total_energy/env.max_total_energy))
-                    else:
-                        reward = -lambda_[0]
-                        
-                    reward = reward * config["training"].get("reward_scale", 1.0)
-                    policy.store_transition(state, action, reward, next_state, done)
-                    del stored_transitions[task_id]
-            # Update the policy every update_freq tasks during training.
-            if update_freq < 1:
-                r1 = m1.eval(env.logger) * 100  # Convert to percentage
-                r2 = m2.eval(env.logger)
-                e = env.avg_node_power()
-                pbar.set_postfix({"SR": f"{r1:.3f}", "L": f"{r2:.3f}", "E": f"{e:.3f}"})
-                policy.update()
-                update_freq = config.get("training", {}).get("update_freq", 32)
+            update_transitions(policy, env, stored_transitions, lambda_, config)
+            
+        if i % config["training"].get("log_freq", 200) == 0 and disp_progress:
+            
+            tdr, avg_latency, avg_energy, score = get_metrics(env, config)
+            pbar.set_description(f"TTR: {tdr*100:.3e} - L: {avg_latency:.3e} - E: {avg_energy:.3e} - S: {score:.3e}")
                 # print(f"Policy updated at task {i}, next update in {number_in_batch} tasks.")
                 
-    if train and stored_transitions:
-        policy.update()
 
     # Continue simulation until all tasks are processed.
     while env.task_count < launched_task_cnt:
@@ -123,5 +125,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
             env.run(until=until)
         except Exception as e:
             error_handler(e)
+            
+    update_transitions(policy, env, stored_transitions, lambda_, config)
             
     return env

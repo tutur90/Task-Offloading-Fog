@@ -7,6 +7,7 @@ is for reference only, and contributions are welcome.
 
 import os
 import sys
+import time
 import multiprocessing
 
 current_file_path = os.path.abspath(__file__)
@@ -79,6 +80,8 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
 
         logger.update_mode('Training')
 
+        epoch_start = time.time()
+
         if is_ga:
             # Pass cached fitness to avoid re-evaluating parents (except first epoch)
             result = run_generation(config, policy, train_data, train=True,
@@ -97,9 +100,14 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
             max_total_energy = env.max_total_energy
             env.close()
 
+        epoch_time = time.time() - epoch_start
+        logger.update_metric('TimePerTask', epoch_time / len(train_data))
+
         # Validation phase.
 
         logger.update_mode('Validation')
+
+        val_start = time.time()
 
         if is_ga:
             result = run_generation(config, policy, valid_data, train=False, max_total_time=max_total_time, max_total_energy=max_total_energy)
@@ -111,6 +119,9 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
             env.max_total_time = max_total_time
             score = update_metrics(logger, env, config)
             env.close()
+
+        val_time = time.time() - val_start
+        logger.update_metric('TimePerTask', val_time / len(valid_data))
 
         if logger.is_best(score[3], epoch):
             checkpoint.save(policy, epoch)
@@ -177,8 +188,7 @@ def main(config):
             config["training"]["lambda"] = (config["training"]["lambda"][0]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][1]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][2]/sum(config["training"]["lambda"]))
-        
-            print(f"Normalized training lambda values: {config["training"]["lambda"][0]:.3f}, {config["training"]["lambda"][1]:.3f}, {config["training"]["lambda"][2]:.3f}")
+
         
     test_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/testset.csv")
     

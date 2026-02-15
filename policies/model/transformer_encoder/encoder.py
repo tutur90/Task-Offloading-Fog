@@ -38,6 +38,7 @@ class TransformerEncoder(nn.Module):
                  dropout: float = 0.1):
         super(TransformerEncoder, self).__init__()
         self.multi_headed_attention = MultiHeadAttention(n_heads, d_model, dropout)
+        print(d_ff)
         self.feed_forward = FeedForward(d_model, d_ff, dropout)
         self.encoder_layer = EncoderLayer(d_model, self.multi_headed_attention, self.feed_forward, dropout)
         self.encoder = Encoder(self.encoder_layer, n_layers)
@@ -49,4 +50,5 @@ class TransformerEncoder(nn.Module):
                 nn.init.xavier_uniform_(p)
 
     def forward(self, x: torch.FloatTensor, mask: torch.ByteTensor) -> torch.FloatTensor:
+
         return self.encoder(x, mask)

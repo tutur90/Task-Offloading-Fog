@@ -36,7 +36,7 @@ class MLP(nn.Module):
     def register_norm(self, norm):
         self.register_buffer('norm', torch.tensor(norm, dtype=self.dtype).max(dim=0, keepdim=True).values)  # Register the normalization factor as a buffer
         # self.register_buffer('norm', torch.tensor(norm, dtype=dtype).to(device))  # Register the normalization factor as a buffer
-        print(self.norm)
+
 
 class DQNPolicy:
     def __init__(self, env, config, device="auto"):
@@ -71,6 +71,7 @@ class DQNPolicy:
         self.buffer_size = config["training"].get("buffer_size", 10000)
         self.batch_size = config["training"].get("batch_size", 64)
         self.target_update_freq = config["training"].get("target_update_freq", 100)
+        self.update_freq = config["training"].get("update_freq", 1)
         self.learning_starts = config["training"].get("learning_starts", 0)
         self.total_training_steps = None  # set by set_training_steps()
         self.replay_buffer = deque(maxlen=self.buffer_size)
@@ -188,15 +189,11 @@ class DQNPolicy:
         """
         self.replay_buffer.append((state, action, reward, next_state, done))
         
-
-
-    def update(self):
+    def _update(self):
         """
         Performs an update over a sampled batch of transitions using batched operations,
         moves tensors to the appropriate device and dtype.
         """
-        if len(self.replay_buffer) < self.batch_size or self.total_steps <= self.learning_starts:
-            return 0.0
 
         # Sample a batch from the replay buffer
         batch = random.sample(self.replay_buffer, self.batch_size)
@@ -235,12 +232,24 @@ class DQNPolicy:
         loss.backward()
         self.optimizer.step()
 
+        return loss.item()
+
+    def update(self):
+        """
+        Performs an update over a sampled batch of transitions using batched operations,
+        moves tensors to the appropriate device and dtype.
+        """
+        if len(self.replay_buffer) < self.batch_size or self.total_steps <= self.learning_starts:
+            return 0.0
+        
+        if self.update_count % self.update_freq == 0:
+            loss = self._update()
+
         # Update target network periodically (based on total task steps, not gradient steps)
         self.update_count += 1
-        if self.total_steps % self.target_update_freq == 0:
+        if self.update_count % self.target_update_freq == 0:
             self.update_target_network()
 
-        return loss.item()
 
     def update_target_network(self):
         """

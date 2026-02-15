@@ -158,7 +158,7 @@ class Logger:
             "Value": value
         }
         self.rows.append(row)
-        line = f"       {metric}: {value:.4f}\n"
+        line = f"       {metric}: {value:.3e}\n"
         print(line, end="")
         self.log_file.write(line) 
         self.log_file.flush()

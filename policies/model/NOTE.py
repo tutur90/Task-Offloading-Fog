@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.functional as F
 
+
 import random
 import math
 
@@ -46,16 +47,40 @@ class AttentionWeights(nn.Module):
         return p_attn
 
 
+class LearnedPositionalEncoding(nn.Module):
+    def __init__(self, max_seq_len, d_model):
+        super().__init__()
+        self.embedding = nn.Embedding(max_seq_len, d_model)
+        nn.init.normal_(self.embedding.weight, mean=0.0, std=1.0 / math.sqrt(d_model))
 
+    def forward(self, x):
+        # x: (batch, seq_len, d_model)
+        positions = torch.arange(x.size(1), device=x.device)
+        return x + self.embedding(positions)
+    
+    
 class NOTE(nn.Module):
-    def __init__(self, d_in, d_pos, d_task, d_model=8, d_ff=8, n_heads=1, n_layers=1, dropout=0.1, mode="mixed", **kwargs):
+    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,  n_heads=4, n_layers=3, dropout=0.1, mode="mixed", **kwargs):
         super().__init__()
 
         
         self.nodes_embed = nn.Linear(d_in, d_model)
         self.task_embed = nn.Linear(d_task, d_model, bias=False)
-        self.pos_nodes_embed = nn.Parameter(torch.zeros(d_pos, d_model))
-        self.trasformer_encoder = TransformerEncoder(d_model=d_model, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout)
+        self.pos_nodes_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
+        # self.trasformer_encoder = TransformerEncoder(d_model=d_model, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout)
+        print(d_ff if d_ff is not None else d_model*mlp_ratio)
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer=nn.TransformerEncoderLayer(
+                d_model=d_model, 
+                nhead=n_heads, 
+                dim_feedforward=d_ff if d_ff is not None else d_model*mlp_ratio,
+                dropout=dropout,
+                norm_first=True
+                ),
+            num_layers=n_layers,
+            mask_check=False,
+            enable_nested_tensor=False
+        )
         self.fc = nn.Linear(d_model, 1)
         self.softmax = nn.Softmax(dim=1)
 
@@ -68,13 +93,15 @@ class NOTE(nn.Module):
         nodes = nodes / self.norm
         
         nodes = self.nodes_embed(nodes)
-        x = nodes + self.pos_nodes_embed 
+        
+        
+        x = self.pos_nodes_embed(nodes)
         
         if (use_task and not self.mode == "node") or self.mode == "task":
             task = self.task_embed(task)
             x = x + task.unsqueeze(1).repeat(1, nodes.size(1), 1)
         
-        x = self.trasformer_encoder(x, None)
+        x = self.transformer_encoder(x, is_causal=False)
 
         x = self.fc(x)
         return x
@@ -82,7 +109,7 @@ class NOTE(nn.Module):
     def register_norm(self, norm, device, epsilon=1e-8):
         self.register_buffer('norm', torch.tensor(norm, dtype=torch.float32, device=device).max(dim=0, keepdim=True).values + epsilon)  # Register the normalization factor as a buffer
         self.norm = self.norm.to(device)
-        print(self.norm)
+
 
 
 

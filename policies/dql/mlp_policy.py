@@ -26,7 +26,6 @@ class MLP(nn.Module):
     
     def register_norm(self, norm):
         self.register_buffer('norm', torch.tensor(norm).max(dim=0, keepdim=True).values)  # Register the normalization factor as a buffer
-        print(self.norm)
 
 
 class MLPPolicy(DQNPolicy):
