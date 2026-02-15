@@ -136,13 +136,13 @@ def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description="Run DQRL Policy")
     parser.add_argument('--config', type=str, default='configs/DQRL/MLP.yaml', help='Path to the config file.')
-    parser.add_argument('--grid', type=str, nargs='+', default=None,
+    parser.add_argument('--grid', type=str, nargs='*', default=None,
                         help='Grid search parameters in format "section.param=val1,val2,val3". '
                              'E.g., --grid "model.d_model=64,128,256" "model.n_layers=2,3,4"')
-    parser.add_argument('--random', type=str, nargs='+', default=None,
+    parser.add_argument('--random', type=str, nargs='*', default=None,
                         help='Random search parameters in format "section.param=val1,val2,val3". '
                              'E.g., --random "model.d_model=64,128,256" "model.n_layers=2,3,4"')
-    parser.add_argument('--bayesian', type=str, nargs='+', default=None,
+    parser.add_argument('--bayesian', type=str, nargs='*', default=None,
                         help='Bayesian optimization parameters in format "section.param=val1,val2,val3". '
                              'E.g., --bayesian "model.d_model=64,128,256" "model.n_layers=2,3,4"')
     parser.add_argument('--n_samples', type=int, default=50, help='Number of samples for random/bayesian search (default: 50).')

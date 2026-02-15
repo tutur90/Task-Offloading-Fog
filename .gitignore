@@ -7,5 +7,9 @@ test.py
 .vscode/
 .DS_Store
 
+**/.*
+
+!.gitignore
+
 *.sh
 toy_debug.py
