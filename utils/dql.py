@@ -6,7 +6,7 @@ from core.env import Env
 from utils.utils import create_env, error_handler
 from eval.metrics.metrics import SuccessRate, AvgLatency, AvgEnergy, get_metrics
 
-def update_transitions(policy, env, stored_transitions, lambda_, config):
+def update_transitions(policy, env, stored_transitions, lambda_, config, momentum=1):
     
     done = False  # Each task is treated as an individual episode.
 
@@ -20,8 +20,8 @@ def update_transitions(policy, env, stored_transitions, lambda_, config):
                 total_energy = task_trans_energy + task_exe_energy
                 # env.max_total_time = max(env.max_total_time, total_time)
                 # env.max_total_energy = max(env.max_total_energy, total_energy)
-                env.max_total_energy = env.max_total_energy*0.999 + total_energy*0.001
-                env.max_total_time = env.max_total_time*0.999 + total_time*0.001
+                env.max_total_energy = env.max_total_energy*momentum + total_energy*(1-momentum)
+                env.max_total_time = env.max_total_time*momentum + total_time*(1-momentum)
 
                 reward = - ((lambda_[1] * total_time/env.max_total_time) + (lambda_[2] * total_energy/env.max_total_energy))
             else:
