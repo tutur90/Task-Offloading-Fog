@@ -28,12 +28,12 @@ training:
   lambda: [0.5, 0.5, 0.0]
   early_stop_patience: 40 # Early stopping patience (generations without improvement)
   disp_progress: True
-  clip_grad_norm: 1.0
+  log_freq: 200
 
 model:
-  d_model: 256
-  n_layers: 4
-  n_heads: 4
+  d_model: 64
+  n_layers: 2
+  n_heads: 2
   mlp_ratio: 4
   dropout: 0.1
   mode: node
