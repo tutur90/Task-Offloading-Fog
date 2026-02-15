@@ -54,7 +54,8 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
     
     env = create_env(config)
     
-    disp_progress = config["training"].get("disp_progress", True)
+    log_freq = config.get("training", {}).get("log_freq", 200)
+    disp_progress = train and log_freq > 0
     
     until = 0
     launched_task_cnt = 0
@@ -111,7 +112,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
             
             update_transitions(policy, env, stored_transitions, lambda_, config)
             
-        if i % config["training"].get("log_freq", 200) == 0 and disp_progress:
+        if  disp_progress and i % log_freq == 0:
             
             tdr, avg_latency, avg_energy, score = get_metrics(env, config)
             pbar.set_description(f"TTR: {tdr*100:.3e} - L: {avg_latency:.3e} - E: {avg_energy:.3e} - S: {score:.3e}")
