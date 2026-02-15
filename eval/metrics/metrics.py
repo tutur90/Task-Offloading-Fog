@@ -100,9 +100,9 @@ def get_metrics(env: Env, config: dict):
     avg_power = AvgEnergy().eval(env.logger)
     
     if "eval" in config and "lambda" in config["eval"]:
-        score = (ttr * config["eval"]["lambda"][0] + 
-                 avg_latency  * config["eval"]["lambda"][1] + 
-                 avg_power * config["eval"]["lambda"][2]) / 3
+        score = (ttr / config["eval"]["lambda"][0] + 
+                 avg_latency  / config["eval"]["lambda"][1] + 
+                 avg_power  / config["eval"]["lambda"][2]) / 3
         return ttr, avg_latency, avg_power, score
     else:
         return ttr, avg_latency, avg_power, None

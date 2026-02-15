@@ -89,6 +89,8 @@ class DQNPolicy:
             
         self.dtype = torch.float32
         
+        self.clip_grad_norm = config["training"].get("clip_grad_norm", None)
+        
         self._init_model(env, config)
 
     def _init_model(self, env, config):
@@ -230,6 +232,11 @@ class DQNPolicy:
         # Compute loss over the batch
         loss = self.criterion(predicted_q, target_q)
         loss.backward()
+        
+        if self.clip_grad_norm:
+        
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip_grad_norm)
+        
         self.optimizer.step()
 
         return loss.item()

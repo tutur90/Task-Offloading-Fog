@@ -14,28 +14,26 @@ eval:
 
 training:
   num_epochs: 40
-  learning_starts: 5000    # random steps before learning begins
+  learning_starts: 2048    # random steps before learning begins
   buffer_size: 50000      # max replay buffer size
-  batch_size: 512          # samples per update
+  batch_size: 64          # samples per update
   target_update_freq: 1024 # steps between target network syncs
-  update_freq: 8          # steps between policy updates
-  lr: 1.e-4
+  update_freq: 1          # steps between policy updates
+  lr: 3.e-4
   lr_decay: 1
   gamma: 0.99
   epsilon: 1
   epsilon_decay: 0.5
   reward_scale: 1
-  lambda: [0.5, 0.5, 0.0]
-  early_stop_patience: 40 # Early stopping patience (generations without improvement)
-  disp_progress: True
-  clip_grad_norm: 1.0
+  lambda: [0.8, 0.1, 0.1]
+  early_stop_patience: 25 # Early stopping patience (generations without improvement)
 
 model:
-  d_model: 256
-  n_layers: 4
+  d_model: 64
+  n_layers: 3
   n_heads: 4
   mlp_ratio: 4
-  dropout: 0.1
+  dropout: 0
   mode: node
   obs_type: ["cpu", "bw", "buffer"]
 
