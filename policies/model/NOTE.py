@@ -53,7 +53,7 @@ class NOTE(BaseModel):
         
         
     def _forward(self, nodes, task):
-        
+
         x = self.nodes_embed(nodes)
         
         x = self.pos_nodes_embed(x)

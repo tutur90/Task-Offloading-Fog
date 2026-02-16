@@ -188,7 +188,8 @@ def main(config):
             config["training"]["lambda"] = (config["training"]["lambda"][0]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][1]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][2]/sum(config["training"]["lambda"]))
-            policy = policies[config["policy"]](env, config, dataset=train_data) 
+            policy = policies[config["policy"]](env, config, dataset=train_data)
+             
         else:
             policy = policies[config["policy"]](env, config,)
 

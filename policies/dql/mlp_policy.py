@@ -7,19 +7,15 @@ from policies.model.mlp import MLP
 
 
 class MLPPolicy(DQNPolicy):
-    def __init__(self, env, config):
-        super().__init__(env, config)
-        
-    def _init_model(self, env, config):
+
+    def _init_model(self, env, config, dataset=None):
         self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"])
+        self.model.register_norm(self._make_observation(env, None, self.obs_type)[0], dataset=dataset)
         self.target_model = copy.deepcopy(self.model)
         self.target_model.eval()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
 
-        self.model.register_norm(self._make_observation(env, None, self.obs_type)[0])
-        self.target_model.register_norm(self._make_observation(env, None, self.obs_type)[0])  # Register the normalization factor for latency
-        
         self.model.to(self.device).to(self.dtype)
         self.target_model.to(self.device).to(self.dtype)
 

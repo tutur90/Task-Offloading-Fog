@@ -1,9 +1,10 @@
 import torch
 from torch import nn
+import pandas as pd
 
 class BaseModel(nn.Module):   
     def forward(self, x, task):
-        x = self.normalize(x, task)
+        x, task = self.normalize(x, task)
         return self._forward(x, task)
     
     def _forward(self, x, task):
@@ -13,13 +14,17 @@ class BaseModel(nn.Module):
         task = (task - self.task_min) / (self.task_max - self.task_min)
         return x / self.nodes_norm, task
 
-    def register_norm(self, norm, dataset=None):
+    def register_norm(self, norm, dataset: pd.DataFrame= None):
 
         self.register_buffer('nodes_norm', torch.tensor(norm).max(dim=0, keepdim=True).values)
+        
+
         if dataset is not None:
-            task_vals = dataset["task_length"]
-            self.register_buffer('task_min', torch.tensor([task_vals.min()], dtype=torch.float32))
-            self.register_buffer('task_max', torch.tensor([task_vals.max()], dtype=torch.float32))
+            
+            self.register_buffer('task_min', torch.tensor(dataset[["TaskSize", "CyclesPerBit", "TransBitRate", "DDL"]].min().values, dtype=torch.float32))
+            self.register_buffer('task_max', torch.tensor(dataset[["TaskSize", "CyclesPerBit", "TransBitRate", "DDL"]].max().values, dtype=torch.float32))
+            
+            print(f"Registered normalization factors: nodes_norm={self.nodes_norm}, task_min={self.task_min}, task_max={self.task_max}")    
         else:
             self.register_buffer('task_min', torch.tensor([0.0], dtype=torch.float32))
             self.register_buffer('task_max', torch.tensor([1.0], dtype=torch.float32))

@@ -91,7 +91,7 @@ class DQNPolicy:
         
         self.clip_grad_norm = config["training"].get("clip_grad_norm", None)
         
-        self._init_model(env, config)
+        self._init_model(env, config, dataset=dataset)
 
     def _init_model(self, env: Env, config, dataset=None):
         self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"]).to(self.device).to(self.dtype)
@@ -178,6 +178,7 @@ class DQNPolicy:
             action = random.randrange(self.num_actions)
         else:
             with torch.no_grad():
+
                 self.model.eval()
                 q_values = self.model(obs_tensor, task_tensor)
                 action = torch.argmax(q_values, dim=1).item()
@@ -215,17 +216,23 @@ class DQNPolicy:
 
 
         self.optimizer.zero_grad()
+        
+
 
         # Compute Q-values for the current states
         self.model.train()
         q_values = self.model(obs_tensor, task_tensor).squeeze()  # Shape: [batch_size, num_actions]
+        
 
         predicted_q = q_values.gather(1, actions_tensor).squeeze()
 
 
         # Compute target Q-values from next states using target network
         with torch.no_grad():
+            
+
             next_q_values = self.target_model(next_obs_tensor, next_task_tensor).squeeze()  # Shape: [batch_size, num_actions]
+
             max_next_q, _ = torch.max(next_q_values, dim=1)
             target_q = rewards_tensor if self.gamma == 0 else rewards_tensor + (1 - dones_tensor) * self.gamma * max_next_q
 
