@@ -66,11 +66,6 @@ class NOTE(BaseModel):
 
         x = self.fc(x)
         return x
-        
-    def register_norm(self, norm, device, epsilon=1e-8):
-        self.register_buffer('norm', torch.tensor(norm, dtype=torch.float32, device=device).max(dim=0, keepdim=True).values + epsilon)  # Register the normalization factor as a buffer
-        self.norm = self.norm.to(device)
-
 
 
 
