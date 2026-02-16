@@ -188,6 +188,9 @@ def main(config):
             config["training"]["lambda"] = (config["training"]["lambda"][0]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][1]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][2]/sum(config["training"]["lambda"]))
+            policy = policies[config["policy"]](env, config, dataset=train_data) 
+        else:
+            policy = policies[config["policy"]](env, config,)
 
         
     test_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/testset.csv")
@@ -197,7 +200,7 @@ def main(config):
     # test_data = pd.read_csv(f"eval/benchmarks/Topo4MEC/data/25N50E/testset.csv")
 
     # Initialize the policy.
-    policy = policies[config["policy"]](env, config) 
+    
 
     max_total_time = config.get("eval", {}).get("expected_max_latency", 0)
     max_total_energy = config.get("eval", {}).get("expected_max_energy", 0)

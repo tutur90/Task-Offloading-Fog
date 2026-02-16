@@ -139,7 +139,7 @@ def update_metrics(logger: Logger, env: Env, config: dict, metrics=None):
 
     logger.update_metric('TaskThrowRate', ttr * 100)
     logger.update_metric('AvgLatency', avg_latency)
-    logger.update_metric("AvgPower", avg_power)  
-    
-    
+    logger.update_metric("AvgPower", avg_power)
+    logger.update_metric("Score", score)
+
     return ttr, avg_latency, avg_power, score
