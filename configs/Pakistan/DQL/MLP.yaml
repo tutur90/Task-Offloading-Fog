@@ -29,7 +29,7 @@ training:
   reward_scale: 1
   lambda: [0.8, 0.1, 0.1]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
-  disp_progress: False
+  log_freq: 0      # Steps between logging training metrics
 
 model:
   d_model: 256
