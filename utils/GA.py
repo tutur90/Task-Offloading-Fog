@@ -218,7 +218,7 @@ def evaluate_individual_generation(args):
 
 def run_generation(config, policy, data: pd.DataFrame, train=True,
                    lambda_=(1, 1, 1), max_total_time=1.0, max_total_energy=1.0,
-                   n_processes=None, parent_fitness=None):
+                    parent_fitness=None):
     """
     Run one generation of the genetic algorithm over the provided task data.
 
@@ -246,6 +246,7 @@ def run_generation(config, policy, data: pd.DataFrame, train=True,
         - best_metrics: metrics of the best individual
         - close(): no-op method for compatibility
     """
+    n_processes = config.get("training", {}).get("n_processes", None)
     if n_processes is None:
         n_processes = max(1, cpu_count() - 1)
 
