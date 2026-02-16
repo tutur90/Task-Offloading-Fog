@@ -16,15 +16,15 @@ class BaseModel(nn.Module):
 
     def register_norm(self, norm, dataset: pd.DataFrame= None, device=None):
 
-        self.register_buffer('nodes_norm', torch.tensor(norm, device=device).max(dim=0, keepdim=True).values)
+        self.register_buffer('nodes_norm', torch.tensor(norm).max(dim=0, keepdim=True).values)
         
         if dataset is not None:
             
-            self.register_buffer('task_min', torch.tensor(dataset[["TaskSize", "CyclesPerBit", "TransBitRate", "DDL"]].min().values, dtype=torch.float32, device=device))
-            self.register_buffer('task_max', torch.tensor(dataset[["TaskSize", "CyclesPerBit", "TransBitRate", "DDL"]].max().values, dtype=torch.float32, device=device))
+            self.register_buffer('task_min', torch.tensor(dataset[["TaskSize", "CyclesPerBit", "TransBitRate", "DDL"]].min().values))
+            self.register_buffer('task_max', torch.tensor(dataset[["TaskSize", "CyclesPerBit", "TransBitRate", "DDL"]].max().values))
             
             print(f"Registered normalization factors: nodes_norm={self.nodes_norm}, task_min={self.task_min}, task_max={self.task_max}")    
         else:
-            self.register_buffer('task_min', torch.tensor([0.0], dtype=torch.float32, device=device))
-            self.register_buffer('task_max', torch.tensor([1.0], dtype=torch.float32, device=device))
+            self.register_buffer('task_min', torch.tensor([0.0]))
+            self.register_buffer('task_max', torch.tensor([1.0]))
         
