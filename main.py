@@ -240,9 +240,21 @@ def main(config):
     return val_metrics, test_metrics, best_epoch
 
 
+def get_num_gpus():
+    """Detect the number of available CUDA GPUs."""
+    import torch
+    return torch.cuda.device_count() if torch.cuda.is_available() else 0
+
+
 def run_search_worker(args):
     """Worker function for parallel grid/random search."""
-    i, params, config_path, search_type = args
+    i, params, config_path, search_type, num_gpus = args
+
+    # Assign GPU round-robin across available GPUs
+    if num_gpus > 0:
+        gpu_id = i % num_gpus
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        print(f"[Worker {i}] Assigned to GPU {gpu_id}")
 
     # Load fresh config for each worker
     with open(config_path, 'r') as file:
@@ -416,6 +428,9 @@ if __name__ == '__main__':
             # Prepare work items (skip already completed)
             work_items = []
             search_type_key = "lambda" if is_lambda_search else search_type
+            num_gpus = get_num_gpus()
+            if num_gpus > 0:
+                print(f"Detected {num_gpus} GPU(s) — workers will be distributed round-robin across them")
             for i, params in enumerate(samples):
                 if is_lambda_search:
                     key = lambda_to_key(params)
@@ -426,7 +441,7 @@ if __name__ == '__main__':
                     val_metrics[i] = progress["val_metrics"][key]
                     test_metrics[i] = progress["test_metrics"][key]
                 else:
-                    work_items.append((i, params, config_path, search_type_key))
+                    work_items.append((i, params, config_path, search_type_key, num_gpus))
 
             # Run parallel search
             max_workers = args.num_workers if args.num_workers else multiprocessing.cpu_count()
