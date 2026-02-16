@@ -19,7 +19,7 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 1024 # steps between target network syncs
   update_freq: 8          # steps between policy updates
-  lr: 1.e-4
+  lr: 5.e-5
   lr_decay: 1
   gamma: 0.99
   epsilon: 1
