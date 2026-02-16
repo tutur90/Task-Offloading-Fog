@@ -241,9 +241,18 @@ def main(config):
 
 
 def get_num_gpus():
-    """Detect the number of available CUDA GPUs."""
-    import torch
-    return torch.cuda.device_count() if torch.cuda.is_available() else 0
+    """Detect the number of available CUDA GPUs without initializing CUDA."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            return len(result.stdout.strip().split("\n"))
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return 0
 
 
 def run_search_worker(args):
@@ -449,7 +458,8 @@ if __name__ == '__main__':
             if num_workers > 1:
                 print(f"Starting parallel {search_type} search with {num_workers} workers for {len(work_items)} remaining items")
 
-                with multiprocessing.Pool(num_workers) as pool:
+                ctx = multiprocessing.get_context("spawn")
+                with ctx.Pool(num_workers) as pool:
                     for result in pool.imap_unordered(run_search_worker, work_items):
                         i, key, params, val_result, test_result, best_epoch = result
 
