@@ -55,7 +55,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
     env = create_env(config)
     
     log_freq = config.get("training", {}).get("log_freq", 200)
-    disp_progress = train and log_freq > 0
+    disp_progress = log_freq > 0
     
     until = 0
     launched_task_cnt = 0

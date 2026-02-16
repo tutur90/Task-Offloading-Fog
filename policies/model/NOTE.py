@@ -68,14 +68,16 @@ class NOTE(nn.Module):
         self.task_embed = nn.Linear(d_task, d_model, bias=False)
         self.pos_nodes_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
         # self.trasformer_encoder = TransformerEncoder(d_model=d_model, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout)
-        print(d_ff if d_ff is not None else d_model*mlp_ratio)
+
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer=nn.TransformerEncoderLayer(
                 d_model=d_model, 
                 nhead=n_heads, 
                 dim_feedforward=d_ff if d_ff is not None else d_model*mlp_ratio,
                 dropout=dropout,
-                norm_first=True
+                norm_first=True,
+                batch_first=True,
+                activation="gelu"
                 ),
             num_layers=n_layers,
             mask_check=False,
@@ -92,10 +94,9 @@ class NOTE(nn.Module):
 
         nodes = nodes / self.norm
         
-        nodes = self.nodes_embed(nodes)
+        x = self.nodes_embed(nodes)
         
-        
-        x = self.pos_nodes_embed(nodes)
+        x = self.pos_nodes_embed(x)
         
         if (use_task and not self.mode == "node") or self.mode == "task":
             task = self.task_embed(task)
