@@ -87,6 +87,8 @@ class DQNPolicy:
         else:
             self.device = torch.device(device)
             
+        print(f"Using device: {self.device}")
+            
         self.dtype = torch.float32
         
         self.clip_grad_norm = config["training"].get("clip_grad_norm", None)

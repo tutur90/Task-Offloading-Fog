@@ -21,13 +21,13 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 1024 # steps between target network syncs
   update_freq: 8          # steps between policy updates
-  lr: 1.e-3
+  lr: 5.e-4
   lr_decay: 1
   gamma: 0.99
   epsilon: 1
   epsilon_decay: 0.3
   reward_scale: 1
-  lambda: [0.8, 0.1, 0.1]
+  lambda: [0.200000,0.450000,0.350000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 
