@@ -112,6 +112,8 @@ class DQNPolicy:
         For instance, we return the free CPU frequency for each node.
         """
         
+        obs_type = list(set(obs_type) & set(["cpu", "buffer", "bw"]))  # Ensure obs_type is a list and remove duplicates
+        
         
         obs = np.zeros((len(env.scenario.get_nodes()), len(obs_type)), dtype=np.float32)
         

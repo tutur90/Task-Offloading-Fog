@@ -29,13 +29,10 @@ training:
   clip_grad_norm: 1.0          # Max norm for gradient clipping
 
 model:
-  d_model: 256
-  n_layers: 4
+  d_model: 128
+  n_layers: 2
   n_heads: 4
   mlp_ratio: 4
   dropout: 0.2
   mode: node
   obs_type: ["cpu", "bw", "buffer"]
-
-
-    

@@ -28,8 +28,12 @@ class Logger:
         self.policy = config["policy"]
         self.training_config = config.get("training", {})
         
-        # Create log directory in the form: logs/<dataset>/<flag>/<policy>/<params>_<i>
-        self.log_dir = self.create_log_dir(self.dataset, self.flag, self.policy, **self.training_config)
+        # Create log directory in the form: logs/<dataset>/<flag>/<policy>/<timestamp>_<tuned_params>
+        self.log_dir = self.create_log_dir(
+            self.dataset, self.flag, self.policy,
+            worker_id=config.get("worker_id"),
+            tuned_params=config.get("tuned_params", {}),
+        )
         self.log_file_path = os.path.join(self.log_dir, "log.txt")
         self.csv_file_path = os.path.join(self.log_dir, "result.csv")
         
@@ -47,39 +51,39 @@ class Logger:
         self.best_score = np.inf  # Initialize to positive infinity for minimization tasks.
 
     @staticmethod
-    def create_log_dir(dataset, flag, policy, **params):
+    def create_log_dir(dataset, flag, policy, worker_id=None, tuned_params=None):
         """
         Creates a unique log directory with the format:
-            logs/<dataset>/<flag>/<policy>/<timestamp>_worker<worker_id>
+            logs/<dataset>/<flag>/<policy>/<timestamp>_t<id>_<param_tags>
+        e.g. logs/Topo4MEC/25N50E/MLP/0216_143022_t3_dm128_nl3
 
         Args:
             dataset (str): Dataset name.
             flag (str): Flag name.
             policy (str): The policy name.
-            **params: Additional training parameters to include in the directory name.
-
-        Returns:
-            str: The created log directory path.
+            worker_id (int, optional): Trial/worker number.
+            tuned_params (dict, optional): Only the tuned hyperparameters
+                (e.g. {"model.d_model": 128, "model.n_layers": 3}).
         """
         base_dir = os.path.join("logs", dataset, flag, policy)
         if not os.path.exists(base_dir):
             os.makedirs(base_dir)
 
-        # Create a human-readable date-time format for unique directory naming
         from datetime import datetime
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now().strftime("%m%d_%H%M%S")
 
-        # Include worker_id in the directory name if provided
-        process_name = multiprocessing.current_process().name.split("-")
-        worker_id = process_name[1] if len(process_name) > 1 else None
-
-        
+        # Build tag from only the tuned params: first 2 letters + value
+        # e.g. worker_id=3, d_model=128, n_layers=3 -> "t3_dm128_nl3"
+        tag_parts = []
         if worker_id is not None:
-            dir_name = f"{timestamp}_worker{worker_id}"
-        else:
-            dir_name = timestamp
+            tag_parts.append(f"t{worker_id}")
+        for k, v in (tuned_params or {}).items():
+            short = k.split(".")[-1].replace("_", "")[:2]
+            tag_parts.append(f"{short}{v}")
+
+        tag = "_".join(tag_parts) if tag_parts else ""
+        dir_name = f"{timestamp}_{tag}" if tag else timestamp
         log_dir = os.path.join(base_dir, dir_name)
-            
 
         os.makedirs(log_dir)
         return log_dir

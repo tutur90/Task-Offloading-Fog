@@ -86,6 +86,7 @@ def run_optuna_search(config, config_path, args):
 
         worker_config = yaml.safe_load(open(config_path, 'r'))
         worker_config["worker_id"] = trial.number
+        worker_config["tuned_params"] = params
         apply_params_to_config(worker_config, params)
 
         val_result, test_result, best_epoch = main(worker_config)
@@ -121,6 +122,15 @@ def run_optuna_search(config, config_path, args):
 
     best = study.best_trial
     print(f"\nBest trial #{best.number}: score={best.value:.6f} | {best.params}")
+
+    # Heatmap if exactly 2 tuned params
+    if len(param_specs) == 2:
+        from optuna.visualization import plot_contour
+        param_names = list(param_specs.keys())
+        fig = plot_contour(study, params=param_names)
+        plot_path = os.path.join(results_dir, f"optuna_{search_name}_heatmap.html")
+        fig.write_html(plot_path)
+        print(f"Heatmap saved to {plot_path}")
 
 
 def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total_energy=0, max_total_time=0):
@@ -212,13 +222,13 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description="Run DQRL Policy")
-    parser.add_argument('--config', type=str, default='configs/DQRL/MLP.yaml', help='Path to the config file.')
+    parser.add_argument('config', type=str, default='configs/DQL/MLP.yaml', help='Path to the config file.')
     parser.add_argument('--optuna', type=str, nargs='*', default=None,
                         help='Optuna hyperparameter search. Params in format "section.param=val1,val2,val3". '
                              'E.g., --optuna "model.d_model=64,128,256" "model.n_layers=2,3,4"')
     parser.add_argument('--sampler', type=str, default='tpe', choices=['tpe', 'random', 'grid', 'cmaes'],
                         help='Optuna sampler to use (default: tpe).')
-    parser.add_argument('--n_samples', type=int, default=50, help='Number of Optuna trials (default: 50).')
+    parser.add_argument('--n_samples', type=int, default=64, help='Number of Optuna trials (default: 50).')
     parser.add_argument('--num_workers', type=int, default=None, help='Number of parallel Optuna jobs (default: 1).')
     args = parser.parse_args()
     return args
