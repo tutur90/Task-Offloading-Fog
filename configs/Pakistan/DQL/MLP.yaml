@@ -24,8 +24,18 @@ training:
   lr: 5.e-4
   lr_decay: 1
   gamma: 0.99
+  # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
+  exploration_strategy: "epsilon_greedy"
+  # --- epsilon_greedy params ---
   epsilon: 1
   epsilon_decay: 0.3
+  # epsilon_min: 0.01
+  # --- boltzmann params (used when exploration_strategy: "boltzmann") ---
+  # temperature: 1.0
+  # temperature_min: 0.1
+  # temperature_decay: 0.3
+  # --- ucb params (used when exploration_strategy: "ucb") ---
+  # ucb_c: 1.0
   reward_scale: 1
   lambda: [0.200000,0.450000,0.350000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)

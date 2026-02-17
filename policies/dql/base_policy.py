@@ -67,6 +67,18 @@ class DQNPolicy:
         self.epsilon_decay = config["training"].get("epsilon_decay", 0.9)
         self.lr = config["training"]["lr"]
 
+        # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
+        self.exploration_strategy = config["training"].get("exploration_strategy", "epsilon_greedy")
+
+        # Boltzmann (softmax) exploration parameters
+        self.temperature_start = config["training"].get("temperature", 1.0)
+        self.temperature = self.temperature_start
+        self.temperature_min = config["training"].get("temperature_min", 0.1)
+        self.temperature_decay = config["training"].get("temperature_decay", self.epsilon_decay)
+
+        # UCB exploration parameters
+        self.ucb_c = config["training"].get("ucb_c", 1.0)
+
         # Replay buffer for transitions.
         self.buffer_size = config["training"].get("buffer_size", 10000)
         self.batch_size = config["training"].get("batch_size", 64)
@@ -77,6 +89,7 @@ class DQNPolicy:
         self.replay_buffer = deque(maxlen=self.buffer_size)
         self.update_count = 0
         self.total_steps = 0
+        self.action_counts = np.zeros(self.num_actions, dtype=np.float32)  # for UCB
         
         if device == "auto":
 
@@ -151,11 +164,13 @@ class DQNPolicy:
         self.total_training_steps = total_steps
 
     def _update_epsilon(self):
-        """Linearly decay epsilon from epsilon_start to epsilon_min over epsilon_decay fraction of training."""
+        """Linearly decay exploration parameter over training."""
         if self.total_training_steps is None:
             return
-        decay_steps = int(self.total_training_steps * self.epsilon_decay)
         steps_since_learn = self.total_steps - self.learning_starts
+
+        # ε-greedy decay
+        decay_steps = int(self.total_training_steps * self.epsilon_decay)
         if steps_since_learn <= 0:
             self.epsilon = self.epsilon_start
         elif steps_since_learn >= decay_steps:
@@ -163,9 +178,20 @@ class DQNPolicy:
         else:
             self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_min) * (steps_since_learn / decay_steps)
 
+        # Boltzmann temperature decay
+        if self.exploration_strategy == "boltzmann":
+            t_decay_steps = int(self.total_training_steps * self.temperature_decay)
+            if steps_since_learn <= 0:
+                self.temperature = self.temperature_start
+            elif steps_since_learn >= t_decay_steps:
+                self.temperature = self.temperature_min
+            else:
+                self.temperature = self.temperature_start - (self.temperature_start - self.temperature_min) * (steps_since_learn / t_decay_steps)
+
     def act(self, env, task, train=True):
         """
-        Chooses an action using an ε-greedy strategy and records the current state.
+        Chooses an action using the configured exploration strategy and records the current state.
+        Supports: "epsilon_greedy", "boltzmann", "ucb".
         """
         state = self._make_observation(env, task, self.obs_type)
         obs, task_obs = state
@@ -176,16 +202,46 @@ class DQNPolicy:
             self.total_steps += 1
             self._update_epsilon()
 
+        # Random warm-up phase regardless of strategy
         if train and self.total_steps <= self.learning_starts:
             action = random.randrange(self.num_actions)
-        elif random.random() < self.epsilon and train:
-            action = random.randrange(self.num_actions)
-        else:
-            with torch.no_grad():
+            return action, state
 
+        if self.exploration_strategy == "epsilon_greedy":
+            if train and random.random() < self.epsilon:
+                action = random.randrange(self.num_actions)
+            else:
+                with torch.no_grad():
+                    self.model.eval()
+                    q_values = self.model(obs_tensor, task_tensor)
+                    action = torch.argmax(q_values, dim=1).item()
+
+        elif self.exploration_strategy == "boltzmann":
+            with torch.no_grad():
                 self.model.eval()
-                q_values = self.model(obs_tensor, task_tensor)
-                action = torch.argmax(q_values, dim=1).item()
+                q_values = self.model(obs_tensor, task_tensor).squeeze()
+            if train:
+                # Sample from softmax(Q / temperature)
+                probs = torch.softmax(q_values / self.temperature, dim=0).cpu().numpy()
+                action = int(np.random.choice(self.num_actions, p=probs))
+            else:
+                action = int(torch.argmax(q_values).item())
+
+        elif self.exploration_strategy == "ucb":
+            with torch.no_grad():
+                self.model.eval()
+                q_values = self.model(obs_tensor, task_tensor).squeeze().cpu().numpy()
+            if train:
+                # UCB bonus: c * sqrt(log(t) / (1 + N(a)))
+                bonus = self.ucb_c * np.sqrt(np.log(self.total_steps + 1) / (1 + self.action_counts))
+                action = int(np.argmax(q_values + bonus))
+                self.action_counts[action] += 1
+            else:
+                action = int(np.argmax(q_values))
+
+        else:
+            raise ValueError(f"Unknown exploration strategy: '{self.exploration_strategy}'. "
+                             f"Choose from: 'epsilon_greedy', 'boltzmann', 'ucb'.")
 
         # Return both the chosen action and the current state.
         return action, state
