@@ -27,6 +27,7 @@ training:
   lambda: [0.35, 0.35, 0.3]
   early_stop_patience: 25 # Early stopping patience (generations without improvement)
   clip_grad_norm: 1.0          # Max norm for gradient clipping
+  log_freq: 0
 
 model:
   d_model: 64
