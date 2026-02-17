@@ -53,34 +53,31 @@ def print_top_k_results(grid, metrics, k=10, label="Results"):
         print(f"{rank}. {params_str} | Metrics: {metrics[idx]}")
 
 
-def run_optuna_search(config, config_path, args):
-    """Run Optuna hyperparameter search."""
+def _optuna_worker(worker_id, n_trials, config_path, param_specs, sampler_name, seed, results_dir, search_name):
+    """Worker process for parallel Optuna optimization. Each process runs its own study.optimize()."""
     import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-    param_specs = parse_grid_search_params(args.optuna)
-    search_name = "_".join(k.replace(".", "_") for k in param_specs.keys())
-
-    # Sampler
     samplers = {
-        "tpe": lambda: optuna.samplers.TPESampler(seed=config.get("seed", 42)),
-        "random": lambda: optuna.samplers.RandomSampler(seed=config.get("seed", 42)),
-        "grid": lambda: optuna.samplers.GridSampler(param_specs, seed=config.get("seed", 42)),
-        "cmaes": lambda: optuna.samplers.CmaEsSampler(seed=config.get("seed", 42)),
+        "tpe": lambda: optuna.samplers.TPESampler(seed=seed + worker_id),
+        "random": lambda: optuna.samplers.RandomSampler(seed=seed + worker_id),
+        "grid": lambda: optuna.samplers.GridSampler(param_specs, seed=seed + worker_id),
+        "cmaes": lambda: optuna.samplers.CmaEsSampler(seed=seed + worker_id),
     }
-    sampler = samplers[args.sampler]()
+    sampler = samplers[sampler_name]()
 
-    # Study (SQLite for resumability)
-    results_dir = f"logs/{config['env']['dataset']}/{config['env']['flag']}/{config['policy']}"
-    os.makedirs(results_dir, exist_ok=True)
-    study = optuna.create_study(
+    storage = optuna.storages.JournalStorage(
+        optuna.storages.JournalFileStorage(
+            os.path.join(os.path.abspath(results_dir), f"optuna_{search_name}.log")
+        )
+    )
+
+    study = optuna.load_study(
         study_name=search_name,
-        storage=f"sqlite:///{os.path.abspath(results_dir)}/optuna_{search_name}.db",
-        load_if_exists=True,
-        direction="minimize",
+        storage=storage,
         sampler=sampler,
     )
 
-    # Objective
     def objective(trial):
         params = {k: trial.suggest_categorical(k, v) for k, v in param_specs.items()}
 
@@ -97,7 +94,46 @@ def run_optuna_search(config, config_path, args):
 
         return float(val_result[3])
 
-    # Run
+    study.optimize(objective, n_trials=n_trials, n_jobs=1)
+
+
+def run_optuna_search(config, config_path, args):
+    """Run Optuna hyperparameter search with true multiprocessing parallelism."""
+    import optuna
+    import multiprocessing as mp
+
+    param_specs = parse_grid_search_params(args.optuna)
+    search_name = "_".join(k.replace(".", "_") for k in param_specs.keys())
+    seed = config.get("seed", 42)
+
+    # Storage (JournalFile is safe for concurrent multi-process access)
+    results_dir = f"logs/{config['env']['dataset']}/{config['env']['flag']}/{config['policy']}"
+    os.makedirs(results_dir, exist_ok=True)
+    storage = optuna.storages.JournalStorage(
+        optuna.storages.JournalFileStorage(
+            os.path.join(os.path.abspath(results_dir), f"optuna_{search_name}.log")
+        )
+    )
+
+    # Sampler (for study creation only; workers create their own)
+    samplers = {
+        "tpe": lambda: optuna.samplers.TPESampler(seed=seed),
+        "random": lambda: optuna.samplers.RandomSampler(seed=seed),
+        "grid": lambda: optuna.samplers.GridSampler(param_specs, seed=seed),
+        "cmaes": lambda: optuna.samplers.CmaEsSampler(seed=seed),
+    }
+    sampler = samplers[args.sampler]()
+
+    # Create or load study
+    study = optuna.create_study(
+        study_name=search_name,
+        storage=storage,
+        load_if_exists=True,
+        direction="minimize",
+        sampler=sampler,
+    )
+
+    # How many trials remain
     n_completed = len([t for t in study.trials if t.state.name == "COMPLETE"])
     n_remaining = max(0, args.n_samples - n_completed)
     n_jobs = args.num_workers or 1
@@ -106,7 +142,45 @@ def run_optuna_search(config, config_path, args):
           f"trials={n_completed}/{args.n_samples} done | n_jobs={n_jobs}")
 
     if n_remaining > 0:
-        study.optimize(objective, n_trials=n_remaining, n_jobs=n_jobs)
+        if n_jobs == 1:
+            # Single process — run directly (no overhead)
+            def objective(trial):
+                params = {k: trial.suggest_categorical(k, v) for k, v in param_specs.items()}
+                worker_config = yaml.safe_load(open(config_path, 'r'))
+                worker_config["worker_id"] = trial.number
+                worker_config["tuned_params"] = params
+                apply_params_to_config(worker_config, params)
+                val_result, test_result, best_epoch = main(worker_config)
+                trial.set_user_attr("val_metrics", [float(v) for v in val_result])
+                trial.set_user_attr("test_metrics", [float(v) for v in test_result])
+                trial.set_user_attr("best_epoch", best_epoch)
+                return float(val_result[3])
+
+            study.optimize(objective, n_trials=n_remaining, n_jobs=1)
+        else:
+            # Multi-process: each worker gets a share of trials
+            trials_per_worker = [n_remaining // n_jobs] * n_jobs
+            for i in range(n_remaining % n_jobs):
+                trials_per_worker[i] += 1
+
+            processes = []
+            ctx = mp.get_context("spawn")
+            for i, n_t in enumerate(trials_per_worker):
+                if n_t == 0:
+                    continue
+                p = ctx.Process(
+                    target=_optuna_worker,
+                    args=(i, n_t, config_path, param_specs, args.sampler, seed, results_dir, search_name),
+                )
+                p.start()
+                processes.append(p)
+                print(f"  Worker {i} started (PID {p.pid}, {n_t} trials)")
+
+            for p in processes:
+                p.join()
+
+            # Reload study to get all results
+            study = optuna.load_study(study_name=search_name, storage=storage)
 
     # Results
     trials = sorted(
