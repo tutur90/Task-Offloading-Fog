@@ -19,20 +19,23 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 1024 # steps between target network syncs
   update_freq: 8          # steps between policy updates
-  lr: 1.e-4
+  lr: 2.e-4
   lr_decay: 1
   gamma: 0.99
   epsilon: 1
-  epsilon_decay: 0.5
-  lambda: [0.8, 0.1, 0.1]
-  early_stop_patience: 20 # Early stopping patience (generations without improvement)
+  epsilon_decay: 0.4
+  lambda: [0.35, 0.35, 0.3]
+  early_stop_patience: 25 # Early stopping patience (generations without improvement)
   clip_grad_norm: 1.0          # Max norm for gradient clipping
 
 model:
-  d_model: 128
+  d_model: 64
   n_layers: 2
   n_heads: 4
   mlp_ratio: 4
-  dropout: 0.2
+  dropout: 0.1
   mode: node
   obs_type: ["cpu", "bw", "buffer"]
+
+
+    
