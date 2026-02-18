@@ -85,6 +85,8 @@ class DQNPolicy:
         self.target_update_freq = config["training"].get("target_update_freq", 100)
         self.update_freq = config["training"].get("update_freq", 1)
         self.learning_starts = config["training"].get("learning_starts", 0)
+        self.warmup_ratio = config["training"].get("warmup", 0)
+        self.warmup_steps = 0  # computed in set_training_steps()
         self.total_training_steps = None  # set by set_training_steps()
         self.replay_buffer = deque(maxlen=self.buffer_size)
         self.update_count = 0
@@ -162,6 +164,7 @@ class DQNPolicy:
     def set_training_steps(self, total_steps):
         """Set total training steps for linear epsilon schedule."""
         self.total_training_steps = total_steps
+        self.warmup_steps = int(total_steps * self.warmup_ratio)
 
     def _update_epsilon(self):
         """Linearly decay exploration parameter over training."""
@@ -187,6 +190,20 @@ class DQNPolicy:
                 self.temperature = self.temperature_min
             else:
                 self.temperature = self.temperature_start - (self.temperature_start - self.temperature_min) * (steps_since_learn / t_decay_steps)
+
+    def _update_lr(self):
+        """Linear LR warmup from 0 to base lr over warmup_steps steps after learning starts."""
+        if self.warmup_steps == 0:
+            return
+        steps_since_learn = self.total_steps - self.learning_starts
+        if steps_since_learn <= 0:
+            lr = 0.0
+        elif steps_since_learn < self.warmup_steps:
+            lr = self.lr * steps_since_learn / self.warmup_steps
+        else:
+            return  # warmup complete
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = lr
 
     def act(self, env, task, train=True):
         """
@@ -257,6 +274,8 @@ class DQNPolicy:
         Performs an update over a sampled batch of transitions using batched operations,
         moves tensors to the appropriate device and dtype.
         """
+
+        self._update_lr()
 
         # Sample a batch from the replay buffer
         batch = random.sample(self.replay_buffer, self.batch_size)
