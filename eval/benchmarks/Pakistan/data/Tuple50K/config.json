@@ -138,7 +138,46 @@
             "LocX": 55.565268, 
             "LocY": 9.7562169,
             "Location": "Fredericia, Denmark"
-        }
+        },
+        {
+    "DeviceType": "Fog",
+    "NodeType": "Node",
+    "NodeName": "f7",
+    "NodeId": 11,
+    "MaxCpuFreq": 70000,
+    "MaxBufferSize": 8192,
+    "IdleEnergyCoef": 0.046,
+    "ExeEnergyCoef": 0.2,
+    "LocX": 33.5651,
+    "LocY": 73.0169,
+    "Location": "Rawalpindi, Pakistan"
+},
+{
+    "DeviceType": "Fog",
+    "NodeType": "Node",
+    "NodeName": "f8",
+    "NodeId": 12,
+    "MaxCpuFreq": 60000,
+    "MaxBufferSize": 7168,
+    "IdleEnergyCoef": 0.049,
+    "ExeEnergyCoef": 0.21,
+    "LocX": 25.396,
+    "LocY": 68.3578,
+    "Location": "Hyderabad, Pakistan"
+},
+{
+    "DeviceType": "Cloud",
+    "NodeType": "Node",
+    "NodeName": "c4",
+    "NodeId": 13,
+    "MaxCpuFreq": 500000,
+    "MaxBufferSize": 51200,
+    "IdleEnergyCoef": 0.095,
+    "ExeEnergyCoef": 0.15,
+    "LocX": 25.2048,
+    "LocY": 55.2708,
+    "Location": "Dubai, UAE"
+}
     ],
     "Edges": [
         {
@@ -242,7 +281,37 @@
             "SrcNodeID": 0,
             "DstNodeID": 10,
             "Bandwidth": 50000
-        }
+        },
+        {
+    "EdgeType": "SingleLink",
+    "SrcNodeID": 0,
+    "DstNodeID": 11,
+    "Bandwidth": 2400
+},
+{
+    "EdgeType": "SingleLink",
+    "SrcNodeID": 11,
+    "DstNodeID": 0,
+    "Bandwidth": 1600
+},
+{
+    "EdgeType": "SingleLink",
+    "SrcNodeID": 0,
+    "DstNodeID": 12,
+    "Bandwidth": 1800
+},
+{
+    "EdgeType": "SingleLink",
+    "SrcNodeID": 12,
+    "DstNodeID": 0,
+    "Bandwidth": 1200
+},
+{
+    "EdgeType": "Link",
+    "SrcNodeID": 0,
+    "DstNodeID": 13,
+    "Bandwidth": 50000
+}
     ],
     "BaseLatencyType": "haversine"
 }

@@ -1,0 +1,52 @@
+
+policy: "DuelingNOTE"
+algo: "TaskFormer"
+
+env:
+  dataset: "Pakistan"
+  flag: "Tuple30K"
+  refresh_rate: 0.005
+
+eval:
+  lambda: [1.889e-03, 4.394e+00, 2.605e+02]
+  expected_max_latency: 4
+  expected_max_energy: 300
+
+training:
+  num_epochs: 40
+  learning_starts: 5000    # random steps before learning begins
+  warmup: 0.1              # LR warmup as ratio of total training steps
+  buffer_size: 50000       # max replay buffer size
+  batch_size: 512          # samples per update
+  target_update_freq: 1024 # steps between target network syncs
+  update_freq: 8           # steps between policy updates
+  lr: 2.e-4
+  lr_decay: 1
+  gamma: 0.99
+  exploration:
+    strategy: "boltzmann"
+    epsilon: 1
+    epsilon_decay: 0.3
+    temperature: 1.0
+    temperature_min: 0.05
+    temperature_decay: 0.5
+  reward:
+    momentum: 0.999
+    norm: "ln_standard"
+    scale: 1
+    eps: 1.e-2
+  optimizer:
+    type: "RMSprop"
+    weight_decay: 0
+  lambda: [0.500000,0.30000,0.20000]
+  early_stop_patience: 20
+  log_freq: 0
+
+model:
+  d_model: 64
+  n_layers: 2
+  n_heads: 2
+  mlp_ratio: 4
+  dropout: 0.1
+  mode: node
+  obs_type: ["cpu", "bw", "buffer"]

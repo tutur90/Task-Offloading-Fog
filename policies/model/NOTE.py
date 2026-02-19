@@ -183,8 +183,8 @@ class NOTE(BaseModel):
 
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer=nn.TransformerEncoderLayer(
-                d_model=d_model, 
-                nhead=n_heads, 
+                d_model=d_model,
+                nhead=n_heads,
                 dim_feedforward=d_ff if d_ff is not None else d_model*mlp_ratio,
                 dropout=dropout,
                 norm_first=True,
@@ -200,22 +200,69 @@ class NOTE(BaseModel):
 
 
         self.mode = mode
-        
-        
+
+
     def _forward(self, nodes, task):
 
         x = self.nodes_embed(nodes)
-        
+
         x = self.pos_nodes_embed(x)
-        
+
         if self.mode == "task":
             task = self.task_embed(task)
             x = x + task.unsqueeze(1).repeat(1, nodes.size(1), 1)
-        
+
         x = self.transformer_encoder(x, is_causal=False)
 
         x = self.fc(x)
         return x
+
+
+class DuelingNOTE(BaseModel):
+    """Dueling Network version of NOTE: Q(s,a) = V(s) + (A(s,a) - mean_a A(s,a))."""
+
+    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, mode="mixed", **kwargs):
+        super().__init__()
+
+        self.nodes_embed = nn.Linear(d_in, d_model)
+        self.task_embed = nn.Linear(d_task, d_model, bias=False)
+        self.pos_nodes_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
+
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer=nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=n_heads,
+                dim_feedforward=d_ff if d_ff is not None else d_model * mlp_ratio,
+                dropout=dropout,
+                norm_first=True,
+                batch_first=True,
+                activation="gelu"
+            ),
+            num_layers=n_layers,
+            mask_check=False,
+            enable_nested_tensor=False
+        )
+
+        # Value stream: mean-pool over nodes -> scalar V(s)
+        self.value_stream = nn.Linear(d_model, 1)
+        # Advantage stream: per-node scalar A(s,a)
+        self.advantage_stream = nn.Linear(d_model, 1)
+
+        self.mode = mode
+
+    def _forward(self, nodes, task):
+        x = self.nodes_embed(nodes)
+        x = self.pos_nodes_embed(x)
+
+        if self.mode == "task":
+            task = self.task_embed(task)
+            x = x + task.unsqueeze(1).repeat(1, nodes.size(1), 1)
+
+        x = self.transformer_encoder(x, is_causal=False)  # (batch, d_pos, d_model)
+
+        value = self.value_stream(x.mean(dim=1, keepdim=True))  # (batch, 1, 1)
+        advantage = self.advantage_stream(x)                     # (batch, d_pos, 1)
+        return value + (advantage - advantage.mean(dim=1, keepdim=True))
 
 
 

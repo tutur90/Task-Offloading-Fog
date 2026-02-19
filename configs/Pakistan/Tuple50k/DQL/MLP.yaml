@@ -6,11 +6,11 @@ seed: 42
 
 env:
   dataset: "Pakistan"
-  flag: "Tuple30K"
+  flag: "Tuple50K"
   refresh_rate: 0.005
 
 eval:
-  lambda: [1.889e-03, 4.394e+00, 2.605e+02]
+  lambda: [4.667e-02, 4.550e+00, 1.533e+02]
   expected_values: [0.2, 4.0, 300.0]
 
 
@@ -35,7 +35,7 @@ training:
     # --- boltzmann params (used when strategy: "boltzmann") ---
     temperature: 2.0
     temperature_min: 0.05
-    temperature_decay: 0.5
+    temperature_decay: 0.3
     # --- ucb params (used when strategy: "ucb") ---
     ucb_c: 1.0
   reward:
@@ -46,12 +46,12 @@ training:
   optimizer:
     type: "RMSprop"
     weight_decay: 0
-  lambda: [0.800000,0.10000,0.10000]
+  lambda: [0.500000,0.30000,0.20000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 
 model:
-  d_model: 64
+  d_model: 256
   n_layers: 3
   # obs_type: ["cpu"]
   # obs_type: ["cpu", "buffer"]

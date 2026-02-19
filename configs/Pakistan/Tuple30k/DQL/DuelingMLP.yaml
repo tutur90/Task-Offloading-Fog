@@ -1,5 +1,5 @@
 
-policy: "MLP"
+policy: "DuelingMLP"
 algo: "DQL"
 
 seed: 42
@@ -22,22 +22,16 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 1024 # steps between target network syncs
   update_freq: 8          # steps between policy updates
-  lr: 3.e-4
+  lr: 6.e-4
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
   exploration:
     strategy: "boltzmann"
-    # --- epsilon_greedy params ---
-    epsilon: 1
-    epsilon_decay: 0.3
-    # epsilon_min: 0.01
-    # --- boltzmann params (used when strategy: "boltzmann") ---
     temperature: 2.0
-    temperature_min: 0.05
+    temperature_min: 0.1
     temperature_decay: 0.5
-    # --- ucb params (used when strategy: "ucb") ---
-    ucb_c: 1.0
+
   reward:
     momentum: 0.999
     norm: "ln_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
@@ -51,7 +45,7 @@ training:
   log_freq: 0      # Steps between logging training metrics
 
 model:
-  d_model: 64
+  d_model: 128
   n_layers: 3
   # obs_type: ["cpu"]
   # obs_type: ["cpu", "buffer"]

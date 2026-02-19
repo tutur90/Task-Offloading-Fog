@@ -61,25 +61,27 @@ class DQNPolicy:
 
         # Retrieve configuration parameters.
         self.gamma = config["training"]["gamma"]
-        _expl = config["training"]["exploration"]
-        self.epsilon_start = _expl["epsilon"]
-        self.epsilon = self.epsilon_start
-        self.epsilon_min = _expl.get("epsilon_min", 0.01)
-        self.epsilon_decay = _expl.get("epsilon_decay", 0.9)
+
         self.lr = config["training"]["lr"]
 
-        # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-        self.exploration_strategy = _expl.get("strategy", "epsilon_greedy")
-
-        # Boltzmann (softmax) exploration parameters
-        self.temperature_start = _expl.get("temperature", 1.0)
-        self.temperature = self.temperature_start
-        self.temperature_min = _expl.get("temperature_min", 0.1)
-        self.temperature_decay = _expl.get("temperature_decay", self.epsilon_decay)
-
-        # UCB exploration parameters
-        self.ucb_c = _expl.get("ucb_c", 1.0)
-
+        config["training"]["exploration"]["strategy"] = config["training"].get("exploration", {}).get("strategy", "epsilon_greedy")
+        
+        self.exploration_strategy = config["training"]["exploration"]["strategy"]
+        
+        if config["training"]["exploration"]["strategy"] == "epsilon_greedy":
+            self.epsilon_start = config["training"]["exploration"].get("epsilon", 1.0)
+            self.epsilon = self.epsilon_start
+            self.epsilon_min = config["training"]["exploration"].get("epsilon_min", 0.01)
+            self.epsilon_decay = config["training"]["exploration"].get("epsilon_decay", 0.3)
+        elif config["training"]["exploration"]["strategy"] == "boltzmann":
+            self.temperature = config["training"]["exploration"].get("temperature", 1.0)
+            self.temperature_start = self.temperature
+            self.temperature_min = config["training"]["exploration"].get("temperature_min", 0.1)
+            self.temperature_decay = config["training"]["exploration"].get("temperature_decay", 0.5)
+        elif config["training"]["exploration"]["strategy"] == "ucb":
+            self.ucb_c = config["training"]["exploration"].get("ucb_c", 1.0)
+        else: 
+            raise ValueError(f"Unknown exploration strategy: {config['training']['exploration']['strategy']}")
         # Replay buffer for transitions.
         self.buffer_size = config["training"].get("buffer_size", 10000)
         self.batch_size = config["training"].get("batch_size", 64)
@@ -318,14 +320,15 @@ class DQNPolicy:
             return
         steps_since_learn = self.total_steps - self.learning_starts
 
-        # ε-greedy decay
-        decay_steps = int(self.total_training_steps * self.epsilon_decay)
-        if steps_since_learn <= 0:
-            self.epsilon = self.epsilon_start
-        elif steps_since_learn >= decay_steps:
-            self.epsilon = self.epsilon_min
-        else:
-            self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_min) * (steps_since_learn / decay_steps)
+        if self.exploration_strategy == "epsilon_greedy":
+            # ε-greedy decay
+            decay_steps = int(self.total_training_steps * self.epsilon_decay)
+            if steps_since_learn <= 0:
+                self.epsilon = self.epsilon_start
+            elif steps_since_learn >= decay_steps:
+                self.epsilon = self.epsilon_min
+            else:
+                self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_min) * (steps_since_learn / decay_steps)
 
         # Boltzmann temperature decay
         if self.exploration_strategy == "boltzmann":

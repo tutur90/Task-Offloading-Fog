@@ -1,5 +1,5 @@
-from policies.dql.note_policy import NOTEPolicy
-from policies.dql.mlp_policy import MLPPolicy
+from policies.dql.note_policy import NOTEPolicy, DuelingNOTEPolicy
+from policies.dql.mlp_policy import MLPPolicy, DuelingMLPPolicy
 from policies.dql.base_policy import DQNPolicy
 
 from policies.ga.nsga_policy import NSGA2Policy
@@ -12,7 +12,9 @@ from policies.heuristics.round_robin import RoundRobinPolicy
 
 policies = {
     "MLP": MLPPolicy,
+    "DuelingMLP": DuelingMLPPolicy,
     "NOTE": NOTEPolicy,
+    "DuelingNOTE": DuelingNOTEPolicy,
     "T-NOTE": NOTEPolicy,
     "NPGA": NPGAPolicy,
     "NSGA2": NSGA2Policy,
