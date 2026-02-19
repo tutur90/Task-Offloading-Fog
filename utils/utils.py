@@ -14,12 +14,15 @@ class Scenario(BaseScenario):
         """
         :param flag: '25N50E', '50N50E', '100N150E' or 'MilanCityCenter'
         """
-        assert dataset in ['Topo4MEC', 'Pakistan'], f"Invalid dataset={dataset}"
+        assert dataset in ['Topo4MEC', 'Pakistan', 'Synthetic'], f"Invalid dataset={dataset}"
         if dataset == 'Topo4MEC':
             assert flag in ['25N50E', '50N50E', '100N150E', 'MilanCityCenter'], \
             f"Invalid flag={flag}"
         elif dataset == 'Pakistan':
             assert flag in ['Tuple30K', 'Tuple50K', 'Tuple100K'], \
+            f"Invalid flag={flag}"
+        elif dataset == 'Synthetic':
+            assert flag in ['small', 'medium', 'large'], \
             f"Invalid flag={flag}"
         super().__init__(config_file)
         

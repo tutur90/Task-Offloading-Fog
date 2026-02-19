@@ -18,7 +18,7 @@ training:
   warmup: 0.1              # LR warmup as ratio of total training steps
   buffer_size: 50000       # max replay buffer size
   batch_size: 512          # samples per update
-  target_update_freq: 1000 # τ = 1/target_update_freq = 0.001 (soft update applied every gradient step)
+  target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8           # steps between policy updates
   lr: 2.e-4
   lr_decay: 1

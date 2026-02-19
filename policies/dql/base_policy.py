@@ -86,7 +86,10 @@ class DQNPolicy:
         self.buffer_size = config["training"].get("buffer_size", 10000)
         self.batch_size = config["training"].get("batch_size", 64)
         self.target_update_freq = config["training"].get("target_update_freq", 1000)
-        self.tau = config["training"].get("tau", 1.0 / self.target_update_freq)
+        # target_update_freq >= 1 → hard update every N gradient steps
+        # target_update_freq <  1 → treated as τ for soft (Polyak) update every gradient step
+        self.soft_update = self.target_update_freq < 1
+        self.tau = self.target_update_freq if self.soft_update else None
         self.update_freq = config["training"].get("update_freq", 1)
         self.learning_starts = config["training"].get("learning_starts", 0)
         self.warmup_ratio = config["training"].get("warmup", 0)
@@ -487,6 +490,10 @@ class DQNPolicy:
         
         if self.update_count % self.update_freq == 0:
             loss = self._update()
+            if self.soft_update:
+                self.update_target_network()
+
+        if not self.soft_update and self.update_count % self.target_update_freq == 0:
             self.update_target_network()
 
         self.update_count += 1
@@ -494,13 +501,16 @@ class DQNPolicy:
 
     def update_target_network(self):
         """
-        Soft (Polyak) update: θ_target = τ·θ_online + (1−τ)·θ_target
-        With τ = 1/target_update_freq this is equivalent to a hard copy every
-        target_update_freq gradient steps.
+        Hard update (target_update_freq >= 1): θ_target ← θ_online every N gradient steps.
+        Soft update (target_update_freq < 1):  θ_target ← τ·θ_online + (1−τ)·θ_target every gradient step,
+                                               where τ = target_update_freq.
         """
-        with torch.no_grad():
-            for param, target_param in zip(self.model.parameters(), self.target_model.parameters()):
-                target_param.data.mul_(1.0 - self.tau).add_(self.tau * param.data)
+        if self.soft_update:
+            with torch.no_grad():
+                for param, target_param in zip(self.model.parameters(), self.target_model.parameters()):
+                    target_param.data.mul_(1.0 - self.tau).add_(self.tau * param.data)
+        else:
+            self.target_model.load_state_dict(self.model.state_dict())
     
     def save(self, path):
         """

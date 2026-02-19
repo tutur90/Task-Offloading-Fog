@@ -5,12 +5,12 @@ algo: "DQL"
 seed: 42
 
 env:
-  dataset: "Pakistan"
-  flag: "Tuple30K"
+  dataset: "Synthetic"
+  flag: "small"
   refresh_rate: 0.005
 
 eval:
-  lambda: [1.889e-03, 4.394e+00, 2.605e+02]
+  lambda: [4.778e-03, 3.775e+00, 2.858e+02]
   expected_values: [0.2, 4.0, 300.0]
 
 
@@ -33,7 +33,7 @@ training:
     temperature_decay: 0.5
 
   reward:
-    momentum: 0.999
+    momentum: 1.0
     norm: "ln_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     scale: 1
     eps: 1.e-2
