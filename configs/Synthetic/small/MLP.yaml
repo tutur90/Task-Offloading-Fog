@@ -1,5 +1,5 @@
 
-policy: "DuelingMLP"
+policy: "MLP"
 algo: "DQL"
 
 seed: 42
