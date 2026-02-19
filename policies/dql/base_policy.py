@@ -128,13 +128,13 @@ class DQNPolicy:
             self.reward_mean = [np.log(val + self.reward_eps)  for val in self.reward_mean]
 
         self._init_model(env, config, dataset=dataset)
+        
         self.target_model = copy.deepcopy(self.model)
         self.target_model.eval()
         
         config["training"]["optimizer"] = config["training"].get("optimizer", {})
         
-        print(f"Initialized DQNPolicy with obs_type={self.obs_type}, reward_norm={self.reward_norm}, optimizer={config['training']['optimizer']}")
-        
+
         opt_type = config["training"]["optimizer"].get("type", "Adam")
         
         if opt_type == "Adam":
@@ -222,56 +222,6 @@ class DQNPolicy:
                 return sum(_lambda[i] * reward[i] for i in range(3))
             elif self.reward_norm == "ln":
                 return sum(_lambda[i] * np.log(reward[i] + self.reward_eps) for i in range(3))
-
-        
-
-        
-        # if reward[0] == 1:
-        #     if self.reward_norm == "mean":
-
-        # else:
-                
-        #     if self.reward_norm == "max":
-        #         self.latency_max = max(self.latency_max, reward[1])
-        #         self.energy_max = max(self.energy_max, reward[2])
-        #         reward[1] = reward[1] / (self.latency_max + eps)
-        #         reward[2] = reward[2] / (self.energy_max + eps)
-        #         return sum(_lambda[i] * reward[i] for i in range(3))
-        #     elif  self.reward_norm == "mean":
-        #         self.tdr_mean = self.tdr_mean * self.momentum + reward[0] * (1 - self.momentum)
-        #         self.energy_mean = self.energy_mean * self.momentum + reward[2] * (1 - self.momentum)
-        #         self.latency_mean = self.latency_mean * self.momentum + reward[1] * (1 - self.momentum)
-        #         reward[0] = reward[0] / (self.tdr_mean + eps)
-        #         reward[1] = reward[1] / (self.latency_mean + eps)
-        #         reward[2] = reward[2] / (self.energy_mean + eps)
-                
-        #         if self.ln_reward:
-        #             reward[0] = np.log(reward[0] + eps)
-        #             reward[1] = np.log(reward[1] + eps)
-        #             reward[2] = np.log(reward[2] + eps)
-                    
-        #             reward = sum(_lambda[i] * reward[i] for i in range(3))
-                    
-        #             self.reward_mean = self.reward_mean * self.momentum + reward * (1 - self.momentum)
-        #             reward = reward - self.reward_mean
-                     
-        #             return reward
-        #         else:
-        #              return sum(_lambda[i] * reward[i] for i in range(3))
-        #     elif self.reward_norm == "none":
-        #         return reward
-        #     elif self.reward_norm == "standard":
-        #         self.latency_mean = self.latency_mean * self.momentum + reward[1] * (1 - self.momentum)
-        #         self.energy_mean = self.energy_mean * self.momentum + reward[2] * (1 - self.momentum)
-        #         self.latency_var = self.latency_var * self.momentum + (reward[1] - self.latency_mean) ** 2 * (1 - self.momentum)
-        #         self.energy_var = self.energy_var * self.momentum + (reward[2] - self.energy_mean) ** 2 * (1 - self.momentum)
-        #         reward[1] = (reward[1] - self.latency_mean) / (np.sqrt(self.latency_var) + eps)
-        #         reward[2] = (reward[2] - self.energy_mean) / (np.sqrt(self.energy_var) + eps)
-        #         return reward
-        #     else:
-        #         raise NotImplementedError()
-
-
             
 
 
