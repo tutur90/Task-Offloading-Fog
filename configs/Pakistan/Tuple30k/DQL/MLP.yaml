@@ -20,7 +20,7 @@ training:
   warmup: 0                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
   batch_size: 512          # samples per update
-  target_update_freq: 1024 # steps between target network syncs
+  target_update_freq: 1000 # τ = 1/target_update_freq = 0.001 (soft update applied every gradient step)
   update_freq: 8          # steps between policy updates
   lr: 3.e-4
   lr_decay: 1

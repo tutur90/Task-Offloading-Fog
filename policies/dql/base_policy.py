@@ -85,7 +85,8 @@ class DQNPolicy:
         # Replay buffer for transitions.
         self.buffer_size = config["training"].get("buffer_size", 10000)
         self.batch_size = config["training"].get("batch_size", 64)
-        self.target_update_freq = config["training"].get("target_update_freq", 100)
+        self.target_update_freq = config["training"].get("target_update_freq", 1000)
+        self.tau = config["training"].get("tau", 1.0 / self.target_update_freq)
         self.update_freq = config["training"].get("update_freq", 1)
         self.learning_starts = config["training"].get("learning_starts", 0)
         self.warmup_ratio = config["training"].get("warmup", 0)
@@ -486,18 +487,20 @@ class DQNPolicy:
         
         if self.update_count % self.update_freq == 0:
             loss = self._update()
-
-        # Update target network periodically (based on total task steps, not gradient steps)
-        self.update_count += 1
-        if self.update_count % self.target_update_freq == 0:
             self.update_target_network()
+
+        self.update_count += 1
 
 
     def update_target_network(self):
         """
-        Copies the weights from the main model to the target model.
+        Soft (Polyak) update: θ_target = τ·θ_online + (1−τ)·θ_target
+        With τ = 1/target_update_freq this is equivalent to a hard copy every
+        target_update_freq gradient steps.
         """
-        self.target_model.load_state_dict(self.model.state_dict())
+        with torch.no_grad():
+            for param, target_param in zip(self.model.parameters(), self.target_model.parameters()):
+                target_param.data.mul_(1.0 - self.tau).add_(self.tau * param.data)
     
     def save(self, path):
         """
