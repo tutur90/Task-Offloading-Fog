@@ -25,8 +25,9 @@ training:
   lr: 3.e-4
   lr_decay: 1
   gamma: 0.99
-  epsilon: 1
-  epsilon_decay: 0.3
+  exploration:
+    epsilon: 1
+    epsilon_decay: 0.3
   reward_scale: 1
   lambda: [0.8, 0.1, 0.1]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)

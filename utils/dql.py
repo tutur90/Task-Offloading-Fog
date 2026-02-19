@@ -5,8 +5,9 @@ from core.task import Task
 from core.env import Env
 from utils.utils import create_env, error_handler
 from eval.metrics.metrics import SuccessRate, AvgLatency, AvgEnergy, get_metrics
+from policies.dql.base_policy import DQNPolicy
 
-def update_transitions(policy, env, stored_transitions, lambda_, config, momentum=1):
+def update_transitions(policy: DQNPolicy, env: Env, stored_transitions: dict, config: dict):
     
     done = False  # Each task is treated as an individual episode.
 
@@ -14,29 +15,26 @@ def update_transitions(policy, env, stored_transitions, lambda_, config, momentu
         if task_id in env.logger.task_info and next_state is not None:
             val = env.logger.task_info[task_id]
             if val[0] == 0:
-                task_trans_time, task_wait_time, task_exe_time = val[2]
-                total_time = task_trans_time + task_wait_time + task_exe_time
-                task_trans_energy, task_exe_energy = val[3]
-                total_energy = task_trans_energy + task_exe_energy
-                # env.max_total_time = max(env.max_total_time, total_time)
-                # env.max_total_energy = max(env.max_total_energy, total_energy)
-                env.max_total_energy = env.max_total_energy*momentum + total_energy*(1-momentum)
-                env.max_total_time = env.max_total_time*momentum + total_time*(1-momentum)
-
-                reward = - ((lambda_[1] * total_time/env.max_total_time) + (lambda_[2] * total_energy/env.max_total_energy))
-            else:
-                reward = -lambda_[0]
+                latency = sum(val[2])
+                energy = sum(val[3])
+                tdr = 0
                 
-            reward = reward * config["training"].get("reward_scale", 1.0)
+            else:
+                latency = 0
+                energy = 0
+                tdr = 1
+                
+            reward = - policy.norm_reward([tdr, latency, energy], config["training"]["lambda"])
+                
             policy.store_transition(state, action, reward, next_state, done)
             del stored_transitions[task_id]
     # Update the policy every update_freq tasks during training.
             policy.update()
+            
+    
 
 
-def run_epoch(config, policy, data: pd.DataFrame, train=True, 
-              lambda_=(1, 1, 1), max_total_time=0, max_total_energy=0
-              ):
+def run_epoch(config: dict, policy: DQNPolicy, data: pd.DataFrame,      train=True,  ):
     """
     Run one simulation epoch over the provided task data.
     lambda_ = (fail, time, energy) if time is more important than energy, then lambda_ = (_, 1, 0) and vice versa.
@@ -62,10 +60,6 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
     last_task_id = None
     pbar = tqdm(data.iterrows(), total=len(data)) if disp_progress else data.iterrows()
     stored_transitions = {}
-    
-    
-    env.max_total_time = max_total_time
-    env.max_total_energy = max_total_energy
 
     for i, task_info in pbar:
         generated_time = task_info['GenerationTime']
@@ -110,7 +104,7 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
             last_task_id = task.task_id
             stored_transitions[last_task_id] = (state, action, None)
             
-            update_transitions(policy, env, stored_transitions, lambda_, config)
+            update_transitions(policy, env, stored_transitions, config)
             
         if  disp_progress and i % log_freq == 0:
             
@@ -127,6 +121,6 @@ def run_epoch(config, policy, data: pd.DataFrame, train=True,
         except Exception as e:
             error_handler(e)
             
-    update_transitions(policy, env, stored_transitions, lambda_, config)
+    update_transitions(policy, env, stored_transitions, config)
             
     return env

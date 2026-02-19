@@ -59,7 +59,7 @@ class DQLPolicy(BasePolicy):
 
         # Retrieve configuration parameters.
         self.gamma = config["training"]["gamma"]
-        self.epsilon = config["training"]["epsilon"]
+        self.epsilon = config["training"]["exploration"]["epsilon"]
         self.lr = config["training"]["lr"]
         
         # Replay buffer for transitions.

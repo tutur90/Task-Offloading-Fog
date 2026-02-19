@@ -43,7 +43,7 @@ class TaskFormerPolicy:
 
         # Retrieve configuration parameters.
         self.gamma = config["training"]["gamma"]
-        self.epsilon = config["training"]["epsilon"]
+        self.epsilon = config["training"]["exploration"]["epsilon"]
         self.lr = config["training"]["lr"]
         self.beta = config.get("training", {}).get("beta", 0.5)
         self.beta_decay = config.get("training", {}).get("beta_decay", 1)

@@ -12,8 +12,9 @@ training:
   batch_size: 256
   lr: 0.002
   gamma: 0.2
-  epsilon: 0.1
-  epsilon_decay: 0.96
+  exploration:
+    epsilon: 0.1
+    epsilon_decay: 0.96
   lambda: [1000, 1, 0.0]
 
 model:

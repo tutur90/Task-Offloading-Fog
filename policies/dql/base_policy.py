@@ -61,23 +61,24 @@ class DQNPolicy:
 
         # Retrieve configuration parameters.
         self.gamma = config["training"]["gamma"]
-        self.epsilon_start = config["training"]["epsilon"]
+        _expl = config["training"]["exploration"]
+        self.epsilon_start = _expl["epsilon"]
         self.epsilon = self.epsilon_start
-        self.epsilon_min = config["training"].get("epsilon_min", 0.01)
-        self.epsilon_decay = config["training"].get("epsilon_decay", 0.9)
+        self.epsilon_min = _expl.get("epsilon_min", 0.01)
+        self.epsilon_decay = _expl.get("epsilon_decay", 0.9)
         self.lr = config["training"]["lr"]
 
         # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-        self.exploration_strategy = config["training"].get("exploration_strategy", "epsilon_greedy")
+        self.exploration_strategy = _expl.get("strategy", "epsilon_greedy")
 
         # Boltzmann (softmax) exploration parameters
-        self.temperature_start = config["training"].get("temperature", 1.0)
+        self.temperature_start = _expl.get("temperature", 1.0)
         self.temperature = self.temperature_start
-        self.temperature_min = config["training"].get("temperature_min", 0.1)
-        self.temperature_decay = config["training"].get("temperature_decay", self.epsilon_decay)
+        self.temperature_min = _expl.get("temperature_min", 0.1)
+        self.temperature_decay = _expl.get("temperature_decay", self.epsilon_decay)
 
         # UCB exploration parameters
-        self.ucb_c = config["training"].get("ucb_c", 1.0)
+        self.ucb_c = _expl.get("ucb_c", 1.0)
 
         # Replay buffer for transitions.
         self.buffer_size = config["training"].get("buffer_size", 10000)
@@ -108,19 +109,164 @@ class DQNPolicy:
         
         self.clip_grad_norm = config["training"].get("clip_grad_norm", None)
         
-        self._init_model(env, config, dataset=dataset)
+        _reward = config["training"].get("reward", {})
+        self.reward_momentum = _reward.get("momentum", 0.9)
+        self.reward_norm = _reward.get("norm", "standard")
+        self.reward_eps = _reward.get("eps", 1e-6)
+        self.reward_mean = config.get("eval", {}).get("expected_values", [1.0] * 3)
+        self.reward_var = [1.0] * 3
+        self.reward_max = config.get("eval", {}).get("expected_values", [1.0] * 3)
+        self.avg_reward = 0
+        
+        if "ln" in self.reward_norm:
+            self.reward_mean = [np.log(val + self.reward_eps)  for val in self.reward_mean]
 
-    def _init_model(self, env: Env, config, dataset=None):
-        self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"]).to(self.device).to(self.dtype)
+        self._init_model(env, config, dataset=dataset)
         self.target_model = copy.deepcopy(self.model)
         self.target_model.eval()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+        
+        config["training"]["optimizer"] = config["training"].get("optimizer", {})
+        
+        print(f"Initialized DQNPolicy with obs_type={self.obs_type}, reward_norm={self.reward_norm}, optimizer={config['training']['optimizer']}")
+        
+        opt_type = config["training"]["optimizer"].get("type", "Adam")
+        
+        if opt_type == "Adam":
+            self.optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=config["training"]["optimizer"].get("weight_decay", 0), betas=(0.9, 0.999))
+        elif opt_type == "SGD":
+            self.optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=config["training"]["optimizer"].get("weight_decay", 0))
+        elif opt_type == "RMSprop":
+            self.optimizer = optim.RMSprop(self.model.parameters(), lr=self.lr, weight_decay=config["training"]["optimizer"].get("weight_decay", 0))
+        else:
+            raise ValueError(f"Unknown optimizer type: {opt_type}")
+        
         self.criterion = nn.MSELoss()
 
-        self.model.register_norm(self._make_observation(env, None, self.obs_type)[0], dataset=dataset)
-        self.target_model.register_norm(self._make_observation(env, None, self.obs_type)[0], dataset=dataset)  # Register the normalization factor for latency
+
+    def _init_model(self, env: Env, config, dataset=None):
+        self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"])
+        self.model.register_norm(self._make_observation(env, None, self.obs_type)[0], dataset=dataset)  # Register the normalization factor for latency
+        
+    def norm_reward(self, reward, _lambda):
+        # Normalize reward components based on the specified method
+        
+        reward = self._norm_reward(reward, _lambda)
+        self.avg_reward = self.avg_reward * 0.999 + reward * (1 - 0.999)
+        # print(f"Raw reward: {reward}, Avg reward: {self.avg_reward}")
+        return reward 
+        
+    def _norm_reward(self, reward, _lambda):
+        
+        if reward[0] == 1:
+            if self.reward_norm == "standard":
+                self.reward_mean[0] = self.reward_mean[0] * self.reward_momentum + reward[0] * (1 - self.reward_momentum)
+                self.reward_var[0] = self.reward_var[0] * self.reward_momentum + (reward[0] - self.reward_mean[0]) ** 2 * (1 - self.reward_momentum)
+                reward[0] = (reward[0] - self.reward_mean[0]) / (np.sqrt(self.reward_var[0]) + self.reward_eps)
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            elif self.reward_norm == "ln_standard":
+                reward[0] = np.log(reward[0] + self.reward_eps)
+                self.reward_mean[0] = self.reward_mean[0] * self.reward_momentum + reward[0] * (1 - self.reward_momentum)
+                self.reward_var[0] = self.reward_var[0] * self.reward_momentum + (reward[0] - self.reward_mean[0]) ** 2 * (1 - self.reward_momentum)
+                reward[0] = (reward[0] - self.reward_mean[0]) / (np.sqrt(self.reward_var[0]) + self.reward_eps)
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            elif self.reward_norm == "mean":
+                self.reward_mean[0] = self.reward_mean[0] * self.reward_momentum + reward[0] * (1 - self.reward_momentum)
+                reward[0] = reward[0] / (self.reward_mean[0] + self.reward_eps)
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            elif self.reward_norm == "ln_mean":
+                self.reward_mean[0] = self.reward_mean[0] * self.reward_momentum + reward[0] * (1 - self.reward_momentum)
+                reward[0] = np.log(reward[0] / (self.reward_eps + self.reward_mean[0]))
+            elif self.reward_norm == "partial_ln_mean":
+   
+                reward[0] = np.log(reward[0] +  (self.reward_eps ))
+                
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            return sum(_lambda[i] * reward[i] for i in range(3))
+        else:
+        
+            if self.reward_norm == "max":
+                self.reward_max = [max(self.reward_max[i], reward[i]) for i in range(3)]
+                reward = [reward[i] / (self.reward_max[i] + self.reward_eps) for i in range(3)]
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            elif  self.reward_norm == "mean":
+                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) for i in range(3)]
+                reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) for i in range(3)]
+
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            elif self.reward_norm == "standard":
+                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) for i in range(3)]  
+                self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) for i in range(3)]
+                reward = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) for i in range(3)]
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            elif self.reward_norm == "ln_standard":
+                reward = [np.log(reward[i] + self.reward_eps) for i in range(3)]
+                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) for i in range(3)]
+                self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) for i in range(3)]
+                
+                reward = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) for i in range(3)]
+
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            elif self.reward_norm == "partial_mean":
+                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if i != 0 else reward[i] for i in range(3)]
+                reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) if i != 0 else reward[i] for i in range(3)]
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            elif self.reward_norm == "partial_ln_mean":
+                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if i != 0 else reward[i] for i in range(3)]
+                reward = [np.log(reward[i] / (self.reward_mean[i] + self.reward_eps) + self.reward_eps) if i != 0 else reward[i] for i in range(3)]
+                return sum(_lambda[i] * reward[i] for i in range(3))
+            elif self.reward_norm == "ln":
+                return sum(_lambda[i] * np.log(reward[i] + self.reward_eps) for i in range(3))
+
         
 
+        
+        # if reward[0] == 1:
+        #     if self.reward_norm == "mean":
+
+        # else:
+                
+        #     if self.reward_norm == "max":
+        #         self.latency_max = max(self.latency_max, reward[1])
+        #         self.energy_max = max(self.energy_max, reward[2])
+        #         reward[1] = reward[1] / (self.latency_max + eps)
+        #         reward[2] = reward[2] / (self.energy_max + eps)
+        #         return sum(_lambda[i] * reward[i] for i in range(3))
+        #     elif  self.reward_norm == "mean":
+        #         self.tdr_mean = self.tdr_mean * self.momentum + reward[0] * (1 - self.momentum)
+        #         self.energy_mean = self.energy_mean * self.momentum + reward[2] * (1 - self.momentum)
+        #         self.latency_mean = self.latency_mean * self.momentum + reward[1] * (1 - self.momentum)
+        #         reward[0] = reward[0] / (self.tdr_mean + eps)
+        #         reward[1] = reward[1] / (self.latency_mean + eps)
+        #         reward[2] = reward[2] / (self.energy_mean + eps)
+                
+        #         if self.ln_reward:
+        #             reward[0] = np.log(reward[0] + eps)
+        #             reward[1] = np.log(reward[1] + eps)
+        #             reward[2] = np.log(reward[2] + eps)
+                    
+        #             reward = sum(_lambda[i] * reward[i] for i in range(3))
+                    
+        #             self.reward_mean = self.reward_mean * self.momentum + reward * (1 - self.momentum)
+        #             reward = reward - self.reward_mean
+                     
+        #             return reward
+        #         else:
+        #              return sum(_lambda[i] * reward[i] for i in range(3))
+        #     elif self.reward_norm == "none":
+        #         return reward
+        #     elif self.reward_norm == "standard":
+        #         self.latency_mean = self.latency_mean * self.momentum + reward[1] * (1 - self.momentum)
+        #         self.energy_mean = self.energy_mean * self.momentum + reward[2] * (1 - self.momentum)
+        #         self.latency_var = self.latency_var * self.momentum + (reward[1] - self.latency_mean) ** 2 * (1 - self.momentum)
+        #         self.energy_var = self.energy_var * self.momentum + (reward[2] - self.energy_mean) ** 2 * (1 - self.momentum)
+        #         reward[1] = (reward[1] - self.latency_mean) / (np.sqrt(self.latency_var) + eps)
+        #         reward[2] = (reward[2] - self.energy_mean) / (np.sqrt(self.energy_var) + eps)
+        #         return reward
+        #     else:
+        #         raise NotImplementedError()
+
+
+            
 
 
     def _make_observation(self, env: Env, task: Task, obs_type=["cpu", "buffer", "bw"]):

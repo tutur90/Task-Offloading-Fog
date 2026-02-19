@@ -19,8 +19,9 @@ training:
   lr: 0.02
   lr_decay: 0.95
   gamma: 0.2
-  epsilon: 0.2
-  epsilon_decay: 0.8
+  exploration:
+    epsilon: 0.2
+    epsilon_decay: 0.8
   beta: 0.5
   beta_decay: 0.6
   reward_scale: 1

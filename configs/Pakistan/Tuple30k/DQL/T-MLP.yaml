@@ -1,6 +1,8 @@
 
-policy: "NOTE"
-algo: "TaskFormer"
+policy: "MLP"
+algo: "DQL"
+
+seed: 42
 
 env:
   dataset: "Pakistan"
@@ -20,24 +22,23 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 1024 # steps between target network syncs
   update_freq: 8          # steps between policy updates
-  lr: 2.e-4
+  lr: 1.e-3
   lr_decay: 1
   gamma: 0.99
-  epsilon: 1
-  epsilon_decay: 0.4
-  lambda: [0.35, 0.35, 0.3]
-  early_stop_patience: 25 # Early stopping patience (generations without improvement)
-  clip_grad_norm: 1.0          # Max norm for gradient clipping
-  log_freq: 0
+  exploration:
+    epsilon: 1
+    epsilon_decay: 0.3
+  reward_scale: 1
+  lambda: [0.8, 0.1, 0.1]
+  early_stop_patience: 20 # Early stopping patience (generations without improvement)
+  disp_progress: False
 
 model:
-  d_model: 64
+  d_model: 256
   n_layers: 2
-  n_heads: 4
-  mlp_ratio: 4
-  dropout: 0.1
-  mode: node
-  obs_type: ["cpu", "bw", "buffer"]
+  # obs_type: ["cpu"]
+  # obs_type: ["cpu", "buffer"]
+  obs_type: ["cpu", "bw", "buffer", "task"]
+  bias: true
+  dropout: 0
 
-
-    

@@ -207,7 +207,7 @@ def run_optuna_search(config, config_path, args):
         print(f"Heatmap saved to {plot_path}")
 
 
-def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total_energy=0, max_total_time=0):
+def train(config, policy,  train_data, valid_data, logger, checkpoint):
     """ Train the policy using the provided training data and validate it using the validation data. """
     is_ga = config["algo"] in GA_ALGOS
 
@@ -235,19 +235,14 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
         if is_ga:
             # Pass cached fitness to avoid re-evaluating parents (except first epoch)
             result = run_generation(config, policy, train_data, train=True,
-                                    max_total_time=max_total_time, max_total_energy=max_total_energy,
                                     parent_fitness=cached_fitness)
             update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
-            max_total_time = result.max_total_time
-            max_total_energy = result.max_total_energy
             # Cache fitness for next generation (these are the selected individuals)
             cached_fitness = result.fitness
             result.close()
         else:
-            env = run_epoch(config, policy, train_data, train=True, lambda_=config["training"]["lambda"], max_total_time=max_total_time, max_total_energy=max_total_energy)
+            env = run_epoch(config, policy, train_data, train=True)
             update_metrics(logger, env, config)
-            max_total_time = env.max_total_time
-            max_total_energy = env.max_total_energy
             env.close()
 
         epoch_time = time.time() - epoch_start
@@ -260,13 +255,11 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
         val_start = time.time()
 
         if is_ga:
-            result = run_generation(config, policy, valid_data, train=False, max_total_time=max_total_time, max_total_energy=max_total_energy)
+            result = run_generation(config, policy, valid_data, train=False)
             score = update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
             result.close()
         else:
             env = run_epoch(config, policy, valid_data, train=False)
-            env.max_total_energy = max_total_energy
-            env.max_total_time = max_total_time
             score = update_metrics(logger, env, config)
             env.close()
 
@@ -291,7 +284,7 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint, max_total
                 for param_group in policy.optimizer.param_groups:
                     param_group['lr'] *= config["training"]["lr_decay"]
 
-    return max_total_energy, max_total_time, best_val_metrics
+    return best_val_metrics
 
 def parse_args():
     import argparse
@@ -332,40 +325,34 @@ def main(config):
             config["training"]["lambda"] = (config["training"]["lambda"][0]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][1]/sum(config["training"]["lambda"]),
                                         config["training"]["lambda"][2]/sum(config["training"]["lambda"]))
-            policy = policies[config["policy"]](env, config, dataset=train_data)
+        policy = policies[config["policy"]](env, config, dataset=train_data)
 
-        else:
-            policy = policies[config["policy"]](env, config,)
+    else:
+        policy = policies[config["policy"]](env, config,)
 
 
     test_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/testset.csv")
 
     # Initialize the policy.
 
-
-    max_total_time = config.get("eval", {}).get("expected_max_latency", 0)
-    max_total_energy = config.get("eval", {}).get("expected_max_energy", 0)
-
     val_metrics = None
 
     if "training" in config.keys():
-        max_total_energy, max_total_time, val_metrics = train(config, policy, train_data, valid_data, logger, checkpoint, max_total_energy, max_total_time)
+        val_metrics = train(config, policy, train_data, valid_data, logger, checkpoint)
         checkpoint.load(policy, logger.best_epoch)
 
-    print(f"Max total energy: {max_total_energy}, Max total time: {max_total_time}")
+
 
     # Testing phase.
 
     logger.update_mode('Testing')
 
     if config["algo"] in GA_ALGOS:
-        result = run_generation(config, policy, test_data, train=False, max_total_time=max_total_time, max_total_energy=max_total_energy)
+        result = run_generation(config, policy, test_data, train=False)
         test_metrics = update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
         env = result  # for close() compatibility below
     else:
-        env = run_epoch(config, policy, test_data, train=False, max_total_time=max_total_time, max_total_energy=max_total_energy)
-        env.max_total_energy = max_total_energy
-        env.max_total_time = max_total_time
+        env = run_epoch(config, policy, test_data, train=False)
         test_metrics = update_metrics(logger, env, config)
 
 
