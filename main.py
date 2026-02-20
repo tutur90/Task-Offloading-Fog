@@ -61,6 +61,7 @@ def _optuna_worker(worker_id, n_trials, config_path, param_specs, sampler_name, 
     samplers = {
         "tpe": lambda: optuna.samplers.TPESampler(seed=seed + worker_id),
         "random": lambda: optuna.samplers.RandomSampler(seed=seed + worker_id),
+        "qmc": lambda: optuna.samplers.QMCSampler(scramble=True, seed=seed + worker_id),
         "grid": lambda: optuna.samplers.GridSampler(param_specs, seed=seed + worker_id),
         "cmaes": lambda: optuna.samplers.CmaEsSampler(seed=seed + worker_id),
     }
@@ -119,6 +120,7 @@ def run_optuna_search(config, config_path, args):
     samplers = {
         "tpe": lambda: optuna.samplers.TPESampler(seed=seed),
         "random": lambda: optuna.samplers.RandomSampler(seed=seed),
+        "qmc": lambda: optuna.samplers.QMCSampler(scramble=True, seed=seed),
         "grid": lambda: optuna.samplers.GridSampler(param_specs, seed=seed),
         "cmaes": lambda: optuna.samplers.CmaEsSampler(seed=seed),
     }
@@ -293,7 +295,7 @@ def parse_args():
     parser.add_argument('--optuna', type=str, nargs='*', default=None,
                         help='Optuna hyperparameter search. Params in format "section.param=val1,val2,val3". '
                              'E.g., --optuna "model.d_model=64,128,256" "model.n_layers=2,3,4"')
-    parser.add_argument('--sampler', type=str, default='tpe', choices=['tpe', 'random', 'grid', 'cmaes'],
+    parser.add_argument('--sampler', type=str, default='tpe', choices=['tpe', 'random', 'qmc', 'grid', 'cmaes'],
                         help='Optuna sampler to use (default: tpe).')
     parser.add_argument('--n_samples', type=int, default=64, help='Number of Optuna trials (default: 50).')
     parser.add_argument('--num_workers', type=int, default=None, help='Number of parallel Optuna jobs (default: 1).')
