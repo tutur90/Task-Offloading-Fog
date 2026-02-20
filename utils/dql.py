@@ -29,7 +29,7 @@ def update_transitions(policy: DQNPolicy, env: Env, stored_transitions: dict, co
             policy.store_transition(state, action, reward, next_state, done)
             del stored_transitions[task_id]
     # Update the policy every update_freq tasks during training.
-            loss, grad_norm = policy.update()
+            loss = policy.update()
             
         
             
