@@ -116,7 +116,7 @@ class DQNPolicy:
         self.clip_grad_norm = config["training"].get("clip_grad_norm", None)
         
         _reward = config["training"].get("reward", {})
-        self.reward_momentum = _reward.get("momentum", 0.9)
+        self.reward_momentum = _reward.get("momentum") or 0.9
         self.reward_norm = _reward.get("norm", "standard")
         self.reward_eps = _reward.get("eps", 1e-6)
         self.reward_mean = config.get("eval", {}).get("expected_values", [1.0] * 3)
