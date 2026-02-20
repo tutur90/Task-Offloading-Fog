@@ -1,7 +1,6 @@
-policy: "MLP"
-algo: "DQL"
 
-seed: 42
+policy: "NOTE"
+algo: "TaskFormer"
 
 env:
   dataset: "Pakistan"
@@ -10,8 +9,8 @@ env:
 
 eval:
   lambda: [3.993e-02, 4.321e+00, 2.654e+02]
-  expected_values: [0.2, 4.0, 300.0]
-
+  expected_max_latency: 4
+  expected_max_energy: 300
 
 training:
   num_epochs: 40
@@ -21,7 +20,7 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 5.e-4
+  lr: 2.e-4
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
@@ -43,12 +42,15 @@ training:
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 
-model:
-  d_model: 256
-  n_layers: 3
-  # obs_type: ["cpu"]
-  # obs_type: ["cpu", "buffer"]
-  obs_type: ["cpu", "bw", "buffer"]
-  bias: true
-  dropout: 0
 
+model:
+  d_model: 64
+  n_layers: 2
+  n_heads: 2
+  mlp_ratio: 4
+  dropout: 0.1
+  mode: node
+  obs_type: ["cpu", "bw", "buffer"]
+
+
+    

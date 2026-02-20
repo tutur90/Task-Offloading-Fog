@@ -147,6 +147,9 @@ class DQNPolicy:
             raise ValueError(f"Unknown optimizer type: {opt_type}")
         
         self.criterion = nn.MSELoss()
+        
+        self.avg_loss = 0
+        self.avg_grad_norm = 0
 
 
     def _init_model(self, env: Env, config, dataset=None):
@@ -423,30 +426,34 @@ class DQNPolicy:
         loss.backward()
         
         if self.clip_grad_norm:
-        
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip_grad_norm)
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip_grad_norm)
         
         self.optimizer.step()
 
-        return loss.item()
+        return loss.item(), grad_norm if self.clip_grad_norm else None
 
     def update(self):
         """
         Performs an update over a sampled batch of transitions using batched operations,
         moves tensors to the appropriate device and dtype.
         """
+        self.update_count += 1
         if len(self.replay_buffer) < self.batch_size or self.total_steps <= self.learning_starts:
-            return 0.0
+            return 0.0, None
         
-        if self.update_count % self.update_freq == 0:
-            loss = self._update()
-            if self.soft_update:
-                self.update_target_network()
-
         if not self.soft_update and self.update_count % self.target_update_freq == 0:
             self.update_target_network()
+            
+        if self.update_count % self.update_freq == 0:
+            loss, grad_norm = self._update()
+            if self.soft_update:
+                self.update_target_network()
+            self.avg_loss = self.avg_loss * 0.99 + loss * 0.01
+            self.avg_grad_norm = self.avg_grad_norm * 0.99 + grad_norm * 0.01 if grad_norm is not None else 0
+            return loss, grad_norm
 
-        self.update_count += 1
+
+        
 
 
     def update_target_network(self):
