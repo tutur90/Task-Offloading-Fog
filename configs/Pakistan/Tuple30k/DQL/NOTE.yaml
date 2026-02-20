@@ -15,7 +15,7 @@ eval:
 training:
   num_epochs: 40
   learning_starts: 5000    # random steps before learning begins
-  warmup: 0.1                # LR warmup as ratio of total training steps
+  warmup: 0                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
   batch_size: 512          # samples per update
   target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
@@ -26,16 +26,10 @@ training:
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
   exploration:
     strategy: "boltzmann"
-    # --- epsilon_greedy params ---
-    epsilon: 1
-    epsilon_decay: 0.3
-    # epsilon_min: 0.01
-    # --- boltzmann params (used when strategy: "boltzmann") ---
     temperature: 1.0
     temperature_min: 0.05
     temperature_decay: 0.5
-    # --- ucb params (used when strategy: "ucb") ---
-    # ucb_c: 1.0
+
   reward:
     momentum: 0.999
     norm: "ln_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
@@ -44,7 +38,7 @@ training:
   optimizer:
     type: "RMSprop"
     weight_decay: 0
-  lambda: [0.500000,0.30000,0.20000]
+  lambda: [0.350000,0.350000,0.300000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 
