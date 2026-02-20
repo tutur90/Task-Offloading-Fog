@@ -1,0 +1,57 @@
+
+policy: "OPO"
+algo: "DQL"
+
+seed: 42
+
+env:
+  dataset: "Pakistan"
+  flag: "Tuple30K"
+  refresh_rate: 0.005
+
+eval:
+  lambda: [1.889e-03, 4.394e+00, 2.605e+02]
+  expected_values: [0.2, 4.0, 300.0]
+
+
+training:
+  num_epochs: 40
+  learning_starts: 5000
+  warmup: 0
+  buffer_size: 50000
+  batch_size: 512
+  target_update_freq: 1000   # >= 1 → hard copy every N grad steps | < 1 → soft update with τ
+  update_freq: 8
+  lr: 5.e-4
+  lr_decay: 1
+  gamma: 0.99
+  exploration:
+    strategy: "epsilon_greedy"
+    epsilon: 1.0
+    epsilon_min: 0.05
+    epsilon_decay: 0.5
+
+  reward:
+    momentum: 0.999
+    norm: "ln_standard"
+    scale: 1
+    eps: 1.e-2
+  optimizer:
+    type: "RMSprop"
+    weight_decay: 0
+  lambda: [0.350000, 0.350000, 0.300000]
+  early_stop_patience: 20
+  log_freq: 0
+
+model:
+  d_model: 64
+  n_layers: 3
+  obs_type: ["cpu", "bw", "buffer", "task"]
+  bias: true
+  dropout: 0
+  # OPO-specific: LSTM predictor settings
+  history_window: 50          # number of past steps fed to LSTMs
+  lstm_hidden_dim: 64         # LSTM hidden size
+  lstm_n_layers: 1            # LSTM depth
+  lstm_lr: 1.e-3              # learning rate for both LSTM predictors
+  prediction_threshold: 0.1   # relative error threshold for using pre-computed action

@@ -243,6 +243,9 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint):
 
         epoch_start = time.time()
 
+        if hasattr(policy, 'stats'):
+            policy.stats = {k: (0.0 if isinstance(v, float) else 0) for k, v in policy.stats.items()}
+
         if is_ga:
             # Pass cached fitness to avoid re-evaluating parents (except first epoch)
             result = run_generation(config, policy, train_data, train=True,
@@ -255,6 +258,15 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint):
             env = run_epoch(config, policy, train_data, train=True)
             update_metrics(logger, env, config)
             env.close()
+
+        if hasattr(policy, 'lstm_stats_summary'):
+            s = policy.lstm_stats_summary()
+            print(f"  [OPO epoch {epoch+1}] "
+                  f"exploit={s['exploit_%']:.1f}% "
+                  f"lstm_guided={s['lstm_guided_%']:.1f}% "
+                  f"random={s['random_%']:.1f}% | "
+                  f"load_loss={s['avg_load_lstm_loss']:.4f} "
+                  f"task_loss={s['avg_task_lstm_loss']:.4f}")
 
         epoch_time = time.time() - epoch_start
         logger.update_metric('TimePerTask', epoch_time / len(train_data))
@@ -352,6 +364,11 @@ def main(config):
         val_metrics = train(config, policy, train_data, valid_data, logger, checkpoint)
         checkpoint.load(policy, logger.best_epoch)
 
+        if hasattr(policy, 'lstm_stats_summary'):
+            import pprint
+            print("\n── OPO LSTM stats (training) ──")
+            pprint.pprint(policy.lstm_stats_summary())
+
 
 
     # Testing phase.
@@ -366,6 +383,11 @@ def main(config):
         env = run_epoch(config, policy, test_data, train=False)
         test_metrics = update_metrics(logger, env, config)
 
+
+    if hasattr(policy, 'lstm_stats_summary'):
+        import pprint
+        print("\n── OPO LSTM stats (training + testing) ──")
+        pprint.pprint(policy.lstm_stats_summary())
 
     logger.plot()
     logger.save_csv()

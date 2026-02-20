@@ -23,6 +23,7 @@ class MLP(BaseModel):
 
         x = x.view(x.size(0), -1)
 
+
         if task is not None and "task" in self.obs_type:
             task = task.view(task.size(0), -1)
             x = torch.cat([x, task], dim=1)

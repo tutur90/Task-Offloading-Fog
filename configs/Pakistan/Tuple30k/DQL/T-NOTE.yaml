@@ -1,5 +1,5 @@
 
-policy: "T-NOTE"
+policy: "NOTE"
 algo: "TaskFormer"
 
 env:
@@ -8,33 +8,55 @@ env:
   refresh_rate: 0.005
 
 eval:
-  lambda: [5.294, 0.2276, 0.002952]
-  expected_max_latency: 210
-  expected_max_energy: 800
-
+  lambda: [1.889e-03, 4.394e+00, 2.605e+02]
+  expected_max_latency: 4
+  expected_max_energy: 300
 
 training:
-    num_epochs: 20
-    batch_size: 1024
-    lr: 0.02
-    lr_decay: 0.95
-    gamma: 0.2
-    exploration:
-      epsilon: 0.2
-      epsilon_decay: 0.8
-    beta: 0.5
-    beta_decay: 0.6
-    reward_scale: 1
-    lambda: [0, 0.1, 0.08]
+  num_epochs: 40
+  learning_starts: 5000    # random steps before learning begins
+  warmup: 0.1                # LR warmup as ratio of total training steps
+  buffer_size: 50000      # max replay buffer size
+  batch_size: 512          # samples per update
+  target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
+  update_freq: 8          # steps between policy updates
+  lr: 2.e-4
+  lr_decay: 1
+  gamma: 0.99
+  # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
+  exploration:
+    strategy: "boltzmann"
+    # --- epsilon_greedy params ---
+    epsilon: 1
+    epsilon_decay: 0.3
+    # epsilon_min: 0.01
+    # --- boltzmann params (used when strategy: "boltzmann") ---
+    temperature: 1.0
+    temperature_min: 0.05
+    temperature_decay: 0.5
+    # --- ucb params (used when strategy: "ucb") ---
+    # ucb_c: 1.0
+  reward:
+    momentum: 0.999
+    norm: "ln_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    scale: 1
+    eps: 1.e-2
+  optimizer:
+    type: "RMSprop"
+    weight_decay: 0
+  lambda: [0.500000,0.30000,0.20000]
+  early_stop_patience: 20 # Early stopping patience (generations without improvement)
+  log_freq: 0      # Steps between logging training metrics
 
 
 model:
-    d_model: 64
-    n_layers: 6
-    n_heads: 4
-    mlp_ratio: 4
-    dropout: 0.2
-    mode: task
+  d_model: 32
+  n_layers: 2
+  n_heads: 4
+  mlp_ratio: 4
+  dropout: 0.1
+  mode: task
+  obs_type: ["cpu", "bw", "buffer", "task"]
 
 
     

@@ -1,6 +1,7 @@
 from policies.dql.note_policy import NOTEPolicy, DuelingNOTEPolicy
 from policies.dql.mlp_policy import MLPPolicy, DuelingMLPPolicy
 from policies.dql.base_policy import DQNPolicy
+from policies.dql.opo_policy import OPOPolicy
 
 from policies.ga.nsga_policy import NSGA2Policy
 from policies.ga.npga_policy import NPGAPolicy
@@ -16,6 +17,7 @@ policies = {
     "NOTE": NOTEPolicy,
     "DuelingNOTE": DuelingNOTEPolicy,
     "T-NOTE": NOTEPolicy,
+    "OPO": OPOPolicy,
     "NPGA": NPGAPolicy,
     "NSGA2": NSGA2Policy,
     "Greedy": GreedyPolicy,
