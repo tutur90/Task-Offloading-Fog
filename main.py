@@ -258,6 +258,8 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint):
             env = run_epoch(config, policy, train_data, train=True)
             update_metrics(logger, env, config)
             env.close()
+            logger.update_metric('AvgLoss', policy.avg_loss)
+            logger.update_metric('AvgGradNorm', policy.avg_grad_norm)
 
         if hasattr(policy, 'lstm_stats_summary'):
             s = policy.lstm_stats_summary()
@@ -285,6 +287,7 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint):
             env = run_epoch(config, policy, valid_data, train=False)
             score = update_metrics(logger, env, config)
             env.close()
+
 
         val_time = time.time() - val_start
         logger.update_metric('TimePerTask', val_time / len(valid_data))

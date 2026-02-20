@@ -29,7 +29,10 @@ def update_transitions(policy: DQNPolicy, env: Env, stored_transitions: dict, co
             policy.store_transition(state, action, reward, next_state, done)
             del stored_transitions[task_id]
     # Update the policy every update_freq tasks during training.
-            policy.update()
+            loss, grad_norm = policy.update()
+            
+        
+            
             
     
 
@@ -122,5 +125,5 @@ def run_epoch(config: dict, policy: DQNPolicy, data: pd.DataFrame,      train=Tr
             error_handler(e)
             
     update_transitions(policy, env, stored_transitions, config)
-            
+    
     return env

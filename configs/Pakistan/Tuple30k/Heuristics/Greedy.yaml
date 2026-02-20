@@ -11,3 +11,6 @@ env:
   flag: "Tuple50K"
   refresh_rate: 0.005
 
+
+obs_type: "buffer" 
+
