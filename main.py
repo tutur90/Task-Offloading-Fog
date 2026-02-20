@@ -53,10 +53,15 @@ def print_top_k_results(grid, metrics, k=10, label="Results"):
         print(f"{rank}. {params_str} | Metrics: {metrics[idx]}")
 
 
-def _optuna_worker(worker_id, n_trials, config_path, param_specs, sampler_name, seed, results_dir, search_name):
+def _optuna_worker(worker_id, n_trials, config_path, param_specs, sampler_name, seed, results_dir, search_name, num_gpus=0):
     """Worker process for parallel Optuna optimization. Each process runs its own study.optimize()."""
     import optuna
     optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    if num_gpus > 0:
+        gpu_id = worker_id % num_gpus
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        print(f"  [Worker {worker_id}] Assigned to GPU {gpu_id}")
 
     samplers = {
         "tpe": lambda: optuna.samplers.TPESampler(seed=seed + worker_id),
@@ -139,6 +144,10 @@ def run_optuna_search(config, config_path, args):
     n_completed = len([t for t in study.trials if t.state.name == "COMPLETE"])
     n_remaining = max(0, args.n_samples - n_completed)
     n_jobs = args.num_workers or 1
+    num_gpus = get_num_gpus()
+
+    if num_gpus > 0:
+        print(f"Detected {num_gpus} GPU(s) — workers will be distributed round-robin across them")
 
     print(f"Optuna search: {list(param_specs.keys())} | sampler={args.sampler} | "
           f"trials={n_completed}/{args.n_samples} done | n_jobs={n_jobs}")
@@ -172,7 +181,7 @@ def run_optuna_search(config, config_path, args):
                     continue
                 p = ctx.Process(
                     target=_optuna_worker,
-                    args=(i, n_t, config_path, param_specs, args.sampler, seed, results_dir, search_name),
+                    args=(i, n_t, config_path, param_specs, args.sampler, seed, results_dir, search_name, num_gpus),
                 )
                 p.start()
                 processes.append(p)
