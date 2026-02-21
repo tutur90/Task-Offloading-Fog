@@ -53,6 +53,31 @@ def print_top_k_results(grid, metrics, k=10, label="Results"):
         print(f"{rank}. {params_str} | Metrics: {metrics[idx]}")
 
 
+def _generate_qmc_trials(param_specs, n_samples, seed):
+    """Generate a full Sobol QMC sequence and map each point to discrete parameter values.
+
+    Generating the sequence once before spawning workers preserves the
+    low-discrepancy / space-filling property of QMC across the whole budget,
+    regardless of how many parallel workers later consume the trials.
+    """
+    from scipy.stats import qmc as scipy_qmc
+
+    keys = list(param_specs.keys())
+    sobol = scipy_qmc.Sobol(d=len(keys), scramble=True, seed=seed)
+    points = sobol.random(n_samples)  # shape (n_samples, n_dims), values in [0, 1)
+
+    all_params = []
+    for point in points:
+        trial_params = {}
+        for i, key in enumerate(keys):
+            values = param_specs[key]
+            idx = min(int(point[i] * len(values)), len(values) - 1)
+            trial_params[key] = values[idx]
+        all_params.append(trial_params)
+
+    return all_params
+
+
 def _optuna_worker(worker_id, n_trials, config_path, param_specs, sampler_name, seed, results_dir, search_name, num_gpus=0):
     """Worker process for parallel Optuna optimization. Each process runs its own study.optimize()."""
     import optuna
@@ -153,6 +178,17 @@ def run_optuna_search(config, config_path, args):
           f"trials={n_completed}/{args.n_samples} done | n_jobs={n_jobs}")
 
     if n_remaining > 0:
+        # QMC + parallel: pre-generate the full Sobol sequence and enqueue all trials
+        # before spawning workers so the space-filling property is preserved globally.
+        # Workers then use RandomSampler — the sampler is irrelevant for enqueued trials.
+        effective_sampler = args.sampler
+        if args.sampler == "qmc" and n_jobs > 1:
+            print(f"QMC parallel mode: pre-generating {n_remaining} Sobol points and enqueuing trials...")
+            qmc_params = _generate_qmc_trials(param_specs, n_remaining, seed)
+            for params in qmc_params:
+                study.enqueue_trial(params)
+            effective_sampler = "random"
+
         if n_jobs == 1:
             # Single process — run directly (no overhead)
             def objective(trial):
@@ -181,7 +217,7 @@ def run_optuna_search(config, config_path, args):
                     continue
                 p = ctx.Process(
                     target=_optuna_worker,
-                    args=(i, n_t, config_path, param_specs, args.sampler, seed, results_dir, search_name, num_gpus),
+                    args=(i, n_t, config_path, param_specs, effective_sampler, seed, results_dir, search_name, num_gpus),
                 )
                 p.start()
                 processes.append(p)
