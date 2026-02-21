@@ -10,3 +10,4 @@ torch
 PyYAML
 scipy
 optuna
+cloudpickle

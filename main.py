@@ -28,233 +28,14 @@ from policies import policies
 from utils.dql import run_epoch
 from utils.GA import run_generation
 
-
 from utils.utils import create_env, error_handler, set_seed, update_metrics
 from utils.utils import Logger, Checkpoint
-from utils.grid_search import (
-    apply_params_to_config, parse_grid_search_params
-)
+from utils.grid_search import apply_params_to_config, parse_grid_search_params
 
 GA_ALGOS = ["NPGA", "NSGA2"]
 
 
-def print_top_k_results(grid, metrics, k=10, label="Results"):
-    """Print top k parameter combinations and metrics sorted by metrics[:, 3] (ascending)."""
-    top_k_indices = np.argsort(metrics[:, 3])[:k]
-    print(f"\n{'='*80}")
-    print(f"Top {k} {label} (by score):")
-    print(f"{'='*80}")
-    for rank, idx in enumerate(top_k_indices, 1):
-        params = grid[idx]
-        if isinstance(params, dict):
-            params_str = " | ".join(f"{k}={v}" for k, v in params.items())
-        else:
-            params_str = f"Lambda: {params}"
-        print(f"{rank}. {params_str} | Metrics: {metrics[idx]}")
-
-
-def _generate_qmc_trials(param_specs, n_samples, seed):
-    """Generate a full Sobol QMC sequence and map each point to discrete parameter values.
-
-    Generating the sequence once before spawning workers preserves the
-    low-discrepancy / space-filling property of QMC across the whole budget,
-    regardless of how many parallel workers later consume the trials.
-    """
-    from scipy.stats import qmc as scipy_qmc
-
-    keys = list(param_specs.keys())
-    sobol = scipy_qmc.Sobol(d=len(keys), scramble=True, seed=seed)
-    points = sobol.random(n_samples)  # shape (n_samples, n_dims), values in [0, 1)
-
-    all_params = []
-    for point in points:
-        trial_params = {}
-        for i, key in enumerate(keys):
-            values = param_specs[key]
-            idx = min(int(point[i] * len(values)), len(values) - 1)
-            trial_params[key] = values[idx]
-        all_params.append(trial_params)
-
-    return all_params
-
-
-def _optuna_worker(worker_id, n_trials, config_path, param_specs, sampler_name, seed, results_dir, search_name, num_gpus=0):
-    """Worker process for parallel Optuna optimization. Each process runs its own study.optimize()."""
-    import optuna
-    optuna.logging.set_verbosity(optuna.logging.WARNING)
-
-    if num_gpus > 0:
-        gpu_id = worker_id % num_gpus
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-        print(f"  [Worker {worker_id}] Assigned to GPU {gpu_id}")
-
-    samplers = {
-        "tpe": lambda: optuna.samplers.TPESampler(seed=seed + worker_id),
-        "random": lambda: optuna.samplers.RandomSampler(seed=seed + worker_id),
-        "qmc": lambda: optuna.samplers.QMCSampler(scramble=True, seed=seed + worker_id),
-        "grid": lambda: optuna.samplers.GridSampler(param_specs, seed=seed + worker_id),
-        "cmaes": lambda: optuna.samplers.CmaEsSampler(seed=seed + worker_id),
-    }
-    sampler = samplers[sampler_name]()
-
-    storage = optuna.storages.JournalStorage(
-        optuna.storages.JournalFileStorage(
-            os.path.join(os.path.abspath(results_dir), f"optuna_{search_name}.log")
-        )
-    )
-
-    study = optuna.load_study(
-        study_name=search_name,
-        storage=storage,
-        sampler=sampler,
-    )
-
-    def objective(trial):
-        params = {k: trial.suggest_categorical(k, v) for k, v in param_specs.items()}
-
-        worker_config = yaml.safe_load(open(config_path, 'r'))
-        worker_config["worker_id"] = trial.number
-        worker_config["tuned_params"] = params
-        apply_params_to_config(worker_config, params)
-
-        val_result, test_result, best_epoch = main(worker_config)
-
-        trial.set_user_attr("val_metrics", [float(v) for v in val_result])
-        trial.set_user_attr("test_metrics", [float(v) for v in test_result])
-        trial.set_user_attr("best_epoch", best_epoch)
-
-        return float(val_result[3])
-
-    study.optimize(objective, n_trials=n_trials, n_jobs=1)
-
-
-def run_optuna_search(config, config_path, args):
-    """Run Optuna hyperparameter search with true multiprocessing parallelism."""
-    import optuna
-    import multiprocessing as mp
-
-    param_specs = parse_grid_search_params(args.optuna)
-    search_name = "_".join(k.replace(".", "_") for k in param_specs.keys())
-    seed = config.get("seed", 42)
-
-    # Storage (JournalFile is safe for concurrent multi-process access)
-    results_dir = f"logs/{config['env']['dataset']}/{config['env']['flag']}/{config['policy']}"
-    os.makedirs(results_dir, exist_ok=True)
-    storage = optuna.storages.JournalStorage(
-        optuna.storages.JournalFileStorage(
-            os.path.join(os.path.abspath(results_dir), f"optuna_{search_name}.log")
-        )
-    )
-
-    # Sampler (for study creation only; workers create their own)
-    samplers = {
-        "tpe": lambda: optuna.samplers.TPESampler(seed=seed),
-        "random": lambda: optuna.samplers.RandomSampler(seed=seed),
-        "qmc": lambda: optuna.samplers.QMCSampler(scramble=True, seed=seed),
-        "grid": lambda: optuna.samplers.GridSampler(param_specs, seed=seed),
-        "cmaes": lambda: optuna.samplers.CmaEsSampler(seed=seed),
-    }
-    sampler = samplers[args.sampler]()
-
-    # Create or load study
-    study = optuna.create_study(
-        study_name=search_name,
-        storage=storage,
-        load_if_exists=True,
-        direction="minimize",
-        sampler=sampler,
-    )
-
-    # How many trials remain
-    n_completed = len([t for t in study.trials if t.state.name == "COMPLETE"])
-    n_remaining = max(0, args.n_samples - n_completed)
-    n_jobs = args.num_workers or 1
-    num_gpus = get_num_gpus()
-
-    if num_gpus > 0:
-        print(f"Detected {num_gpus} GPU(s) — workers will be distributed round-robin across them")
-
-    print(f"Optuna search: {list(param_specs.keys())} | sampler={args.sampler} | "
-          f"trials={n_completed}/{args.n_samples} done | n_jobs={n_jobs}")
-
-    if n_remaining > 0:
-        # QMC + parallel: pre-generate the full Sobol sequence and enqueue all trials
-        # before spawning workers so the space-filling property is preserved globally.
-        # Workers then use RandomSampler — the sampler is irrelevant for enqueued trials.
-        effective_sampler = args.sampler
-        if args.sampler == "qmc" and n_jobs > 1:
-            print(f"QMC parallel mode: pre-generating {n_remaining} Sobol points and enqueuing trials...")
-            qmc_params = _generate_qmc_trials(param_specs, n_remaining, seed)
-            for params in qmc_params:
-                study.enqueue_trial(params)
-            effective_sampler = "random"
-
-        if n_jobs == 1:
-            # Single process — run directly (no overhead)
-            def objective(trial):
-                params = {k: trial.suggest_categorical(k, v) for k, v in param_specs.items()}
-                worker_config = yaml.safe_load(open(config_path, 'r'))
-                worker_config["worker_id"] = trial.number
-                worker_config["tuned_params"] = params
-                apply_params_to_config(worker_config, params)
-                val_result, test_result, best_epoch = main(worker_config)
-                trial.set_user_attr("val_metrics", [float(v) for v in val_result])
-                trial.set_user_attr("test_metrics", [float(v) for v in test_result])
-                trial.set_user_attr("best_epoch", best_epoch)
-                return float(val_result[3])
-
-            study.optimize(objective, n_trials=n_remaining, n_jobs=1)
-        else:
-            # Multi-process: each worker gets a share of trials
-            trials_per_worker = [n_remaining // n_jobs] * n_jobs
-            for i in range(n_remaining % n_jobs):
-                trials_per_worker[i] += 1
-
-            processes = []
-            ctx = mp.get_context("spawn")
-            for i, n_t in enumerate(trials_per_worker):
-                if n_t == 0:
-                    continue
-                p = ctx.Process(
-                    target=_optuna_worker,
-                    args=(i, n_t, config_path, param_specs, effective_sampler, seed, results_dir, search_name, num_gpus),
-                )
-                p.start()
-                processes.append(p)
-                print(f"  Worker {i} started (PID {p.pid}, {n_t} trials)")
-
-            for p in processes:
-                p.join()
-
-            # Reload study to get all results
-            study = optuna.load_study(study_name=search_name, storage=storage)
-
-    # Results
-    trials = sorted(
-        [t for t in study.trials if t.state.name == "COMPLETE"],
-        key=lambda t: t.value
-    )
-    k = min(100, len(trials))
-    for label, key in [("Validation", "val_metrics"), ("Test", "test_metrics")]:
-        print(f"\n{'='*80}\nTop {k} {label} Results:\n{'='*80}")
-        for rank, t in enumerate(trials[:k], 1):
-            params_str = " | ".join(f"{k}={v}" for k, v in t.params.items())
-            print(f"{rank}. {params_str} | {t.user_attrs.get(key, [])}")
-
-    best = study.best_trial
-    print(f"\nBest trial #{best.number}: score={best.value:.6f} | {best.params}")
-
-    # Heatmap if exactly 2 tuned params
-    if len(param_specs) == 2:
-        from optuna.visualization import plot_contour
-        param_names = list(param_specs.keys())
-        fig = plot_contour(study, params=param_names)
-        plot_path = os.path.join(results_dir, f"optuna_{search_name}_heatmap.html")
-        fig.write_html(plot_path)
-        print(f"Heatmap saved to {plot_path}")
-
-
-def train(config, policy,  train_data, valid_data, logger, checkpoint):
+def train(config, policy, train_data, valid_data, logger, checkpoint):
     """ Train the policy using the provided training data and validate it using the validation data. """
     is_ga = config["algo"] in GA_ALGOS
 
@@ -324,7 +105,6 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint):
             score = update_metrics(logger, env, config)
             env.close()
 
-
         val_time = time.time() - val_start
         logger.update_metric('TimePerTask', val_time / len(valid_data))
 
@@ -348,19 +128,6 @@ def train(config, policy,  train_data, valid_data, logger, checkpoint):
 
     return best_val_metrics
 
-def parse_args():
-    import argparse
-    parser = argparse.ArgumentParser(description="Run DQRL Policy")
-    parser.add_argument('config', type=str, default='configs/DQL/MLP.yaml', help='Path to the config file.')
-    parser.add_argument('--optuna', type=str, nargs='*', default=None,
-                        help='Optuna hyperparameter search. Params in format "section.param=val1,val2,val3". '
-                             'E.g., --optuna "model.d_model=64,128,256" "model.n_layers=2,3,4"')
-    parser.add_argument('--sampler', type=str, default='tpe', choices=['tpe', 'random', 'qmc', 'grid', 'cmaes'],
-                        help='Optuna sampler to use (default: tpe).')
-    parser.add_argument('--n_samples', type=int, default=64, help='Number of Optuna trials (default: 50).')
-    parser.add_argument('--num_workers', type=int, default=None, help='Number of parallel Optuna jobs (default: 1).')
-    args = parser.parse_args()
-    return args
 
 def main(config):
 
@@ -369,7 +136,6 @@ def main(config):
     logger = Logger(config)
 
     env = create_env(config)
-
 
     if "training" in config.keys():
 
@@ -392,7 +158,6 @@ def main(config):
     else:
         policy = policies[config["policy"]](env, config,)
 
-
     test_data = pd.read_csv(f"eval/benchmarks/{config['env']['dataset']}/data/{config['env']['flag']}/testset.csv")
 
     # Initialize the policy.
@@ -408,8 +173,6 @@ def main(config):
             print("\n── OPO LSTM stats (training) ──")
             pprint.pprint(policy.lstm_stats_summary())
 
-
-
     # Testing phase.
 
     logger.update_mode('Testing')
@@ -421,7 +184,6 @@ def main(config):
     else:
         env = run_epoch(config, policy, test_data, train=False)
         test_metrics = update_metrics(logger, env, config)
-
 
     if hasattr(policy, 'lstm_stats_summary'):
         import pprint
@@ -443,6 +205,71 @@ def main(config):
     return val_metrics, test_metrics, best_epoch
 
 
+def run_search(config, config_path, args):
+    """Run hyperparameter search using the HparamSearch framework."""
+    from utils.hparam_search import HparamSearch, SAMPLERS
+
+    param_specs = parse_grid_search_params(args.search)
+
+    sampler_cls = SAMPLERS.get(args.sampler)
+    if sampler_cls is None:
+        raise ValueError(
+            f"Unknown sampler '{args.sampler}'. Available: {list(SAMPLERS.keys())}"
+        )
+
+    dataset     = config["env"]["dataset"]
+    flag        = config["env"]["flag"]
+    policy_name = config["policy"]
+    search_name = "_".join(k.replace(".", "_") for k in param_specs.keys())
+    results_dir = f"logs/{dataset}/{flag}/{policy_name}"
+    storage_path = os.path.join(results_dir, f"hparam_{search_name}.log")
+
+    num_gpus = get_num_gpus()
+    if num_gpus > 0:
+        print(f"Detected {num_gpus} GPU(s) — distributing workers round-robin.")
+
+    # GridSampler enumerates all combinations by default; n_trials caps that.
+    n_trials = None if args.sampler == "grid" else args.n_samples
+
+    search = HparamSearch(
+        param_specs=param_specs,
+        sampler=sampler_cls(),
+        study_name=search_name,
+        storage_path=storage_path,
+        n_trials=n_trials,
+        num_workers=args.num_workers or 1,
+        seed=config.get("seed", 42),
+        num_gpus=num_gpus,
+    )
+
+    def objective(params):
+        worker_config = yaml.safe_load(open(config_path, "r"))
+        apply_params_to_config(worker_config, params)
+        val_metrics, test_metrics, best_epoch = main(worker_config)
+        # Use val_metrics when available (training run), fall back to test.
+        metrics = val_metrics if val_metrics is not None else test_metrics
+        return {
+            "value":        float(metrics[3]),
+            "val_metrics":  [float(v) for v in val_metrics]  if val_metrics  is not None else [],
+            "test_metrics": [float(v) for v in test_metrics] if test_metrics is not None else [],
+            "best_epoch":   int(best_epoch) if best_epoch is not None else 0,
+        }
+
+    best_params, best_value, study = search.run(objective)
+    search.print_results(study)
+
+    # Generate an interactive contour plot when exactly 2 params are tuned.
+    if len(param_specs) == 2:
+        try:
+            from optuna.visualization import plot_contour
+            fig = plot_contour(study, params=list(param_specs.keys()))
+            plot_path = os.path.join(results_dir, f"hparam_{search_name}_contour.html")
+            fig.write_html(plot_path)
+            print(f"Contour plot saved to {plot_path}")
+        except Exception as e:
+            print(f"Could not generate contour plot: {e}")
+
+
 def get_num_gpus():
     """Detect the number of available CUDA GPUs without initializing CUDA."""
     import subprocess
@@ -458,16 +285,47 @@ def get_num_gpus():
     return 0
 
 
-if __name__ == '__main__':
+def parse_args():
+    import argparse
+    parser = argparse.ArgumentParser(description="Run Task Offloading Policy")
+    parser.add_argument("config", type=str, help="Path to the YAML config file.")
+    parser.add_argument(
+        "--search", type=str, nargs="*", default=None,
+        metavar="PARAM=v1,v2,...",
+        help=(
+            'Hyperparameter search. Specify each parameter as "section.key=v1,v2,v3". '
+            'Example: --search "model.d_model=64,128,256" "training.lr=1e-3,5e-4"'
+        ),
+    )
+    parser.add_argument(
+        "--sampler", type=str, default="random",
+        choices=["grid", "random", "qmc"],
+        help=(
+            "Sampler strategy (default: random). "
+            "grid=all combinations, random=uniform, qmc=Sobol low-discrepancy."
+        ),
+    )
+    parser.add_argument(
+        "--n_samples", type=int, default=64,
+        help="Number of trials (default: 64). Ignored when --sampler grid is used.",
+    )
+    parser.add_argument(
+        "--num_workers", type=int, default=None,
+        help="Number of parallel worker processes (default: 1, sequential).",
+    )
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
 
     args = parse_args()
     config_path = args.config
 
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
 
-    if args.optuna is not None:
-        run_optuna_search(config, config_path, args)
+    if args.search is not None:
+        run_search(config, config_path, args)
     else:
         val_metrics, test_metrics, best_epoch = main(config)
-        print(f"Validation Metrics: {val_metrics}, Test Metrics: {test_metrics}, Best Epoch: {best_epoch}")
+        print(f"Validation: {val_metrics} | Test: {test_metrics} | Best epoch: {best_epoch}")
