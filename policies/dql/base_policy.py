@@ -113,7 +113,10 @@ class DQNPolicy:
             
         self.dtype = torch.float32
         
-        self.clip_grad_norm = config["training"].get("clip_grad_norm", None)
+        self.clip_grad_norm = config["training"].get("clip_grad_norm", float('inf'))
+        
+        if self.clip_grad_norm <= 0:
+            self.clip_grad_norm = float('inf')
         
         _reward = config["training"].get("reward", {})
         self.reward_momentum = _reward.get("momentum") or 0.9
@@ -424,13 +427,12 @@ class DQNPolicy:
         # Compute loss over the batch
         loss = self.criterion(predicted_q, target_q)
         loss.backward()
-        
-        if self.clip_grad_norm:
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip_grad_norm)
+
+        grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip_grad_norm)
         
         self.optimizer.step()
 
-        return loss.item(), grad_norm if self.clip_grad_norm else None
+        return loss.item(), grad_norm.item()    
 
     def update(self):
         """
@@ -448,8 +450,8 @@ class DQNPolicy:
             loss, grad_norm = self._update()
             if self.soft_update:
                 self.update_target_network()
-            self.avg_loss = self.avg_loss * 0.99 + loss * 0.01
-            self.avg_grad_norm = self.avg_grad_norm * 0.99 + grad_norm * 0.01 if grad_norm is not None else 0
+            self.avg_loss = self.avg_loss * 0.999 + loss * 0.001
+            self.avg_grad_norm = self.avg_grad_norm * 0.999 + grad_norm * 0.001 
             return loss, grad_norm
 
 

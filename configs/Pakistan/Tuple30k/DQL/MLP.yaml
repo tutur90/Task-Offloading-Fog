@@ -32,6 +32,8 @@ training:
     temperature_min: 0.05
     temperature_decay: 0.5
 
+  clip_grad_norm: 1.0          # Max norm for gradient clipping
+
   reward:
     momentum: 0.999
     norm: "ln_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
@@ -52,4 +54,6 @@ model:
   obs_type: ["cpu", "bw", "buffer"]
   bias: true
   dropout: 0
+
+
 
