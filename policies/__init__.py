@@ -10,6 +10,8 @@ from policies.heuristics.random import RandomPolicy
 from policies.heuristics.greedy import GreedyPolicy
 from policies.heuristics.round_robin import RoundRobinPolicy
 
+from policies.ppo.tpto_policy import TPTOPolicy
+
 
 policies = {
     "MLP": MLPPolicy,
@@ -23,4 +25,5 @@ policies = {
     "Greedy": GreedyPolicy,
     "Random": RandomPolicy,
     "RoundRobin": RoundRobinPolicy,
+    "TPTO": TPTOPolicy,
 }

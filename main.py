@@ -26,13 +26,15 @@ from core.vis.vis_stats import VisStats
 from eval.metrics.metrics import SuccessRate, AvgLatency
 from policies import policies
 from utils.dql import run_epoch
+from utils.ppo import run_epoch_ppo
 from utils.GA import run_generation
 
 from utils.utils import create_env, error_handler, set_seed, update_metrics
 from utils.utils import Logger, Checkpoint
 from utils.grid_search import apply_params_to_config, parse_grid_search_params
 
-GA_ALGOS = ["NPGA", "NSGA2"]
+GA_ALGOS  = ["NPGA", "NSGA2"]
+PPO_ALGOS = ["PPO"]
 
 
 def train(config, policy, train_data, valid_data, logger, checkpoint):
@@ -71,6 +73,12 @@ def train(config, policy, train_data, valid_data, logger, checkpoint):
             # Cache fitness for next generation (these are the selected individuals)
             cached_fitness = result.fitness
             result.close()
+        elif config["algo"] in PPO_ALGOS:
+            env = run_epoch_ppo(config, policy, train_data, train=True)
+            update_metrics(logger, env, config)
+            env.close()
+            logger.update_metric('AvgLoss', policy.avg_loss)
+            logger.update_metric('AvgGradNorm', policy.avg_grad_norm)
         else:
             env = run_epoch(config, policy, train_data, train=True)
             update_metrics(logger, env, config)
@@ -100,6 +108,10 @@ def train(config, policy, train_data, valid_data, logger, checkpoint):
             result = run_generation(config, policy, valid_data, train=False)
             score = update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
             result.close()
+        elif config["algo"] in PPO_ALGOS:
+            env = run_epoch_ppo(config, policy, valid_data, train=False)
+            score = update_metrics(logger, env, config)
+            env.close()
         else:
             env = run_epoch(config, policy, valid_data, train=False)
             score = update_metrics(logger, env, config)
@@ -181,6 +193,9 @@ def main(config):
         result = run_generation(config, policy, test_data, train=False)
         test_metrics = update_metrics(logger, None, config, metrics=tuple(result.best_metrics))
         env = result  # for close() compatibility below
+    elif config["algo"] in PPO_ALGOS:
+        env = run_epoch_ppo(config, policy, test_data, train=False)
+        test_metrics = update_metrics(logger, env, config)
     else:
         env = run_epoch(config, policy, test_data, train=False)
         test_metrics = update_metrics(logger, env, config)
@@ -245,6 +260,7 @@ def run_search(config, config_path, args):
     def objective(params):
         worker_config = yaml.safe_load(open(config_path, "r"))
         apply_params_to_config(worker_config, params)
+        worker_config["tuned_params"] = params  # tags log dir, e.g. 0216_143022_dm128_nl3
         val_metrics, test_metrics, best_epoch = main(worker_config)
         # Use val_metrics when available (training run), fall back to test.
         metrics = val_metrics if val_metrics is not None else test_metrics
