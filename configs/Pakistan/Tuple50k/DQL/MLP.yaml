@@ -9,7 +9,7 @@ env:
   refresh_rate: 0.005
 
 eval:
-  lambda: [3.993e-02, 4.321e+00, 2.654e+02]
+  lambda: [1.889e-03, 4.394e+00, 2.605e+02]
   expected_values: [0.2, 4.0, 300.0]
 
 
