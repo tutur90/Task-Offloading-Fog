@@ -329,6 +329,11 @@ def parse_args():
         "--num_workers", type=int, default=None,
         help="Number of parallel worker processes (default: 1, sequential).",
     )
+    parser.add_argument(
+        "--device", type=str, default="auto",
+        help=("Device to run on (e.g., 'cuda:0' or 'cpu'). By default, uses GPU if available, otherwise CPU. "
+              "Note: For hyperparameter search with multiple workers, set this to 'cuda' to allow automatic GPU assignment."),
+    )
     return parser.parse_args()
 
 
@@ -336,9 +341,12 @@ if __name__ == "__main__":
 
     args = parse_args()
     config_path = args.config
+    
 
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
+        
+    config["device"] = args.device
 
     if args.search is not None:
         run_search(config, config_path, args)

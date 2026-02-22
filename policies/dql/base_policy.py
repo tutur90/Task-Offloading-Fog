@@ -39,7 +39,7 @@ class MLP(nn.Module):
 
 
 class DQNPolicy:
-    def __init__(self, env: Env, config, dataset=None, device="auto"):
+    def __init__(self, env: Env, config, dataset=None):
         """
         A simple deep Q-learning policy.
 
@@ -100,14 +100,14 @@ class DQNPolicy:
         self.total_steps = 0
         self.action_counts = np.zeros(self.num_actions, dtype=np.float32)  # for UCB
         
-        if device == "auto":
+        if config["device"] == "auto":
 
             if torch.cuda.is_available():
                 self.device = torch.device("cuda")
             else:
                 self.device = torch.device("cpu")
         else:
-            self.device = torch.device(device)
+            self.device = torch.device(config["device"])
             
         print(f"Using device: {self.device}")
             
