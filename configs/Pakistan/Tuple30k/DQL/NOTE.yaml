@@ -20,7 +20,7 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 2.e-4
+  lr: 1.e-4
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
@@ -32,7 +32,7 @@ training:
 
   reward:
     momentum: 0.999
-    norm: "ln_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    norm: "partial_mean"  # "none", "mean", "partial_mean", "standard", "ln_standard"
     scale: 1
     eps: 1.e-2
 

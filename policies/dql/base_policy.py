@@ -177,11 +177,12 @@ class DQNPolicy:
         pass
     
     def _norm_reward(self, reward, _lambda):
+
         
         if self.reward_log1p:
-            reward = [np.log1p(r) if r else None for r in reward]
+            reward = [np.log1p(r) if r is not None else None for r in reward]
             
-            
+
         self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if reward[i] else self.reward_mean[i] for i in range(3)]  
         self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) if reward[i] else self.reward_var[i] for i in range(3)]
         self.reward_max = [max(self.reward_max[i], reward[i]) if reward[i] else self.reward_max[i] for i in range(3)]
@@ -191,7 +192,7 @@ class DQNPolicy:
         elif self.reward_norm == "mean":
             reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "partial_mean":
-            reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] and i != 0 else reward[i] for i in range(3)]
+            reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] and i != 0 else 0 for i in range(3)]
         elif self.reward_norm == "max":
             self.reward_max = [max(self.reward_max[i], reward[i]) for i in range(3)]
             reward = [reward[i] / (self.reward_max[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
@@ -384,16 +385,7 @@ class DQNPolicy:
         self.model.train()
         q_values = self.model(obs_tensor, task_tensor).squeeze()  # Shape: [batch_size, num_actions]
         
-
         predicted_q = q_values.gather(1, actions_tensor).squeeze()
-        
-        # print(f"Predicted Q before clamp: {predicted_q.detach().cpu().numpy()}")
-        
-        
-        if self.reward_norm != "standard":
-
-            predicted_q = predicted_q.clamp(max=0.)  # Clamp predicted Q-values to [0, 1] for non-standard reward norms
-
 
         # Compute target Q-values from next states using target network
         with torch.no_grad():
