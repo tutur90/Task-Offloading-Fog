@@ -8,6 +8,6 @@ eval:
 
 env:
   dataset: "Synthetic"
-  flag: "small"
+  flag: "50N100T100D"
   refresh_rate: 0.005
 

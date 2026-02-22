@@ -1,11 +1,12 @@
+
 policy: "MLP"
 algo: "DQL"
 
 seed: 42
 
 env:
-  dataset: "Pakistan"
-  flag: "Tuple100K"
+  dataset: "Synthetic"
+  flag: "50N100T100D"
   refresh_rate: 0.005
 
 eval:
@@ -21,7 +22,7 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 2000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 1.e-4
+  lr: 5.e-5
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
@@ -30,6 +31,8 @@ training:
     temperature: 1.0
     temperature_min: 0.05
     temperature_decay: 0.5
+
+  # clip_grad_norm: 1.0          # Max norm for gradient clipping
 
   reward:
     momentum: 0.999
@@ -51,4 +54,6 @@ model:
   obs_type: ["cpu", "bw", "buffer"]
   bias: true
   dropout: 0
+
+
 

@@ -1,5 +1,5 @@
 
-policy: "NOTE"
+policy: "T-NOTE"
 algo: "DQL"
 
 env:
@@ -10,7 +10,7 @@ env:
 eval:
   lambda: [1.889e-03, 4.394e+00, 2.605e+02]
   expected_max_latency: 4
-  expected_max_energy: 300
+  expected_max_energy: 3000
 
 training:
   num_epochs: 40
@@ -20,7 +20,7 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 2.e-4
+  lr: 1.e-4
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
@@ -38,18 +38,18 @@ training:
 
   optimizer:
     type: "RMSprop"
-    weight_decay: 0.01
+    # weight_decay: 0.005
 
   lambda: [0.350000,0.350000,0.300000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
-  clip_grad_norm: 1.0          # Max norm for gradient clipping
+  # clip_grad_norm: 1.0          # Max norm for gradient clipping
 
 
 model:
   d_model: 64
   n_layers: 2
-  n_heads: 4
+  n_heads: 2
   mlp_ratio: 4
   dropout: 0.1
   mode: task

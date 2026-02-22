@@ -1,0 +1,2327 @@
+{
+    "Nodes": [
+        {
+            "DeviceType": "Edge",
+            "NodeType": "Node",
+            "NodeName": "e0",
+            "NodeId": 0,
+            "MaxCpuFreq": 10745,
+            "MaxBufferSize": 3072,
+            "IdleEnergyCoef": 4.1,
+            "ExeEnergyCoef": 12.8,
+            "LocX": 39.32531,
+            "LocY": 54.71054,
+            "Location": "Belgate, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f0",
+            "NodeId": 1,
+            "MaxCpuFreq": 82087,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 24.2,
+            "ExeEnergyCoef": 79.7,
+            "LocX": 35.71403,
+            "LocY": 56.34978,
+            "Location": "Arthis, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f1",
+            "NodeId": 2,
+            "MaxCpuFreq": 78785,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 31.9,
+            "ExeEnergyCoef": 135.4,
+            "LocX": 44.25391,
+            "LocY": 56.88162,
+            "Location": "Cinmere, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f2",
+            "NodeId": 3,
+            "MaxCpuFreq": 91347,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 20.4,
+            "ExeEnergyCoef": 73.2,
+            "LocX": 37.29048,
+            "LocY": 50.321,
+            "Location": "Belmora, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f3",
+            "NodeId": 4,
+            "MaxCpuFreq": 91245,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 28.1,
+            "ExeEnergyCoef": 93.5,
+            "LocX": 44.4291,
+            "LocY": 58.76368,
+            "Location": "Cinthyn, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f4",
+            "NodeId": 5,
+            "MaxCpuFreq": 84718,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 19.9,
+            "ExeEnergyCoef": 111.8,
+            "LocX": 44.14548,
+            "LocY": 54.58852,
+            "Location": "Belvale, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f5",
+            "NodeId": 6,
+            "MaxCpuFreq": 102350,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 19.4,
+            "ExeEnergyCoef": 159.7,
+            "LocX": 37.62742,
+            "LocY": 55.84586,
+            "Location": "Cindrath, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f6",
+            "NodeId": 7,
+            "MaxCpuFreq": 56175,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 18.1,
+            "ExeEnergyCoef": 67.6,
+            "LocX": 40.09526,
+            "LocY": 50.90909,
+            "Location": "Arndel, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f7",
+            "NodeId": 8,
+            "MaxCpuFreq": 100432,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 26.9,
+            "ExeEnergyCoef": 101.5,
+            "LocX": 41.80481,
+            "LocY": 55.96409,
+            "Location": "Armath, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f8",
+            "NodeId": 9,
+            "MaxCpuFreq": 51504,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 28.6,
+            "ExeEnergyCoef": 109.1,
+            "LocX": 37.51414,
+            "LocY": 55.53226,
+            "Location": "Arshore, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f9",
+            "NodeId": 10,
+            "MaxCpuFreq": 64621,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 23.7,
+            "ExeEnergyCoef": 99.9,
+            "LocX": 37.66825,
+            "LocY": 56.40962,
+            "Location": "Belndel, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f10",
+            "NodeId": 11,
+            "MaxCpuFreq": 84522,
+            "MaxBufferSize": 16384,
+            "IdleEnergyCoef": 30.2,
+            "ExeEnergyCoef": 105.8,
+            "LocX": 44.53816,
+            "LocY": 58.75853,
+            "Location": "Arwyn, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f11",
+            "NodeId": 12,
+            "MaxCpuFreq": 116540,
+            "MaxBufferSize": 16384,
+            "IdleEnergyCoef": 19.0,
+            "ExeEnergyCoef": 91.1,
+            "LocX": 36.06411,
+            "LocY": 56.253,
+            "Location": "Cindarth, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f12",
+            "NodeId": 13,
+            "MaxCpuFreq": 119514,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 27.0,
+            "ExeEnergyCoef": 103.7,
+            "LocX": 36.61549,
+            "LocY": 59.535,
+            "Location": "Arden, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f13",
+            "NodeId": 14,
+            "MaxCpuFreq": 90306,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 16.2,
+            "ExeEnergyCoef": 146.6,
+            "LocX": 36.11868,
+            "LocY": 53.62981,
+            "Location": "Belden, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f14",
+            "NodeId": 15,
+            "MaxCpuFreq": 113699,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 34.6,
+            "ExeEnergyCoef": 108.6,
+            "LocX": 44.46949,
+            "LocY": 50.85653,
+            "Location": "Arvale, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f15",
+            "NodeId": 16,
+            "MaxCpuFreq": 71643,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 25.6,
+            "ExeEnergyCoef": 116.7,
+            "LocX": 36.25761,
+            "LocY": 56.59751,
+            "Location": "Belalis, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f16",
+            "NodeId": 17,
+            "MaxCpuFreq": 76365,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 23.0,
+            "ExeEnergyCoef": 123.9,
+            "LocX": 44.64363,
+            "LocY": 59.28913,
+            "Location": "Armere, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f17",
+            "NodeId": 18,
+            "MaxCpuFreq": 109177,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 20.0,
+            "ExeEnergyCoef": 57.0,
+            "LocX": 38.73421,
+            "LocY": 58.99614,
+            "Location": "Cinaren, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f18",
+            "NodeId": 19,
+            "MaxCpuFreq": 78864,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 16.4,
+            "ExeEnergyCoef": 119.4,
+            "LocX": 35.21034,
+            "LocY": 55.53922,
+            "Location": "Beldrath, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f19",
+            "NodeId": 20,
+            "MaxCpuFreq": 93309,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 25.3,
+            "ExeEnergyCoef": 80.6,
+            "LocX": 37.28942,
+            "LocY": 59.0542,
+            "Location": "Araris, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f20",
+            "NodeId": 21,
+            "MaxCpuFreq": 111953,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 30.7,
+            "ExeEnergyCoef": 138.8,
+            "LocX": 39.85414,
+            "LocY": 55.39234,
+            "Location": "Arholm, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f21",
+            "NodeId": 22,
+            "MaxCpuFreq": 106498,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 23.5,
+            "ExeEnergyCoef": 101.4,
+            "LocX": 36.9041,
+            "LocY": 50.96931,
+            "Location": "Belmath, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f22",
+            "NodeId": 23,
+            "MaxCpuFreq": 62899,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 23.1,
+            "ExeEnergyCoef": 87.3,
+            "LocX": 42.29076,
+            "LocY": 56.73365,
+            "Location": "Arcrest, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f23",
+            "NodeId": 24,
+            "MaxCpuFreq": 74931,
+            "MaxBufferSize": 16384,
+            "IdleEnergyCoef": 24.0,
+            "ExeEnergyCoef": 96.4,
+            "LocX": 43.61673,
+            "LocY": 52.48656,
+            "Location": "Aralis, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f24",
+            "NodeId": 25,
+            "MaxCpuFreq": 59880,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 31.2,
+            "ExeEnergyCoef": 144.2,
+            "LocX": 37.78545,
+            "LocY": 52.49806,
+            "Location": "Araren, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f25",
+            "NodeId": 26,
+            "MaxCpuFreq": 51934,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 33.5,
+            "ExeEnergyCoef": 143.4,
+            "LocX": 35.97909,
+            "LocY": 56.52145,
+            "Location": "Belaren, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f26",
+            "NodeId": 27,
+            "MaxCpuFreq": 78016,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 33.0,
+            "ExeEnergyCoef": 68.1,
+            "LocX": 36.66311,
+            "LocY": 54.85641,
+            "Location": "Cinalis, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f27",
+            "NodeId": 28,
+            "MaxCpuFreq": 109638,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 23.5,
+            "ExeEnergyCoef": 155.3,
+            "LocX": 35.02155,
+            "LocY": 53.90422,
+            "Location": "Beldarth, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f28",
+            "NodeId": 29,
+            "MaxCpuFreq": 113788,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 18.8,
+            "ExeEnergyCoef": 73.9,
+            "LocX": 44.95423,
+            "LocY": 55.55768,
+            "Location": "Arfell, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f29",
+            "NodeId": 30,
+            "MaxCpuFreq": 57989,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 16.1,
+            "ExeEnergyCoef": 114.3,
+            "LocX": 35.58483,
+            "LocY": 57.35737,
+            "Location": "Belenth, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f30",
+            "NodeId": 31,
+            "MaxCpuFreq": 70635,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 34.2,
+            "ExeEnergyCoef": 58.8,
+            "LocX": 40.0285,
+            "LocY": 58.5272,
+            "Location": "Arenth, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f31",
+            "NodeId": 32,
+            "MaxCpuFreq": 80828,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 17.4,
+            "ExeEnergyCoef": 147.9,
+            "LocX": 36.85825,
+            "LocY": 55.95035,
+            "Location": "Belstead, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f32",
+            "NodeId": 33,
+            "MaxCpuFreq": 60745,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 28.1,
+            "ExeEnergyCoef": 112.2,
+            "LocX": 37.46215,
+            "LocY": 55.94519,
+            "Location": "Cinrand, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f33",
+            "NodeId": 34,
+            "MaxCpuFreq": 91180,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 20.3,
+            "ExeEnergyCoef": 64.4,
+            "LocX": 38.1637,
+            "LocY": 52.60766,
+            "Location": "Belholm, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f34",
+            "NodeId": 35,
+            "MaxCpuFreq": 59508,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 24.2,
+            "ExeEnergyCoef": 159.8,
+            "LocX": 41.45501,
+            "LocY": 54.57225,
+            "Location": "Arford, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f35",
+            "NodeId": 36,
+            "MaxCpuFreq": 77938,
+            "MaxBufferSize": 16384,
+            "IdleEnergyCoef": 20.3,
+            "ExeEnergyCoef": 152.7,
+            "LocX": 44.96096,
+            "LocY": 50.73261,
+            "Location": "Belford, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f36",
+            "NodeId": 37,
+            "MaxCpuFreq": 98434,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 18.2,
+            "ExeEnergyCoef": 141.7,
+            "LocX": 43.80864,
+            "LocY": 58.7927,
+            "Location": "Argate, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f37",
+            "NodeId": 38,
+            "MaxCpuFreq": 119329,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 28.4,
+            "ExeEnergyCoef": 111.0,
+            "LocX": 42.0354,
+            "LocY": 56.11678,
+            "Location": "Belthal, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f38",
+            "NodeId": 39,
+            "MaxCpuFreq": 67601,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 17.3,
+            "ExeEnergyCoef": 61.8,
+            "LocX": 44.31756,
+            "LocY": 51.03587,
+            "Location": "Ardrath, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f39",
+            "NodeId": 40,
+            "MaxCpuFreq": 77607,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 19.1,
+            "ExeEnergyCoef": 119.8,
+            "LocX": 40.53224,
+            "LocY": 52.72348,
+            "Location": "Belrand, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f40",
+            "NodeId": 41,
+            "MaxCpuFreq": 56658,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 27.7,
+            "ExeEnergyCoef": 141.2,
+            "LocX": 37.63984,
+            "LocY": 54.88532,
+            "Location": "Arrand, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f41",
+            "NodeId": 42,
+            "MaxCpuFreq": 67146,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 18.2,
+            "ExeEnergyCoef": 98.6,
+            "LocX": 35.44087,
+            "LocY": 53.33557,
+            "Location": "Cinmora, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f42",
+            "NodeId": 43,
+            "MaxCpuFreq": 64663,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 33.9,
+            "ExeEnergyCoef": 126.0,
+            "LocX": 42.05667,
+            "LocY": 55.60907,
+            "Location": "Belmarch, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f43",
+            "NodeId": 44,
+            "MaxCpuFreq": 98393,
+            "MaxBufferSize": 16384,
+            "IdleEnergyCoef": 26.1,
+            "ExeEnergyCoef": 97.3,
+            "LocX": 36.49054,
+            "LocY": 50.36028,
+            "Location": "Cinndel, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f44",
+            "NodeId": 45,
+            "MaxCpuFreq": 55229,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 19.2,
+            "ExeEnergyCoef": 77.4,
+            "LocX": 35.41829,
+            "LocY": 53.64652,
+            "Location": "Belshore, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f45",
+            "NodeId": 46,
+            "MaxCpuFreq": 103264,
+            "MaxBufferSize": 16384,
+            "IdleEnergyCoef": 30.0,
+            "ExeEnergyCoef": 151.8,
+            "LocX": 36.02794,
+            "LocY": 57.80116,
+            "Location": "Arthal, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f46",
+            "NodeId": 47,
+            "MaxCpuFreq": 73206,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 15.5,
+            "ExeEnergyCoef": 131.0,
+            "LocX": 37.36737,
+            "LocY": 51.62502,
+            "Location": "Cinenis, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f47",
+            "NodeId": 48,
+            "MaxCpuFreq": 82527,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 18.2,
+            "ExeEnergyCoef": 127.1,
+            "LocX": 38.32185,
+            "LocY": 59.30816,
+            "Location": "Belgard, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f48",
+            "NodeId": 49,
+            "MaxCpuFreq": 111694,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 19.0,
+            "ExeEnergyCoef": 151.0,
+            "LocX": 38.82542,
+            "LocY": 50.38725,
+            "Location": "Cinvara, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f49",
+            "NodeId": 50,
+            "MaxCpuFreq": 79831,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 15.5,
+            "ExeEnergyCoef": 71.2,
+            "LocX": 38.49658,
+            "LocY": 58.20536,
+            "Location": "Arstead, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f50",
+            "NodeId": 51,
+            "MaxCpuFreq": 86585,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 27.8,
+            "ExeEnergyCoef": 94.0,
+            "LocX": 38.28262,
+            "LocY": 58.64353,
+            "Location": "Belthyn, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f51",
+            "NodeId": 52,
+            "MaxCpuFreq": 53617,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 32.5,
+            "ExeEnergyCoef": 78.7,
+            "LocX": 44.8115,
+            "LocY": 55.36216,
+            "Location": "Cinmath, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f52",
+            "NodeId": 53,
+            "MaxCpuFreq": 55014,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 26.9,
+            "ExeEnergyCoef": 88.0,
+            "LocX": 40.8059,
+            "LocY": 59.83551,
+            "Location": "Belenis, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f53",
+            "NodeId": 54,
+            "MaxCpuFreq": 117033,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 22.7,
+            "ExeEnergyCoef": 113.4,
+            "LocX": 42.86428,
+            "LocY": 54.36394,
+            "Location": "Belvara, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f54",
+            "NodeId": 55,
+            "MaxCpuFreq": 50221,
+            "MaxBufferSize": 16384,
+            "IdleEnergyCoef": 33.5,
+            "ExeEnergyCoef": 109.2,
+            "LocX": 37.54723,
+            "LocY": 57.08785,
+            "Location": "Arvara, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f55",
+            "NodeId": 56,
+            "MaxCpuFreq": 75825,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 23.6,
+            "ExeEnergyCoef": 154.4,
+            "LocX": 42.1943,
+            "LocY": 57.4195,
+            "Location": "Arvane, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f56",
+            "NodeId": 57,
+            "MaxCpuFreq": 66334,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 25.1,
+            "ExeEnergyCoef": 123.4,
+            "LocX": 44.20771,
+            "LocY": 56.23155,
+            "Location": "Belaris, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f57",
+            "NodeId": 58,
+            "MaxCpuFreq": 66683,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 23.4,
+            "ExeEnergyCoef": 153.4,
+            "LocX": 38.26183,
+            "LocY": 56.97208,
+            "Location": "Argard, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f58",
+            "NodeId": 59,
+            "MaxCpuFreq": 89446,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 26.0,
+            "ExeEnergyCoef": 50.0,
+            "LocX": 41.77318,
+            "LocY": 59.02806,
+            "Location": "Belwyn, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f59",
+            "NodeId": 60,
+            "MaxCpuFreq": 92237,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 23.8,
+            "ExeEnergyCoef": 124.3,
+            "LocX": 37.86914,
+            "LocY": 54.29888,
+            "Location": "Belcrest, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f60",
+            "NodeId": 61,
+            "MaxCpuFreq": 72241,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 20.7,
+            "ExeEnergyCoef": 123.0,
+            "LocX": 40.11174,
+            "LocY": 57.93735,
+            "Location": "Arridge, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f61",
+            "NodeId": 62,
+            "MaxCpuFreq": 80784,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 19.5,
+            "ExeEnergyCoef": 71.9,
+            "LocX": 41.19261,
+            "LocY": 50.93387,
+            "Location": "Belridge, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f62",
+            "NodeId": 63,
+            "MaxCpuFreq": 112277,
+            "MaxBufferSize": 16384,
+            "IdleEnergyCoef": 32.0,
+            "ExeEnergyCoef": 58.0,
+            "LocX": 35.24425,
+            "LocY": 52.44843,
+            "Location": "Belmere, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f63",
+            "NodeId": 64,
+            "MaxCpuFreq": 75485,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 24.9,
+            "ExeEnergyCoef": 76.8,
+            "LocX": 39.14441,
+            "LocY": 56.29765,
+            "Location": "Ardarth, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f64",
+            "NodeId": 65,
+            "MaxCpuFreq": 63970,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 19.4,
+            "ExeEnergyCoef": 138.5,
+            "LocX": 41.56058,
+            "LocY": 50.05545,
+            "Location": "Belvane, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f65",
+            "NodeId": 66,
+            "MaxCpuFreq": 82662,
+            "MaxBufferSize": 6144,
+            "IdleEnergyCoef": 24.1,
+            "ExeEnergyCoef": 138.2,
+            "LocX": 41.95912,
+            "LocY": 54.6455,
+            "Location": "Arthyn, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f66",
+            "NodeId": 67,
+            "MaxCpuFreq": 91588,
+            "MaxBufferSize": 12288,
+            "IdleEnergyCoef": 27.3,
+            "ExeEnergyCoef": 129.1,
+            "LocX": 41.67578,
+            "LocY": 59.87892,
+            "Location": "Armarch, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f67",
+            "NodeId": 68,
+            "MaxCpuFreq": 108446,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 29.9,
+            "ExeEnergyCoef": 102.2,
+            "LocX": 40.04778,
+            "LocY": 58.30569,
+            "Location": "Belthis, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f68",
+            "NodeId": 69,
+            "MaxCpuFreq": 86347,
+            "MaxBufferSize": 16384,
+            "IdleEnergyCoef": 24.7,
+            "ExeEnergyCoef": 76.3,
+            "LocX": 37.59192,
+            "LocY": 52.4724,
+            "Location": "Belfell, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f69",
+            "NodeId": 70,
+            "MaxCpuFreq": 80735,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 21.7,
+            "ExeEnergyCoef": 148.2,
+            "LocX": 39.39873,
+            "LocY": 57.13545,
+            "Location": "Arenis, Lunaria"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f70",
+            "NodeId": 71,
+            "MaxCpuFreq": 100205,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 29.1,
+            "ExeEnergyCoef": 57.1,
+            "LocX": 35.80578,
+            "LocY": 51.50831,
+            "Location": "Armora, Lunaria"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c0",
+            "NodeId": 72,
+            "MaxCpuFreq": 508992,
+            "MaxBufferSize": 40960,
+            "IdleEnergyCoef": 231.0,
+            "ExeEnergyCoef": 1026.0,
+            "LocX": 1.26866,
+            "LocY": 103.85226,
+            "Location": "Singapore"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c1",
+            "NodeId": 73,
+            "MaxCpuFreq": 582327,
+            "MaxBufferSize": 40960,
+            "IdleEnergyCoef": 328.5,
+            "ExeEnergyCoef": 1129.7,
+            "LocX": 50.51428,
+            "LocY": 3.81221,
+            "Location": "Saint-Ghislain, Belgium"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c2",
+            "NodeId": 74,
+            "MaxCpuFreq": 492211,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 313.0,
+            "ExeEnergyCoef": 1156.0,
+            "LocX": 41.86604,
+            "LocY": -93.14741,
+            "Location": "Iowa, USA"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c3",
+            "NodeId": 75,
+            "MaxCpuFreq": 595956,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 281.9,
+            "ExeEnergyCoef": 1081.0,
+            "LocX": 35.72154,
+            "LocY": 139.6422,
+            "Location": "Tokyo, Japan"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c4",
+            "NodeId": 76,
+            "MaxCpuFreq": 514251,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 204.4,
+            "ExeEnergyCoef": 1000.8,
+            "LocX": -33.89675,
+            "LocY": 151.18124,
+            "Location": "Sydney, Australia"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c5",
+            "NodeId": 77,
+            "MaxCpuFreq": 443265,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 337.9,
+            "ExeEnergyCoef": 1194.2,
+            "LocX": 50.12881,
+            "LocY": 8.67253,
+            "Location": "Frankfurt, Germany"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c6",
+            "NodeId": 78,
+            "MaxCpuFreq": 555161,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 299.4,
+            "ExeEnergyCoef": 925.2,
+            "LocX": -23.54709,
+            "LocY": -46.59261,
+            "Location": "S\u00e3o Paulo, Brazil"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c7",
+            "NodeId": 79,
+            "MaxCpuFreq": 447639,
+            "MaxBufferSize": 40960,
+            "IdleEnergyCoef": 239.0,
+            "ExeEnergyCoef": 998.2,
+            "LocX": 19.06886,
+            "LocY": 72.91439,
+            "Location": "Mumbai, India"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c8",
+            "NodeId": 80,
+            "MaxCpuFreq": 499385,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 312.8,
+            "ExeEnergyCoef": 1149.6,
+            "LocX": 45.58987,
+            "LocY": -121.19495,
+            "Location": "Oregon, USA"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c9",
+            "NodeId": 81,
+            "MaxCpuFreq": 405081,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 280.9,
+            "ExeEnergyCoef": 1200.0,
+            "LocX": 53.32503,
+            "LocY": -6.30211,
+            "Location": "Dublin, Ireland"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c10",
+            "NodeId": 82,
+            "MaxCpuFreq": 570853,
+            "MaxBufferSize": 40960,
+            "IdleEnergyCoef": 313.1,
+            "ExeEnergyCoef": 1184.9,
+            "LocX": 37.5515,
+            "LocY": 126.99301,
+            "Location": "Seoul, South Korea"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c11",
+            "NodeId": 83,
+            "MaxCpuFreq": 439946,
+            "MaxBufferSize": 40960,
+            "IdleEnergyCoef": 218.9,
+            "ExeEnergyCoef": 1100.8,
+            "LocX": -26.23416,
+            "LocY": 27.99934,
+            "Location": "Johannesburg, South Africa"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c12",
+            "NodeId": 84,
+            "MaxCpuFreq": 583360,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 315.0,
+            "ExeEnergyCoef": 950.3,
+            "LocX": 45.5081,
+            "LocY": -73.5955,
+            "Location": "Montreal, Canada"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c13",
+            "NodeId": 85,
+            "MaxCpuFreq": 430024,
+            "MaxBufferSize": 40960,
+            "IdleEnergyCoef": 344.7,
+            "ExeEnergyCoef": 932.4,
+            "LocX": 59.34002,
+            "LocY": 18.09339,
+            "Location": "Stockholm, Sweden"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c14",
+            "NodeId": 86,
+            "MaxCpuFreq": 577562,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 259.5,
+            "ExeEnergyCoef": 1114.5,
+            "LocX": -33.49633,
+            "LocY": -70.6881,
+            "Location": "Santiago, Chile"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c15",
+            "NodeId": 87,
+            "MaxCpuFreq": 564427,
+            "MaxBufferSize": 40960,
+            "IdleEnergyCoef": 215.3,
+            "ExeEnergyCoef": 1131.7,
+            "LocX": 24.9906,
+            "LocY": 121.58446,
+            "Location": "Taipei, Taiwan"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c16",
+            "NodeId": 88,
+            "MaxCpuFreq": 431733,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 317.4,
+            "ExeEnergyCoef": 1004.2,
+            "LocX": 52.26473,
+            "LocY": 21.02224,
+            "Location": "Warsaw, Poland"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c17",
+            "NodeId": 89,
+            "MaxCpuFreq": 532634,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 251.2,
+            "ExeEnergyCoef": 1154.9,
+            "LocX": 25.27824,
+            "LocY": 51.51806,
+            "Location": "Doha, Qatar"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c18",
+            "NodeId": 90,
+            "MaxCpuFreq": 494945,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 333.7,
+            "ExeEnergyCoef": 1037.9,
+            "LocX": -6.17657,
+            "LocY": 106.80615,
+            "Location": "Jakarta, Indonesia"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c19",
+            "NodeId": 91,
+            "MaxCpuFreq": 536772,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 240.5,
+            "ExeEnergyCoef": 1142.5,
+            "LocX": 60.1352,
+            "LocY": 24.90601,
+            "Location": "Helsinki, Finland"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c20",
+            "NodeId": 92,
+            "MaxCpuFreq": 514183,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 288.9,
+            "ExeEnergyCoef": 996.7,
+            "LocX": 1.28172,
+            "LocY": 103.84635,
+            "Location": "Singapore"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c21",
+            "NodeId": 93,
+            "MaxCpuFreq": 473119,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 236.6,
+            "ExeEnergyCoef": 1039.4,
+            "LocX": 50.44835,
+            "LocY": 3.84726,
+            "Location": "Saint-Ghislain, Belgium"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c22",
+            "NodeId": 94,
+            "MaxCpuFreq": 407523,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 327.6,
+            "ExeEnergyCoef": 954.6,
+            "LocX": 41.88903,
+            "LocY": -93.1101,
+            "Location": "Iowa, USA"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c23",
+            "NodeId": 95,
+            "MaxCpuFreq": 489217,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 332.0,
+            "ExeEnergyCoef": 1110.4,
+            "LocX": 35.64741,
+            "LocY": 139.68008,
+            "Location": "Tokyo, Japan"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c24",
+            "NodeId": 96,
+            "MaxCpuFreq": 450084,
+            "MaxBufferSize": 40960,
+            "IdleEnergyCoef": 236.2,
+            "ExeEnergyCoef": 1021.9,
+            "LocX": -33.89117,
+            "LocY": 151.16032,
+            "Location": "Sydney, Australia"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c25",
+            "NodeId": 97,
+            "MaxCpuFreq": 524804,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 306.8,
+            "ExeEnergyCoef": 1034.5,
+            "LocX": 50.11642,
+            "LocY": 8.65613,
+            "Location": "Frankfurt, Germany"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c26",
+            "NodeId": 98,
+            "MaxCpuFreq": 506011,
+            "MaxBufferSize": 61440,
+            "IdleEnergyCoef": 236.5,
+            "ExeEnergyCoef": 1099.2,
+            "LocX": -23.59878,
+            "LocY": -46.65388,
+            "Location": "S\u00e3o Paulo, Brazil"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c27",
+            "NodeId": 99,
+            "MaxCpuFreq": 490113,
+            "MaxBufferSize": 51200,
+            "IdleEnergyCoef": 349.5,
+            "ExeEnergyCoef": 1065.1,
+            "LocX": 19.0629,
+            "LocY": 72.88305,
+            "Location": "Mumbai, India"
+        }
+    ],
+    "Edges": [
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 1,
+            "Bandwidth": 1720
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 1,
+            "DstNodeID": 0,
+            "Bandwidth": 1419
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 2,
+            "Bandwidth": 1929
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 2,
+            "DstNodeID": 0,
+            "Bandwidth": 977
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 3,
+            "Bandwidth": 1627
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 3,
+            "DstNodeID": 0,
+            "Bandwidth": 957
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 4,
+            "Bandwidth": 1472
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 4,
+            "DstNodeID": 0,
+            "Bandwidth": 823
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 5,
+            "Bandwidth": 2477
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 5,
+            "DstNodeID": 0,
+            "Bandwidth": 897
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 6,
+            "Bandwidth": 1646
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 6,
+            "DstNodeID": 0,
+            "Bandwidth": 822
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 7,
+            "Bandwidth": 2097
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 7,
+            "DstNodeID": 0,
+            "Bandwidth": 1673
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 8,
+            "Bandwidth": 2413
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 8,
+            "DstNodeID": 0,
+            "Bandwidth": 889
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 9,
+            "Bandwidth": 1392
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 9,
+            "DstNodeID": 0,
+            "Bandwidth": 921
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 10,
+            "Bandwidth": 1991
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 10,
+            "DstNodeID": 0,
+            "Bandwidth": 983
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 11,
+            "Bandwidth": 2483
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 11,
+            "DstNodeID": 0,
+            "Bandwidth": 1303
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 12,
+            "Bandwidth": 2074
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 12,
+            "DstNodeID": 0,
+            "Bandwidth": 1311
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 13,
+            "Bandwidth": 1579
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 13,
+            "DstNodeID": 0,
+            "Bandwidth": 802
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 14,
+            "Bandwidth": 1397
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 14,
+            "DstNodeID": 0,
+            "Bandwidth": 1003
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 15,
+            "Bandwidth": 1465
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 15,
+            "DstNodeID": 0,
+            "Bandwidth": 1069
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 16,
+            "Bandwidth": 1367
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 16,
+            "DstNodeID": 0,
+            "Bandwidth": 1009
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 17,
+            "Bandwidth": 1028
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 17,
+            "DstNodeID": 0,
+            "Bandwidth": 1425
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 18,
+            "Bandwidth": 2093
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 18,
+            "DstNodeID": 0,
+            "Bandwidth": 829
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 19,
+            "Bandwidth": 1561
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 19,
+            "DstNodeID": 0,
+            "Bandwidth": 746
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 20,
+            "Bandwidth": 1111
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 20,
+            "DstNodeID": 0,
+            "Bandwidth": 1266
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 21,
+            "Bandwidth": 1598
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 21,
+            "DstNodeID": 0,
+            "Bandwidth": 1414
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 22,
+            "Bandwidth": 1258
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 22,
+            "DstNodeID": 0,
+            "Bandwidth": 1353
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 23,
+            "Bandwidth": 2005
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 23,
+            "DstNodeID": 0,
+            "Bandwidth": 805
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 24,
+            "Bandwidth": 1025
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 24,
+            "DstNodeID": 0,
+            "Bandwidth": 1287
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 25,
+            "Bandwidth": 1582
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 25,
+            "DstNodeID": 0,
+            "Bandwidth": 1180
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 26,
+            "Bandwidth": 1980
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 26,
+            "DstNodeID": 0,
+            "Bandwidth": 1151
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 27,
+            "Bandwidth": 1697
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 27,
+            "DstNodeID": 0,
+            "Bandwidth": 888
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 28,
+            "Bandwidth": 1105
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 28,
+            "DstNodeID": 0,
+            "Bandwidth": 958
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 29,
+            "Bandwidth": 1978
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 29,
+            "DstNodeID": 0,
+            "Bandwidth": 816
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 30,
+            "Bandwidth": 1133
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 30,
+            "DstNodeID": 0,
+            "Bandwidth": 1110
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 31,
+            "Bandwidth": 2007
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 31,
+            "DstNodeID": 0,
+            "Bandwidth": 775
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 32,
+            "Bandwidth": 2181
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 32,
+            "DstNodeID": 0,
+            "Bandwidth": 1344
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 33,
+            "Bandwidth": 2405
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 33,
+            "DstNodeID": 0,
+            "Bandwidth": 754
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 34,
+            "Bandwidth": 1310
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 34,
+            "DstNodeID": 0,
+            "Bandwidth": 852
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 35,
+            "Bandwidth": 2152
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 35,
+            "DstNodeID": 0,
+            "Bandwidth": 1671
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 36,
+            "Bandwidth": 1622
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 36,
+            "DstNodeID": 0,
+            "Bandwidth": 787
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 37,
+            "Bandwidth": 1508
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 37,
+            "DstNodeID": 0,
+            "Bandwidth": 821
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 38,
+            "Bandwidth": 2142
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 38,
+            "DstNodeID": 0,
+            "Bandwidth": 1482
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 39,
+            "Bandwidth": 1852
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 39,
+            "DstNodeID": 0,
+            "Bandwidth": 1320
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 40,
+            "Bandwidth": 2220
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 40,
+            "DstNodeID": 0,
+            "Bandwidth": 1509
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 41,
+            "Bandwidth": 2266
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 41,
+            "DstNodeID": 0,
+            "Bandwidth": 931
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 42,
+            "Bandwidth": 2070
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 42,
+            "DstNodeID": 0,
+            "Bandwidth": 1089
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 43,
+            "Bandwidth": 1922
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 43,
+            "DstNodeID": 0,
+            "Bandwidth": 1630
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 44,
+            "Bandwidth": 1906
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 44,
+            "DstNodeID": 0,
+            "Bandwidth": 1004
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 45,
+            "Bandwidth": 2205
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 45,
+            "DstNodeID": 0,
+            "Bandwidth": 1139
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 46,
+            "Bandwidth": 1625
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 46,
+            "DstNodeID": 0,
+            "Bandwidth": 1282
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 47,
+            "Bandwidth": 2271
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 47,
+            "DstNodeID": 0,
+            "Bandwidth": 761
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 48,
+            "Bandwidth": 2248
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 48,
+            "DstNodeID": 0,
+            "Bandwidth": 1683
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 49,
+            "Bandwidth": 1203
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 49,
+            "DstNodeID": 0,
+            "Bandwidth": 1670
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 50,
+            "Bandwidth": 1425
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 50,
+            "DstNodeID": 0,
+            "Bandwidth": 1340
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 51,
+            "Bandwidth": 1432
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 51,
+            "DstNodeID": 0,
+            "Bandwidth": 970
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 52,
+            "Bandwidth": 2352
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 52,
+            "DstNodeID": 0,
+            "Bandwidth": 783
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 53,
+            "Bandwidth": 1321
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 53,
+            "DstNodeID": 0,
+            "Bandwidth": 945
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 54,
+            "Bandwidth": 1355
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 54,
+            "DstNodeID": 0,
+            "Bandwidth": 1265
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 55,
+            "Bandwidth": 1153
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 55,
+            "DstNodeID": 0,
+            "Bandwidth": 860
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 56,
+            "Bandwidth": 1005
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 56,
+            "DstNodeID": 0,
+            "Bandwidth": 1118
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 57,
+            "Bandwidth": 1922
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 57,
+            "DstNodeID": 0,
+            "Bandwidth": 1405
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 58,
+            "Bandwidth": 2216
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 58,
+            "DstNodeID": 0,
+            "Bandwidth": 1181
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 59,
+            "Bandwidth": 1596
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 59,
+            "DstNodeID": 0,
+            "Bandwidth": 733
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 60,
+            "Bandwidth": 1474
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 60,
+            "DstNodeID": 0,
+            "Bandwidth": 995
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 61,
+            "Bandwidth": 2447
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 61,
+            "DstNodeID": 0,
+            "Bandwidth": 989
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 62,
+            "Bandwidth": 2439
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 62,
+            "DstNodeID": 0,
+            "Bandwidth": 1580
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 63,
+            "Bandwidth": 1929
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 63,
+            "DstNodeID": 0,
+            "Bandwidth": 772
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 64,
+            "Bandwidth": 2407
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 64,
+            "DstNodeID": 0,
+            "Bandwidth": 939
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 65,
+            "Bandwidth": 1541
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 65,
+            "DstNodeID": 0,
+            "Bandwidth": 1506
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 66,
+            "Bandwidth": 2280
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 66,
+            "DstNodeID": 0,
+            "Bandwidth": 1303
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 67,
+            "Bandwidth": 2354
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 67,
+            "DstNodeID": 0,
+            "Bandwidth": 1523
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 68,
+            "Bandwidth": 1405
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 68,
+            "DstNodeID": 0,
+            "Bandwidth": 1135
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 69,
+            "Bandwidth": 1235
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 69,
+            "DstNodeID": 0,
+            "Bandwidth": 1257
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 70,
+            "Bandwidth": 1460
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 70,
+            "DstNodeID": 0,
+            "Bandwidth": 1363
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 71,
+            "Bandwidth": 1305
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 71,
+            "DstNodeID": 0,
+            "Bandwidth": 1630
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 72,
+            "Bandwidth": 3044
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 73,
+            "Bandwidth": 2791
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 74,
+            "Bandwidth": 2646
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 75,
+            "Bandwidth": 2622
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 76,
+            "Bandwidth": 2839
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 77,
+            "Bandwidth": 3129
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 78,
+            "Bandwidth": 3718
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 79,
+            "Bandwidth": 3665
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 80,
+            "Bandwidth": 3091
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 81,
+            "Bandwidth": 3399
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 82,
+            "Bandwidth": 2754
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 83,
+            "Bandwidth": 3459
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 84,
+            "Bandwidth": 3910
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 85,
+            "Bandwidth": 3122
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 86,
+            "Bandwidth": 3933
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 87,
+            "Bandwidth": 3324
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 88,
+            "Bandwidth": 3057
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 89,
+            "Bandwidth": 3524
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 90,
+            "Bandwidth": 3605
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 91,
+            "Bandwidth": 3511
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 92,
+            "Bandwidth": 3396
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 93,
+            "Bandwidth": 2664
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 94,
+            "Bandwidth": 3724
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 95,
+            "Bandwidth": 2581
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 96,
+            "Bandwidth": 3384
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 97,
+            "Bandwidth": 3160
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 98,
+            "Bandwidth": 3736
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 99,
+            "Bandwidth": 3012
+        }
+    ],
+    "BaseLatencyType": "haversine"
+}

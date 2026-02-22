@@ -34,7 +34,7 @@ This matters because:
 
 ### Storage & dashboard compatibility
 
-Results are written to an Optuna `JournalFileStorage` log file (append-only, safe for concurrent writes).
+Results are written to an Optuna `JournalFileBackend` log file (append-only, safe for concurrent writes).
 This is the native format read by **optuna-dashboard**:
 
 ```bash
