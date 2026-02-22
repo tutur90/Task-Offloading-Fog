@@ -4,7 +4,7 @@ algo: "TaskFormer"
 
 env:
   dataset: "Pakistan"
-  flag: "Tuple50K"
+  flag: "Tuple100K"
   refresh_rate: 0.005
 
 eval:
@@ -15,12 +15,12 @@ eval:
 training:
   num_epochs: 40
   learning_starts: 5000    # random steps before learning begins
-  warmup: 0                # LR warmup as ratio of total training steps
+  warmup: 0.1                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
   batch_size: 512          # samples per update
   target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 2.e-4
+  lr: 5e-5
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
@@ -45,7 +45,7 @@ training:
 
 model:
   d_model: 64
-  n_layers: 2
+  n_layers: 4
   n_heads: 2
   mlp_ratio: 4
   dropout: 0.1

@@ -9,5 +9,8 @@ tqdm
 torch
 PyYAML
 scipy
+
+# Hparams
 optuna
+optuna-dashboard
 cloudpickle
