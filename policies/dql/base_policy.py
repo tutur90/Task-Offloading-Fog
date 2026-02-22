@@ -127,11 +127,8 @@ class DQNPolicy:
         self.reward_max = config.get("eval", {}).get("expected_values", [1.0] * 3)
         self.avg_reward = 0
         
-        self.reward_log1p = _reward.get("log1p", True)
         self.reward_clip = _reward.get("clip", 5.0)
-        
-        if "ln" in self.reward_norm:
-            self.reward_mean = [np.log(val + self.reward_eps)  for val in self.reward_mean]
+
 
         self._init_model(env, config, dataset=dataset)
         
@@ -178,10 +175,6 @@ class DQNPolicy:
     
     def _norm_reward(self, reward, _lambda):
 
-        
-        if self.reward_log1p:
-            reward = [np.log1p(r) if r is not None else None for r in reward]
-            
 
         self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if reward[i] else self.reward_mean[i] for i in range(3)]  
         self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) if reward[i] else self.reward_var[i] for i in range(3)]
@@ -196,6 +189,10 @@ class DQNPolicy:
         elif self.reward_norm == "max":
             self.reward_max = [max(self.reward_max[i], reward[i]) for i in range(3)]
             reward = [reward[i] / (self.reward_max[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
+        elif self.reward_norm == "log1p":
+            reward = [np.log1p(reward[i]) if reward[i] else 0 for i in range(3)]
+        elif self.reward_norm == "log1p_mean":
+            reward = [np.log1p(reward[i]) - (np.log1p(self.reward_mean[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
         else:
             reward = [reward[i] if reward[i] is not None else 0 for i in range(3)]
             
