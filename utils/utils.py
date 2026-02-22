@@ -21,9 +21,9 @@ class Scenario(BaseScenario):
         elif dataset == 'Pakistan':
             assert flag in ['Tuple30K', 'Tuple50K', 'Tuple100K'], \
             f"Invalid flag={flag}"
-        elif dataset == 'Synthetic':
-            assert flag in ['small', 'medium', 'large'], \
-            f"Invalid flag={flag}"
+        # elif dataset == 'Synthetic':
+        #     assert flag in ['small', 'medium', 'large'], \
+        #     f"Invalid flag={flag}"
         super().__init__(config_file)
         
         # # Load the test dataset (not recommended)

@@ -1,54 +1,58 @@
-import math
 import torch
 import torch.nn as nn
 from policies.model.base_model import BaseModel
-from policies.model.NOTE import LearnedPositionalEncoding
 
 
 class TPTOModel(BaseModel):
     """
-    Transformer Actor-Critic model for PPO-based node selection.
+    Transformer Actor-Critic following the TPTO paper architecture exactly
+    (Gholipour et al., arXiv:2312.11739), minus num_actions-related aspects.
 
-    Adapted from the TPTO paper (Gholipour et al., arXiv:2312.11739).
-    Key difference: action = selected node (n-way discrete) instead of binary local/offload.
+    Paper architecture (kept exactly):
+      - 3 Transformer encoder layers (BERT-style, no causal mask)
+      - 8 attention heads
+      - Hidden size / d_model = 512
+      - FFN dimension = 512
+      - Dropout = 0.4, ReLU activation
+      - Post-LN (LayerNorm after attention and after FFN, not before)
+      - No explicit positional encoding (implicit from input ordering)
+      - Task context injected as a prepended token at position 0 (not added globally)
+      - Critic uses the task-token representation (position 0)
+      - Actor uses node-token representations (positions 1..n_nodes)
 
-    Architecture:
-        Input: node resource obs (batch, n_nodes, d_obs) + task features (batch, d_task)
-        ↓  nodes_embed  (Linear d_obs → d_model)  + LearnedPositionalEncoding
-        ↓  task_embed   (Linear d_task → d_model)  added to every node position
-        ↓  TransformerEncoder  (n_layers × BERT-style encoder layer)
-        ↓  actor_head:  Linear(d_model, 1) → squeeze → (batch, n_nodes) logits
-        ↓  critic_head: mean-pool over nodes → Linear(d_model, 1) → (batch, 1) value
+    Adaptation (num_actions-related, kept from our framework):
+      - Actor outputs one logit per node → (batch, n_nodes), not 2-way softmax
     """
 
     def __init__(
         self,
-        d_in: int,
-        d_pos: int,
-        d_task: int,
-        d_model: int = 128,
-        n_heads: int = 4,
+        d_in: int,       # node feature dimension (e.g. 3 for cpu/bw/buffer)
+        d_pos: int,      # number of nodes (sequence length)
+        d_task: int,     # task feature dimension (4: size, cycles, rate, ddl)
+        d_model: int = 512,
+        n_heads: int = 8,
         n_layers: int = 3,
-        mlp_ratio: int = 4,
-        d_ff: int = None,
-        dropout: float = 0.1,
-        **kwargs,
+        d_ff: int = 512,
+        dropout: float = 0.4,
+        **kwargs,        # absorb unused config keys (mlp_ratio, obs_type, etc.)
     ):
         super().__init__()
 
+        # Input projections
         self.nodes_embed = nn.Linear(d_in, d_model)
+        # Task token: projected to d_model, prepended to the node sequence
         self.task_embed = nn.Linear(d_task, d_model, bias=False)
-        self.pos_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
 
-        dim_feedforward = d_ff if d_ff is not None else d_model * mlp_ratio
+        # No positional encoding — paper relies on implicit ordering (priority rank)
 
+        # Transformer encoder: post-LN (norm_first=False), ReLU FFN
         self.transformer = nn.TransformerEncoder(
             encoder_layer=nn.TransformerEncoderLayer(
                 d_model=d_model,
                 nhead=n_heads,
-                dim_feedforward=dim_feedforward,
+                dim_feedforward=d_ff,
                 dropout=dropout,
-                norm_first=True,   # pre-LN (more stable)
+                norm_first=False,      # post-LN: Add & Norm after attention/FFN
                 batch_first=True,
                 activation="relu",
             ),
@@ -57,27 +61,33 @@ class TPTOModel(BaseModel):
             enable_nested_tensor=False,
         )
 
-        # Actor: per-node scalar logit → (batch, n_nodes)
+        # Actor head: one logit per node token → (batch, n_nodes)
         self.actor_head = nn.Linear(d_model, 1)
 
-        # Critic: global value estimate → (batch, 1)
+        # Critic head: scalar value from task token (position 0)
         self.critic_head = nn.Linear(d_model, 1)
 
-    # Override BaseModel.forward to return (logits, value) tuple.
     def forward(self, nodes, task):
         nodes, task = self.normalize(nodes, task)
         return self._forward(nodes, task)
 
     def _forward(self, nodes, task):
-        x = self.nodes_embed(nodes)          # (batch, n_nodes, d_model)
-        x = self.pos_embed(x)
+        # Embed nodes: (batch, n_nodes, d_in) → (batch, n_nodes, d_model)
+        node_tokens = self.nodes_embed(nodes)
 
-        task_emb = self.task_embed(task)     # (batch, d_model)
-        x = x + task_emb.unsqueeze(1)       # broadcast over n_nodes
+        # Embed task and prepend as position-0 token: (batch, 1, d_model)
+        task_token = self.task_embed(task).unsqueeze(1)
 
-        x = self.transformer(x, is_causal=False)  # (batch, n_nodes, d_model)
+        # Full sequence: [task_token | node_tokens] → (batch, 1+n_nodes, d_model)
+        x = torch.cat([task_token, node_tokens], dim=1)
 
-        logits = self.actor_head(x).squeeze(-1)    # (batch, n_nodes)
-        value = self.critic_head(x.mean(dim=1))    # (batch, 1)
+        # Transformer (post-LN, no causal mask, no positional encoding)
+        x = self.transformer(x, is_causal=False)  # (batch, 1+n_nodes, d_model)
+
+        # Actor: node representations at positions 1..n_nodes
+        logits = self.actor_head(x[:, 1:, :]).squeeze(-1)  # (batch, n_nodes)
+
+        # Critic: task-token representation at position 0 (paper §4.3)
+        value = self.critic_head(x[:, 0, :])               # (batch, 1)
 
         return logits, value

@@ -206,6 +206,23 @@ SAMPLERS: dict[str, type[Sampler]] = {
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Storage helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _make_journal_storage(path: str) -> optuna.storages.JournalStorage:
+    """Create a JournalStorage backed by a local file, compatible with Optuna ≥ 4."""
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    abs_path = os.path.abspath(path)
+    try:
+        # Optuna ≥ 4.0: JournalFileBackend
+        backend = optuna.storages.journal.JournalFileBackend(abs_path)
+    except AttributeError:
+        # Optuna < 4.0 fallback
+        backend = optuna.storages.JournalFileStorage(abs_path)  # type: ignore[attr-defined]
+    return optuna.storages.JournalStorage(backend)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Serialization helpers (prefer cloudpickle to support closures)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -253,9 +270,7 @@ def _worker(
 
     objective = _loads(objective_pkl)
 
-    storage = optuna.storages.JournalStorage(
-        optuna.storages.JournalFileStorage(os.path.abspath(storage_path))
-    )
+    storage = _make_journal_storage(storage_path)
     # No sampler needed — workers only pop pre-enqueued WAITING trials.
     study = optuna.load_study(study_name=study_name, storage=storage)
 
@@ -310,7 +325,7 @@ class HparamSearch:
     study_name:
         Optuna study name shown in the dashboard.
     storage_path:
-        Path to the ``.log`` file (JournalFileStorage).
+        Path to the ``.log`` file (JournalFileBackend).
     n_trials:
         Trial budget.  ``None`` means "all combinations" — only meaningful
         for :class:`GridSampler` (other samplers require an explicit count).
@@ -351,10 +366,7 @@ class HparamSearch:
     # ── internal helpers ─────────────────────────────────────────────────────
 
     def _make_storage(self) -> optuna.storages.JournalStorage:
-        os.makedirs(os.path.dirname(os.path.abspath(self.storage_path)), exist_ok=True)
-        return optuna.storages.JournalStorage(
-            optuna.storages.JournalFileStorage(os.path.abspath(self.storage_path))
-        )
+        return _make_journal_storage(self.storage_path)
 
     def _make_study(self, storage) -> optuna.Study:
         return optuna.create_study(
