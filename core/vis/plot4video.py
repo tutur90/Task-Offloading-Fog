@@ -1,14 +1,8 @@
-import cv2
-import glob
-import json
-import networkx as nx
-import matplotlib as mpl
-import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
 import os
+import json
+import glob
 import textwrap
-from tqdm import tqdm
-
+import tqdm
 
 # mpl.use('QtAgg')
 
@@ -26,6 +20,10 @@ colors = {
 
 
 def plot_frame(graph, values, config_file, save_as):
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
+    import networkx as nx
+    
     # Load the config file
     with open(config_file, 'r') as fr:
         json_object = json.load(fr)
@@ -139,6 +137,7 @@ def plot_frame(graph, values, config_file, save_as):
 
 
 def frame2video(img_path, video_save_as):
+    import cv2
     img_array = []
     files = glob.glob(f"{img_path}/*.png")
     files.sort(key=os.path.getmtime)  # sort all images in time order.

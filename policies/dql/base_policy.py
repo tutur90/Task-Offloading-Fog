@@ -127,6 +127,9 @@ class DQNPolicy:
         self.reward_max = config.get("eval", {}).get("expected_values", [1.0] * 3)
         self.avg_reward = 0
         
+        self.reward_log1p = _reward.get("log1p", True)
+        self.reward_clip = _reward.get("clip", 5.0)
+        
         if "ln" in self.reward_norm:
             self.reward_mean = [np.log(val + self.reward_eps)  for val in self.reward_mean]
 
@@ -166,70 +169,40 @@ class DQNPolicy:
         self.avg_reward = self.avg_reward * 0.999 + reward * (1 - 0.999)
         # print(f"Raw reward: {reward}, Avg reward: {self.avg_reward}")
         return reward 
-        
+    
+    def adapt_coef(self, reward, _lambda):
+        # Adaptively adjust lambda coefficients based on reward trends
+        # For example, if reward is consistently low, increase the weight on TDR
+        # This is a placeholder for a more sophisticated adaptation mechanism
+        pass
+    
     def _norm_reward(self, reward, _lambda):
         
-        if reward[0] == 1:
-            if self.reward_norm == "standard":
-                self.reward_mean[0] = self.reward_mean[0] * self.reward_momentum + reward[0] * (1 - self.reward_momentum)
-                self.reward_var[0] = self.reward_var[0] * self.reward_momentum + (reward[0] - self.reward_mean[0]) ** 2 * (1 - self.reward_momentum)
-                reward[0] = (reward[0] - self.reward_mean[0]) / (np.sqrt(self.reward_var[0]) + self.reward_eps)
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            elif self.reward_norm == "ln_standard":
-                reward[0] = np.log(reward[0] + self.reward_eps)
-                self.reward_mean[0] = self.reward_mean[0] * self.reward_momentum + reward[0] * (1 - self.reward_momentum)
-                self.reward_var[0] = self.reward_var[0] * self.reward_momentum + (reward[0] - self.reward_mean[0]) ** 2 * (1 - self.reward_momentum)
-                reward[0] = (reward[0] - self.reward_mean[0]) / (np.sqrt(self.reward_var[0]) + self.reward_eps)
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            elif self.reward_norm == "mean":
-                self.reward_mean[0] = self.reward_mean[0] * self.reward_momentum + reward[0] * (1 - self.reward_momentum)
-                reward[0] = reward[0] / (self.reward_mean[0] + self.reward_eps)
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            elif self.reward_norm == "ln_mean":
-                self.reward_mean[0] = self.reward_mean[0] * self.reward_momentum + reward[0] * (1 - self.reward_momentum)
-                reward[0] = np.log(reward[0] / (self.reward_eps + self.reward_mean[0]))
-            elif self.reward_norm == "partial_ln_mean":
-   
-                reward[0] = np.log(reward[0] +  (self.reward_eps ))
-                
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            return sum(_lambda[i] * reward[i] for i in range(3))
-        else:
-        
-            if self.reward_norm == "max":
-                self.reward_max = [max(self.reward_max[i], reward[i]) for i in range(3)]
-                reward = [reward[i] / (self.reward_max[i] + self.reward_eps) for i in range(3)]
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            elif  self.reward_norm == "mean":
-                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) for i in range(3)]
-                reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) for i in range(3)]
-
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            elif self.reward_norm == "standard":
-                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) for i in range(3)]  
-                self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) for i in range(3)]
-                reward = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) for i in range(3)]
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            elif self.reward_norm == "ln_standard":
-                reward = [np.log(reward[i] + self.reward_eps) for i in range(3)]
-                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) for i in range(3)]
-                self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) for i in range(3)]
-                
-                reward = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) for i in range(3)]
-
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            elif self.reward_norm == "partial_mean":
-                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if i != 0 else reward[i] for i in range(3)]
-                reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) if i != 0 else reward[i] for i in range(3)]
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            elif self.reward_norm == "partial_ln_mean":
-                self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if i != 0 else reward[i] for i in range(3)]
-                reward = [np.log(reward[i] / (self.reward_mean[i] + self.reward_eps) + self.reward_eps) if i != 0 else reward[i] for i in range(3)]
-                return sum(_lambda[i] * reward[i] for i in range(3))
-            elif self.reward_norm == "ln":
-                return sum(_lambda[i] * np.log(reward[i] + self.reward_eps) for i in range(3))
+        if self.reward_log1p:
+            reward = [np.log1p(r) if r else None for r in reward]
             
-
+            
+        self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if reward[i] else self.reward_mean[i] for i in range(3)]  
+        self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) if reward[i] else self.reward_var[i] for i in range(3)]
+        self.reward_max = [max(self.reward_max[i], reward[i]) if reward[i] else self.reward_max[i] for i in range(3)]
+        
+        if self.reward_norm == "standard":
+            reward = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
+        elif self.reward_norm == "mean":
+            reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
+        elif self.reward_norm == "partial_mean":
+            reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] and i != 0 else reward[i] for i in range(3)]
+        elif self.reward_norm == "max":
+            self.reward_max = [max(self.reward_max[i], reward[i]) for i in range(3)]
+            reward = [reward[i] / (self.reward_max[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
+        else:
+            reward = [reward[i] if reward[i] is not None else 0 for i in range(3)]
+            
+        if self.reward_clip is not None:
+            reward = [np.clip(r, -self.reward_clip, self.reward_clip) for r in reward]
+            
+        return sum(_lambda[i] * reward[i] for i in range(3))
+            
 
     def _make_observation(self, env: Env, task: Task, obs_type=["cpu", "buffer", "bw"]):
         """
@@ -413,6 +386,13 @@ class DQNPolicy:
         
 
         predicted_q = q_values.gather(1, actions_tensor).squeeze()
+        
+        # print(f"Predicted Q before clamp: {predicted_q.detach().cpu().numpy()}")
+        
+        
+        if self.reward_norm != "standard":
+
+            predicted_q = predicted_q.clamp(max=0.)  # Clamp predicted Q-values to [0, 1] for non-standard reward norms
 
 
         # Compute target Q-values from next states using target network

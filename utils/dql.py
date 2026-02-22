@@ -20,8 +20,8 @@ def update_transitions(policy: DQNPolicy, env: Env, stored_transitions: dict, co
                 tdr = 0
                 
             else:
-                latency = 0
-                energy = 0
+                latency = None
+                energy = None
                 tdr = 1
                 
             reward = - policy.norm_reward([tdr, latency, energy], config["training"]["lambda"])

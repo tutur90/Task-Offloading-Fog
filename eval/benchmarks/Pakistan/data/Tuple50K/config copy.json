@@ -129,6 +129,58 @@
             "LocX": 31.4187,
             "LocY": 73.0791,
             "Location": "Faisalabad, Pakistan"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f7",
+            "NodeId": 10,
+            "MaxCpuFreq": 70000,
+            "MaxBufferSize": 8192,
+            "IdleEnergyCoef": 18,
+            "ExeEnergyCoef": 90,
+            "LocX": 30.1798,
+            "LocY": 66.9750,
+            "Location": "Quetta, Pakistan"
+        },
+        {
+            "DeviceType": "Fog",
+            "NodeType": "Node",
+            "NodeName": "f8",
+            "NodeId": 11,
+            "MaxCpuFreq": 80000,
+            "MaxBufferSize": 10240,
+            "IdleEnergyCoef": 20,
+            "ExeEnergyCoef": 95,
+            "LocX": 27.7244,
+            "LocY": 68.8228,
+            "Location": "Sukkur, Pakistan"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c2",
+            "NodeId": 12,
+            "MaxCpuFreq": 450000,
+            "MaxBufferSize": 46080,
+            "IdleEnergyCoef": 280,
+            "ExeEnergyCoef": 1050,
+            "LocX": 19.0760,
+            "LocY": 72.8777,
+            "Location": "Mumbai, India"
+        },
+        {
+            "DeviceType": "Cloud",
+            "NodeType": "Node",
+            "NodeName": "c3",
+            "NodeId": 13,
+            "MaxCpuFreq": 480000,
+            "MaxBufferSize": 49152,
+            "IdleEnergyCoef": 270,
+            "ExeEnergyCoef": 1080,
+            "LocX": 26.0667,
+            "LocY": 50.5577,
+            "Location": "Manama, Bahrain"
         }
     ],
     "Edges": [
@@ -227,6 +279,42 @@
             "SrcNodeID": 9,
             "DstNodeID": 0,
             "Bandwidth": 1600.0
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 10,
+            "Bandwidth": 900.0
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 10,
+            "DstNodeID": 0,
+            "Bandwidth": 650.0
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 0,
+            "DstNodeID": 11,
+            "Bandwidth": 1400.0
+        },
+        {
+            "EdgeType": "SingleLink",
+            "SrcNodeID": 11,
+            "DstNodeID": 0,
+            "Bandwidth": 1000.0
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 12,
+            "Bandwidth": 3500
+        },
+        {
+            "EdgeType": "Link",
+            "SrcNodeID": 0,
+            "DstNodeID": 13,
+            "Bandwidth": 2800
         }
     ],
     "BaseLatencyType": "haversine"
