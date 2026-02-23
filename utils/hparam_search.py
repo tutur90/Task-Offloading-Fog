@@ -276,7 +276,7 @@ def _worker(
 
     def _wrapped(trial: optuna.Trial) -> float:
         params = {k: trial.suggest_categorical(k, v) for k, v in param_specs.items()}
-        result = objective(params)
+        result = objective(params, trial_number=trial.number)
         return _unpack_result(trial, result)
 
     study.optimize(_wrapped, n_trials=n_trials, n_jobs=1)
@@ -461,7 +461,7 @@ class HparamSearch:
                 k: trial.suggest_categorical(k, v)
                 for k, v in self.param_specs.items()
             }
-            result = objective(params)
+            result = objective(params, trial_number=trial.number)
             return _unpack_result(trial, result)
 
         study.optimize(_wrapped, n_trials=n_trials, n_jobs=1)
