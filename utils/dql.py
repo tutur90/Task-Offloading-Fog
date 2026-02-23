@@ -24,17 +24,13 @@ def update_transitions(policy: DQNPolicy, env: Env, stored_transitions: dict, co
                 energy = None
                 tdr = 1
                 
-            reward = - policy.norm_reward([tdr, latency, energy], config["training"]["lambda"])
+            reward = policy.norm_reward([tdr, latency, energy], config["training"]["lambda"])
                 
             policy.store_transition(state, action, reward, next_state, done)
             del stored_transitions[task_id]
     # Update the policy every update_freq tasks during training.
             loss = policy.update()
             
-        
-            
-            
-    
 
 
 def run_epoch(config: dict, policy: DQNPolicy, data: pd.DataFrame,      train=True,  ):

@@ -128,6 +128,8 @@ class DQNPolicy:
         self.avg_reward = 0
         
         self.reward_clip = _reward.get("clip", 5.0)
+        
+        self.reward_storage_norm = _reward.get("storage_norm", False)
 
 
         self._init_model(env, config, dataset=dataset)
@@ -149,10 +151,15 @@ class DQNPolicy:
         else:
             raise ValueError(f"Unknown optimizer type: {opt_type}")
         
-        self.criterion = nn.MSELoss()
+        # self.criterion = nn.MSELoss()
+        self.criterion = nn.SmoothL1Loss()  # Huber loss can be more stable than MSE for Q-learning
         
         self.avg_loss = 0
         self.avg_grad_norm = 0
+        
+        self._lambda = config.get("training", {}).get("lambda", [1.0, 1.0, 1.0])  
+        
+        self._lambda = np.array(self._lambda) / np.sum(self._lambda)  # Normalize lambda to sum to 1
 
 
     def _init_model(self, env: Env, config, dataset=None):
@@ -163,7 +170,10 @@ class DQNPolicy:
         # Normalize reward components based on the specified method
         
         reward = self._norm_reward(reward, _lambda)
-        self.avg_reward = self.avg_reward * 0.999 + reward * (1 - 0.999)
+        
+        self.avg_reward = sum(self._lambda[i] * reward[i] if reward[i] is not None else 0 for i in range(3)) 
+
+        
         # print(f"Raw reward: {reward}, Avg reward: {self.avg_reward}")
         return reward 
     
@@ -173,12 +183,7 @@ class DQNPolicy:
         # This is a placeholder for a more sophisticated adaptation mechanism
         pass
     
-    def _norm_reward(self, reward, _lambda):
-
-
-        self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if reward[i] else self.reward_mean[i] for i in range(3)]  
-        self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) if reward[i] else self.reward_var[i] for i in range(3)]
-        self.reward_max = [max(self.reward_max[i], reward[i]) if reward[i] else self.reward_max[i] for i in range(3)]
+    def _norm_reward_fn(self, reward):
         
         if self.reward_norm == "standard":
             reward = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
@@ -196,10 +201,21 @@ class DQNPolicy:
         else:
             reward = [reward[i] if reward[i] is not None else 0 for i in range(3)]
             
-        if self.reward_clip is not None:
-            reward = [np.clip(r, -self.reward_clip, self.reward_clip) for r in reward]
+        return reward
+    
+    def _norm_reward(self, reward, _lambda):
+
+
+        self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if reward[i] else self.reward_mean[i] for i in range(3)]  
+        self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) if reward[i] else self.reward_var[i] for i in range(3)]
+        self.reward_max = [max(self.reward_max[i], reward[i]) if reward[i] else self.reward_max[i] for i in range(3)]
+        
+        if not self.reward_storage_norm:
+            return reward
+        
+        reward = self._norm_reward_fn(reward)
             
-        return sum(_lambda[i] * reward[i] for i in range(3))
+        return reward
             
 
     def _make_observation(self, env: Env, task: Task, obs_type=["cpu", "buffer", "bw"]):
@@ -362,6 +378,19 @@ class DQNPolicy:
         states, actions, rewards, next_states, dones = zip(*batch)
         obs_batch, task_obs_batch = zip(*states)
         next_obs_batch, next_task_obs_batch = zip(*next_states)
+        
+        total_reward = []
+        
+        for reward in rewards:
+            if not self.reward_storage_norm:
+                reward = self._norm_reward_fn(reward)
+            if self.reward_clip is not None:
+                reward = [np.clip(r, -self.reward_clip, self.reward_clip) for r in reward]
+                
+            reward = - sum(self._lambda[i] * reward[i] for i in range(3))  # Combine reward components into a single scalar using lambda weights
+            
+            total_reward.append(reward)
+        
 
         # Convert lists to batched tensors and move them to the device with the appropriate dtype
         obs_tensor = torch.tensor(np.array(obs_batch), dtype=self.dtype, device=self.device)
@@ -370,7 +399,7 @@ class DQNPolicy:
         next_task_tensor = torch.tensor(np.array(next_task_obs_batch), dtype=self.dtype, device=self.device)
 
         actions_tensor = torch.tensor(np.array(actions), dtype=torch.int64, device=self.device).unsqueeze(-1)
-        rewards_tensor = torch.tensor(rewards, dtype=self.dtype, device=self.device)
+        rewards_tensor = torch.tensor(total_reward, dtype=self.dtype, device=self.device)
         dones_tensor = torch.tensor(dones, dtype=self.dtype, device=self.device)
 
 
@@ -422,10 +451,6 @@ class DQNPolicy:
             self.avg_loss = self.avg_loss * 0.999 + loss * 0.001
             self.avg_grad_norm = self.avg_grad_norm * 0.999 + grad_norm * 0.001 
             return loss, grad_norm
-
-
-        
-
 
     def update_target_network(self):
         """

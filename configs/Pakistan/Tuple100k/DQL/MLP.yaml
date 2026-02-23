@@ -33,12 +33,14 @@ training:
 
   reward:
     momentum: 0.999
-    norm: "ln_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    norm: "standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     scale: 1
     eps: 1.e-2
+
   optimizer:
     type: "RMSprop"
-    weight_decay: 0
+    # weight_decay: 0
+    
   lambda: [0.350000,0.350000,0.300000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
