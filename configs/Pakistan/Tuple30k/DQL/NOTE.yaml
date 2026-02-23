@@ -9,8 +9,7 @@ env:
 
 eval:
   lambda: [1.889e-03, 4.394e+00, 2.605e+02]
-  expected_max_latency: 4
-  expected_max_energy: 3000
+
 
 training:
   num_epochs: 40
@@ -32,9 +31,11 @@ training:
 
   reward:
     momentum: 0.999
-    norm: "partial_mean"  # "none", "mean", "partial_mean", "standard", "ln_standard"
+    norm: "standard"  # "none", "mean", "partial_mean", "standard", "log1p", "log1p_mean"
     scale: 1
     eps: 1.e-2
+    clip: 5.0
+
 
   optimizer:
     type: "RMSprop"
@@ -48,8 +49,8 @@ training:
 
 model:
   d_model: 64
-  n_layers: 2
-  n_heads: 4
+  n_layers: 4
+  n_heads: 2
   mlp_ratio: 4
   dropout: 0.1
   mode: node

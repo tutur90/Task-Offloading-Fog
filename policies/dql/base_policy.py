@@ -122,7 +122,7 @@ class DQNPolicy:
         self.reward_momentum = _reward.get("momentum") or 0.9
         self.reward_norm = _reward.get("norm", "standard")
         self.reward_eps = _reward.get("eps", 1e-6)
-        self.reward_mean = config.get("eval", {}).get("expected_values", [1.0] * 3)
+        self.reward_mean = config.get("eval", {}).get("lambda", [1.0] * 3)
         self.reward_var = [1.0] * 3
         self.reward_max = config.get("eval", {}).get("expected_values", [1.0] * 3)
         self.avg_reward = 0
