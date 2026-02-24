@@ -257,10 +257,13 @@ def run_search(config, config_path, args):
         num_gpus=num_gpus,
     )
 
-    def objective(params):
+    def objective(params, trial_number=None):
         worker_config = yaml.safe_load(open(config_path, "r"))
         apply_params_to_config(worker_config, params)
-        worker_config["tuned_params"] = params  # tags log dir, e.g. 0216_143022_dm128_nl3
+        worker_config["device"] = config["device"]  # propagate device from CLI args (round-robin GPU)
+        worker_config["tuned_params"] = params  # tags log dir, e.g. 0216_143022_t3_dm128_nl3
+        if trial_number is not None:
+            worker_config["worker_id"] = trial_number
         val_metrics, test_metrics, best_epoch = main(worker_config)
         # Use val_metrics when available (training run), fall back to test.
         metrics = val_metrics if val_metrics is not None else test_metrics

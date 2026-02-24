@@ -76,7 +76,7 @@ class Logger:
         # e.g. worker_id=3, d_model=128, n_layers=3 -> "t3_dm128_nl3"
         tag_parts = []
         if worker_id is not None:
-            tag_parts.append(f"t{worker_id}")
+            tag_parts.append(f"t_{worker_id}")
         for k, v in (tuned_params or {}).items():
             short = k.split(".")[-1].replace("_", "")[:2]
             tag_parts.append(f"{short}{v}")
