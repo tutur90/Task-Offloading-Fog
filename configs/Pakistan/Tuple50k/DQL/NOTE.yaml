@@ -32,9 +32,10 @@ training:
 
   reward:
     momentum: 0.999
-    norm: "ln_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    norm: "standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     scale: 1
     eps: 1.e-2
+    
   optimizer:
     type: "RMSprop"
     weight_decay: 0

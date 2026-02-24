@@ -124,8 +124,12 @@ class DQNPolicy:
         self.reward_eps = _reward.get("eps", 1e-6)
         self.reward_mean = config.get("eval", {}).get("lambda", [1.0] * 3)
         self.reward_var = [1.0] * 3
-        self.reward_max = config.get("eval", {}).get("expected_values", [1.0] * 3)
+        self.reward_max = config.get("eval", {}).get("lambda", [1.0] * 3)
         self.avg_reward = 0
+        
+        self.expected_reward = config.get("eval", {}).get("lambda", None)
+        
+        self.reward_patch = _reward.get("patch", 0.01)
         
         self.reward_clip = _reward.get("clip", 5.0)
         
@@ -186,34 +190,45 @@ class DQNPolicy:
     def _norm_reward_fn(self, reward):
         
         if self.reward_norm == "standard":
-            reward = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
+            r = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "mean":
-            reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
+            r = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "partial_mean":
-            reward = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] and i != 0 else 0 for i in range(3)]
+            r = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] and i != 0 else 0 for i in range(3)]
         elif self.reward_norm == "max":
             self.reward_max = [max(self.reward_max[i], reward[i]) for i in range(3)]
-            reward = [reward[i] / (self.reward_max[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
+            r = [reward[i] / (self.reward_max[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "log1p":
-            reward = [np.log1p(reward[i]) if reward[i] else 0 for i in range(3)]
+            r = [np.log1p(reward[i]) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "log1p_mean":
-            reward = [np.log1p(reward[i]) - (np.log1p(self.reward_mean[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
+            r = [np.log1p(reward[i]) - (np.log1p(self.reward_mean[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
+        elif self.reward_norm == "log1p_standard":
+            r = [(np.log1p(reward[i]) - np.log1p(self.reward_mean[i])) / np.log1p(np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
+        elif self.reward_norm == "expected":
+            r = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
+        elif self.reward_norm == "none":
+            r = [reward[i] if reward[i] is not None else 0 for i in range(3)]
         else:
-            reward = [reward[i] if reward[i] is not None else 0 for i in range(3)]
+            raise ValueError(f"Unknown reward normalization method: {self.reward_norm}")
+        
+        if self.reward_patch is not None:
             
-        return reward
+            patch = [self.reward_patch * max(reward[i]/(self.expected_reward[i] + 0.1 )-1, 0) if reward[i] else 0 for i in range(3)]
+            r = [r[i] + patch[i] for i in range(3)]
+            
+        return r
     
-    def _norm_reward(self, reward, _lambda):
-
+    def _norm_reward(self, reward, _lambda, log1p=False):
+        
+        if log1p:
+            reward = [np.log1p(r) if r else 0 for r in reward]
 
         self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if reward[i] else self.reward_mean[i] for i in range(3)]  
         self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) if reward[i] else self.reward_var[i] for i in range(3)]
         self.reward_max = [max(self.reward_max[i], reward[i]) if reward[i] else self.reward_max[i] for i in range(3)]
         
-        if not self.reward_storage_norm:
-            return reward
-        
-        reward = self._norm_reward_fn(reward)
+        if self.reward_storage_norm:
+            reward = self._norm_reward_fn(reward)
             
         return reward
             
@@ -381,14 +396,16 @@ class DQNPolicy:
         
         total_reward = []
         
-        for reward in rewards:
+        for r in rewards:
             if not self.reward_storage_norm:
-                reward = self._norm_reward_fn(reward)
-            if self.reward_clip is not None:
-                reward = [np.clip(r, -self.reward_clip, self.reward_clip) for r in reward]
+                r = self._norm_reward_fn(r)
                 
-            reward = - sum(self._lambda[i] * reward[i] for i in range(3))  # Combine reward components into a single scalar using lambda weights
+            if self.reward_clip is not None:
+                r = np.clip(r, -self.reward_clip, self.reward_clip)
+                
+            reward = - sum(self._lambda[i] * r[i] for i in range(3))  # Combine reward components into a single scalar using lambda weights
             
+
             total_reward.append(reward)
         
 
