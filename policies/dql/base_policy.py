@@ -1,5 +1,8 @@
+import math
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import random
 import copy
@@ -12,16 +15,20 @@ from core.task import Task
 
 
 
-class MLP(nn.Module):   
-    def __init__(self, d_in, d_pos,  d_model, output_size, n_layers=2,  bias=True, **kwargs):
+class MLP(nn.Module):
+    def __init__(self, d_in, d_pos,  d_model, output_size, n_layers=2,  bias=True, dropout=0, **kwargs):
         super(MLP, self).__init__()
-        
-        
+
+
         if n_layers < 2:
             raise ValueError("The number of layers must be at least 2.")
         layers = [nn.Linear(d_in*d_pos, d_model, bias=bias), nn.ReLU()]
+        if dropout > 0:
+            layers.append(nn.Dropout(dropout))
         for _ in range(n_layers - 2):
             layers += [nn.Linear(d_model, d_model, bias=bias), nn.ReLU()]
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
         layers.append(nn.Linear(d_model, output_size))
         self.model = nn.Sequential(*layers)
         
@@ -36,6 +43,87 @@ class MLP(nn.Module):
     def register_norm(self, norm):
         self.register_buffer('norm', torch.tensor(norm, dtype=self.dtype).max(dim=0, keepdim=True).values)  # Register the normalization factor as a buffer
         # self.register_buffer('norm', torch.tensor(norm, dtype=dtype).to(device))  # Register the normalization factor as a buffer
+
+
+class NoisyLinear(nn.Module):
+    """Factorised Gaussian NoisyNet linear layer (Fortunato et al., 2017)."""
+
+    def __init__(self, in_features, out_features, sigma_init=0.5, bias=True):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+
+        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
+        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
+        self.register_buffer('weight_epsilon', torch.empty(out_features, in_features))
+
+        if bias:
+            self.bias_mu = nn.Parameter(torch.empty(out_features))
+            self.bias_sigma = nn.Parameter(torch.empty(out_features))
+            self.register_buffer('bias_epsilon', torch.empty(out_features))
+        else:
+            self.bias_mu = self.bias_sigma = None
+
+        self._sigma_init = sigma_init
+        self._reset_parameters()
+        self.reset_noise()
+
+    def _reset_parameters(self):
+        mu_range = 1.0 / math.sqrt(self.in_features)
+        self.weight_mu.data.uniform_(-mu_range, mu_range)
+        self.weight_sigma.data.fill_(self._sigma_init / math.sqrt(self.in_features))
+        if self.bias_mu is not None:
+            self.bias_mu.data.uniform_(-mu_range, mu_range)
+            self.bias_sigma.data.fill_(self._sigma_init / math.sqrt(self.out_features))
+
+    @staticmethod
+    def _f(x):
+        # Factorised noise transform: sgn(x) * sqrt(|x|)
+        return x.sign() * x.abs().sqrt()
+
+    def reset_noise(self):
+        eps_i = self._f(torch.randn(self.in_features, device=self.weight_mu.device))
+        eps_j = self._f(torch.randn(self.out_features, device=self.weight_mu.device))
+        self.weight_epsilon.copy_(eps_j.outer(eps_i))
+        if self.bias_mu is not None:
+            self.bias_epsilon.copy_(eps_j)
+
+    def forward(self, x):
+        if self.training:
+            weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
+            bias = (self.bias_mu + self.bias_sigma * self.bias_epsilon
+                    if self.bias_mu is not None else None)
+        else:
+            weight = self.weight_mu
+            bias = self.bias_mu
+        return F.linear(x, weight, bias)
+
+
+class NoisyMLP(nn.Module):
+    """MLP with all linear layers replaced by NoisyLinear for NoisyNet exploration."""
+
+    def __init__(self, d_in, d_pos, d_model, output_size, n_layers=2, sigma_init=0.5, **kwargs):
+        super().__init__()
+
+        if n_layers < 2:
+            raise ValueError("The number of layers must be at least 2.")
+        layers = [NoisyLinear(d_in * d_pos, d_model, sigma_init=sigma_init), nn.ReLU()]
+        for _ in range(n_layers - 2):
+            layers += [NoisyLinear(d_model, d_model, sigma_init=sigma_init), nn.ReLU()]
+        layers.append(NoisyLinear(d_model, output_size, sigma_init=sigma_init))
+        self.model = nn.Sequential(*layers)
+
+    def reset_noise(self):
+        for m in self.modules():
+            if isinstance(m, NoisyLinear):
+                m.reset_noise()
+
+    def forward(self, x, task):
+        x = x / self.norm
+        return self.model(x.view(x.size(0), -1))
+
+    def register_norm(self, norm, **kwargs):
+        self.register_buffer('norm', torch.tensor(norm, dtype=torch.float32).max(dim=0, keepdim=True).values)
 
 
 class DQNPolicy:
@@ -81,9 +169,22 @@ class DQNPolicy:
             self.temperature_min = config["training"]["exploration"].get("temperature_min", 0.1)
             self.temperature_decay = config["training"]["exploration"].get("temperature_decay", 0.5)
             self.temperature_ema_alpha = None  # computed in set_training_steps()
+        elif config["training"]["exploration"]["strategy"] == "thompson":
+            # n_samples=1: true Thompson Sampling (one posterior sample)
+            # n_samples>1: mean over multiple samples (smoother, less explorative)
+            self.thompson_n_samples = config["training"]["exploration"].get("n_samples", 1)
+        elif config["training"]["exploration"]["strategy"] == "noisy_net":
+            self.noisy_sigma_init = config["training"]["exploration"].get("sigma_init", 0.5)
+        elif config["training"]["exploration"]["strategy"] == "parameter_noise":
+            self.sigma = config["training"]["exploration"].get("sigma", 1.0)
+            self.sigma_start = self.sigma
+            self.sigma_min = config["training"]["exploration"].get("sigma_min", 0.01)
+            self.sigma_decay = config["training"]["exploration"].get("sigma_decay", 0.5)
+            self.sigma_decay_type = config["training"]["exploration"].get("decay_type", "linear")
+            self.sigma_ema_alpha = None  # computed in set_training_steps(), only used for 'exp'
         elif config["training"]["exploration"]["strategy"] == "ucb":
             self.ucb_c = config["training"]["exploration"].get("ucb_c", 1.0)
-        else: 
+        else:
             raise ValueError(f"Unknown exploration strategy: {config['training']['exploration']['strategy']}")
         # Replay buffer for transitions.
         self.buffer_size = config["training"].get("buffer_size", 10000)
@@ -99,6 +200,7 @@ class DQNPolicy:
         self.warmup_steps = 0  # computed in set_training_steps()
         self.total_training_steps = None  # set by set_training_steps()
         self.replay_buffer = deque(maxlen=self.buffer_size)
+        self.double_dqn = config["training"].get("double_dqn", False)
         self.update_count = 0
         self.total_steps = 0
         self.action_counts = np.zeros(self.num_actions, dtype=np.float32)  # for UCB
@@ -170,7 +272,11 @@ class DQNPolicy:
 
 
     def _init_model(self, env: Env, config, dataset=None):
-        self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"])
+        if self.exploration_strategy == "noisy_net":
+            self.model = NoisyMLP(d_in=self.d_obs, d_pos=self.n_observations, output_size=self.num_actions,
+                                  sigma_init=self.noisy_sigma_init, **config["model"])
+        else:
+            self.model = MLP(d_in=self.d_obs, d_pos=self.n_observations, d_task=4, output_size=self.num_actions, **config["model"])
         self.model.register_norm(self._make_observation(env, None, self.obs_type)[0], dataset=dataset)  # Register the normalization factor for latency
         
     def norm_reward(self, reward, _lambda):
@@ -282,10 +388,15 @@ class DQNPolicy:
             decay_steps = max(1, int(total_steps * self.epsilon_decay))
             # At decay_steps: epsilon = 5% of epsilon_start (floored by epsilon_min)
             self.epsilon_ema_alpha = 0.05 ** (1.0 / decay_steps)
+        if self.exploration_strategy == "parameter_noise" and self.sigma_decay_type == "exp":
+            decay_steps = max(1, int(total_steps * self.sigma_decay))
+            # At decay_steps: sigma = 5% of sigma_start (floored by sigma_min)
+            self.sigma_ema_alpha = 0.05 ** (1.0 / decay_steps)
         if self.exploration_strategy == "boltzmann":
             t_decay_steps = max(1, int(total_steps * self.temperature_decay))
             # Per-step EMA alpha: T_start * alpha^t_decay_steps ≈ T_min
             self.temperature_ema_alpha = (self.temperature_min / self.temperature_start) ** (1.0 / t_decay_steps)
+
 
     def _update_epsilon(self):
         """Linearly decay exploration parameter over training."""
@@ -307,12 +418,26 @@ class DQNPolicy:
                 else:
                     self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_min) * (steps_since_learn / decay_steps)
 
+        if self.exploration_strategy == "parameter_noise":
+            if steps_since_learn <= 0:
+                self.sigma = self.sigma_start
+            elif self.sigma_decay_type == "exp" and self.sigma_ema_alpha is not None:
+                self.sigma = max(self.sigma * self.sigma_ema_alpha, self.sigma_min)
+            else:
+                decay_steps = int(self.total_training_steps * self.sigma_decay)
+                if steps_since_learn >= decay_steps:
+                    self.sigma = self.sigma_min
+                else:
+                    self.sigma = self.sigma_start - (self.sigma_start - self.sigma_min) * (steps_since_learn / decay_steps)
+
         # Boltzmann temperature EMA annealing: T <- T * alpha each step
         if self.exploration_strategy == "boltzmann":
             if steps_since_learn <= 0:
                 self.temperature = self.temperature_start
             elif self.temperature_ema_alpha is not None:
                 self.temperature = max(self.temperature * self.temperature_ema_alpha, self.temperature_min)
+
+
 
     def _update_lr(self):
         """Linear LR warmup from 0 to base lr over warmup_steps steps after learning starts."""
@@ -367,6 +492,51 @@ class DQNPolicy:
             else:
                 action = int(torch.argmax(q_values).item())
 
+        elif self.exploration_strategy == "thompson":
+            if train:
+                # MC Dropout: forward pass(es) with model in train() mode to sample
+                # from the approximate posterior over Q-values
+                self.model.train()
+                with torch.no_grad():
+                    if self.thompson_n_samples > 1:
+                        q_values = torch.stack([
+                            self.model(obs_tensor, task_tensor).squeeze()
+                            for _ in range(self.thompson_n_samples)
+                        ]).mean(dim=0)
+                    else:
+                        q_values = self.model(obs_tensor, task_tensor).squeeze()
+                action = int(torch.argmax(q_values).item())
+            else:
+                with torch.no_grad():
+                    self.model.eval()
+                    q_values = self.model(obs_tensor, task_tensor).squeeze()
+                action = int(torch.argmax(q_values).item())
+
+        elif self.exploration_strategy == "noisy_net":
+            if train:
+                # Noise is baked into the weights — reset per step, then argmax
+                self.model.train()
+                self.model.reset_noise()
+                with torch.no_grad():
+                    q_values = self.model(obs_tensor, task_tensor).squeeze()
+            else:
+                # eval() disables noise, forward pass uses weight means only
+                with torch.no_grad():
+                    self.model.eval()
+                    q_values = self.model(obs_tensor, task_tensor).squeeze()
+            action = int(torch.argmax(q_values).item())
+
+        elif self.exploration_strategy == "parameter_noise":
+            with torch.no_grad():
+                self.model.eval()
+                q_values = self.model(obs_tensor, task_tensor).squeeze()
+            if train:
+                # Additive Gaussian noise on Q-values, then argmax
+                noise = torch.randn_like(q_values) * self.sigma
+                action = int(torch.argmax(q_values + noise).item())
+            else:
+                action = int(torch.argmax(q_values).item())
+
         elif self.exploration_strategy == "ucb":
             with torch.no_grad():
                 self.model.eval()
@@ -381,7 +551,7 @@ class DQNPolicy:
 
         else:
             raise ValueError(f"Unknown exploration strategy: '{self.exploration_strategy}'. "
-                             f"Choose from: 'epsilon_greedy', 'boltzmann', 'ucb'.")
+                             f"Choose from: 'epsilon_greedy', 'boltzmann', 'thompson', 'parameter_noise', 'noisy_net', 'ucb'.")
 
         # Return both the chosen action and the current state.
         return action, state
@@ -441,22 +611,25 @@ class DQNPolicy:
 
 
         self.optimizer.zero_grad()
-        
-
 
         # Compute Q-values for the current states
         self.model.train()
+        if self.exploration_strategy == "noisy_net":
+            self.model.reset_noise()
         q_values = self.model(obs_tensor, task_tensor).squeeze()  # Shape: [batch_size, num_actions]
         
         predicted_q = q_values.gather(1, actions_tensor).squeeze()
 
         # Compute target Q-values from next states using target network
         with torch.no_grad():
-            
-
-            next_q_values = self.target_model(next_obs_tensor, next_task_tensor).squeeze()  # Shape: [batch_size, num_actions]
-
-            max_next_q, _ = torch.max(next_q_values, dim=1)
+            if self.double_dqn:
+                # Double DQN: online network selects action, target network evaluates it
+                next_actions = self.model(next_obs_tensor, next_task_tensor).argmax(dim=1, keepdim=True)
+                next_q_values = self.target_model(next_obs_tensor, next_task_tensor)
+                max_next_q = next_q_values.gather(1, next_actions).squeeze()
+            else:
+                next_q_values = self.target_model(next_obs_tensor, next_task_tensor).squeeze()  # Shape: [batch_size, num_actions]
+                max_next_q, _ = torch.max(next_q_values, dim=1)
             target_q = rewards_tensor if self.gamma == 0 else rewards_tensor + (1 - dones_tensor) * self.gamma * max_next_q
 
         # Compute loss over the batch
