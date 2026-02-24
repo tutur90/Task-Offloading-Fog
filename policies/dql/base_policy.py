@@ -73,11 +73,14 @@ class DQNPolicy:
             self.epsilon = self.epsilon_start
             self.epsilon_min = config["training"]["exploration"].get("epsilon_min", 0.01)
             self.epsilon_decay = config["training"]["exploration"].get("epsilon_decay", 0.3)
+            self.epsilon_decay_type = config["training"]["exploration"].get("decay_type", "linear")
+            self.epsilon_ema_alpha = None  # computed in set_training_steps(), only used for 'exp'
         elif config["training"]["exploration"]["strategy"] == "boltzmann":
             self.temperature = config["training"]["exploration"].get("temperature", 1.0)
             self.temperature_start = self.temperature
             self.temperature_min = config["training"]["exploration"].get("temperature_min", 0.1)
             self.temperature_decay = config["training"]["exploration"].get("temperature_decay", 0.5)
+            self.temperature_ema_alpha = None  # computed in set_training_steps()
         elif config["training"]["exploration"]["strategy"] == "ucb":
             self.ucb_c = config["training"]["exploration"].get("ucb_c", 1.0)
         else: 
@@ -275,6 +278,14 @@ class DQNPolicy:
         """Set total training steps for linear epsilon schedule."""
         self.total_training_steps = total_steps
         self.warmup_steps = int(total_steps * self.warmup_ratio)
+        if self.exploration_strategy == "epsilon_greedy" and self.epsilon_decay_type == "exp":
+            decay_steps = max(1, int(total_steps * self.epsilon_decay))
+            # At decay_steps: epsilon = 5% of epsilon_start (floored by epsilon_min)
+            self.epsilon_ema_alpha = 0.05 ** (1.0 / decay_steps)
+        if self.exploration_strategy == "boltzmann":
+            t_decay_steps = max(1, int(total_steps * self.temperature_decay))
+            # Per-step EMA alpha: T_start * alpha^t_decay_steps ≈ T_min
+            self.temperature_ema_alpha = (self.temperature_min / self.temperature_start) ** (1.0 / t_decay_steps)
 
     def _update_epsilon(self):
         """Linearly decay exploration parameter over training."""
@@ -283,24 +294,25 @@ class DQNPolicy:
         steps_since_learn = self.total_steps - self.learning_starts
 
         if self.exploration_strategy == "epsilon_greedy":
-            # ε-greedy decay
-            decay_steps = int(self.total_training_steps * self.epsilon_decay)
             if steps_since_learn <= 0:
                 self.epsilon = self.epsilon_start
-            elif steps_since_learn >= decay_steps:
-                self.epsilon = self.epsilon_min
+            elif self.epsilon_decay_type == "exp" and self.epsilon_ema_alpha is not None:
+                # EMA decay: reaches 5% of epsilon_start at decay_steps, floored by epsilon_min
+                self.epsilon = max(self.epsilon * self.epsilon_ema_alpha, self.epsilon_min)
             else:
-                self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_min) * (steps_since_learn / decay_steps)
+                # Linear decay
+                decay_steps = int(self.total_training_steps * self.epsilon_decay)
+                if steps_since_learn >= decay_steps:
+                    self.epsilon = self.epsilon_min
+                else:
+                    self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_min) * (steps_since_learn / decay_steps)
 
-        # Boltzmann temperature decay
+        # Boltzmann temperature EMA annealing: T <- T * alpha each step
         if self.exploration_strategy == "boltzmann":
-            t_decay_steps = int(self.total_training_steps * self.temperature_decay)
             if steps_since_learn <= 0:
                 self.temperature = self.temperature_start
-            elif steps_since_learn >= t_decay_steps:
-                self.temperature = self.temperature_min
-            else:
-                self.temperature = self.temperature_start - (self.temperature_start - self.temperature_min) * (steps_since_learn / t_decay_steps)
+            elif self.temperature_ema_alpha is not None:
+                self.temperature = max(self.temperature * self.temperature_ema_alpha, self.temperature_min)
 
     def _update_lr(self):
         """Linear LR warmup from 0 to base lr over warmup_steps steps after learning starts."""
@@ -380,6 +392,26 @@ class DQNPolicy:
         """
         self.replay_buffer.append((state, action, reward, next_state, done))
         
+    def aggregate_reward(self, rewards):
+        """
+        Aggregates multiple reward components into a single scalar using lambda weights.
+        """
+        total_reward = []
+        
+        for r in rewards:
+            if not self.reward_storage_norm:
+                r = self._norm_reward_fn(r)
+                
+            if self.reward_clip is not None:
+                r = np.clip(r, -self.reward_clip, self.reward_clip)
+                
+            reward = - sum(self._lambda[i] * r[i] for i in range(3))  # Combine reward components into a single scalar using lambda weights
+            
+
+            total_reward.append(reward)
+            
+        return total_reward
+        
     def _update(self):
         """
         Performs an update over a sampled batch of transitions using batched operations,
@@ -394,19 +426,7 @@ class DQNPolicy:
         obs_batch, task_obs_batch = zip(*states)
         next_obs_batch, next_task_obs_batch = zip(*next_states)
         
-        total_reward = []
-        
-        for r in rewards:
-            if not self.reward_storage_norm:
-                r = self._norm_reward_fn(r)
-                
-            if self.reward_clip is not None:
-                r = np.clip(r, -self.reward_clip, self.reward_clip)
-                
-            reward = - sum(self._lambda[i] * r[i] for i in range(3))  # Combine reward components into a single scalar using lambda weights
-            
-
-            total_reward.append(reward)
+        rewards = self.aggregate_reward(rewards)  # Aggregate reward components into a single scalar for each transition
         
 
         # Convert lists to batched tensors and move them to the device with the appropriate dtype
@@ -416,7 +436,7 @@ class DQNPolicy:
         next_task_tensor = torch.tensor(np.array(next_task_obs_batch), dtype=self.dtype, device=self.device)
 
         actions_tensor = torch.tensor(np.array(actions), dtype=torch.int64, device=self.device).unsqueeze(-1)
-        rewards_tensor = torch.tensor(total_reward, dtype=self.dtype, device=self.device)
+        rewards_tensor = torch.tensor(rewards, dtype=self.dtype, device=self.device)
         dones_tensor = torch.tensor(dones, dtype=self.dtype, device=self.device)
 
 

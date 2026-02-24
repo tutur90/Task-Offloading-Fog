@@ -11,7 +11,7 @@
             "ExeEnergyCoef": 10.7,
             "LocX": 39.6805,
             "LocY": 54.31096,
-            "Location": "Arstead, Lunaria"
+            "Location": "Aralis, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -24,7 +24,7 @@
             "ExeEnergyCoef": 109.0,
             "LocX": 38.58979,
             "LocY": 53.43956,
-            "Location": "Belenis, Lunaria"
+            "Location": "Arenth, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -37,7 +37,7 @@
             "ExeEnergyCoef": 89.8,
             "LocX": 44.73116,
             "LocY": 53.78534,
-            "Location": "Arfell, Lunaria"
+            "Location": "Ardrath, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -50,7 +50,7 @@
             "ExeEnergyCoef": 144.1,
             "LocX": 36.92289,
             "LocY": 50.69555,
-            "Location": "Arshore, Lunaria"
+            "Location": "Arndel, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -76,7 +76,7 @@
             "ExeEnergyCoef": 108.8,
             "LocX": 41.70175,
             "LocY": 57.0182,
-            "Location": "Belndel, Lunaria"
+            "Location": "Armere, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -89,7 +89,7 @@
             "ExeEnergyCoef": 85.7,
             "LocX": 37.44811,
             "LocY": 54.6226,
-            "Location": "Arthis, Lunaria"
+            "Location": "Arridge, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -102,7 +102,7 @@
             "ExeEnergyCoef": 57.3,
             "LocX": 42.68314,
             "LocY": 50.55938,
-            "Location": "Arvale, Lunaria"
+            "Location": "Argate, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -115,7 +115,7 @@
             "ExeEnergyCoef": 93.5,
             "LocX": 44.13136,
             "LocY": 55.6718,
-            "Location": "Arenis, Lunaria"
+            "Location": "Araren, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -128,7 +128,7 @@
             "ExeEnergyCoef": 111.8,
             "LocX": 44.14548,
             "LocY": 54.58852,
-            "Location": "Armarch, Lunaria"
+            "Location": "Argard, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -141,7 +141,7 @@
             "ExeEnergyCoef": 159.7,
             "LocX": 37.62742,
             "LocY": 55.84586,
-            "Location": "Ardarth, Lunaria"
+            "Location": "Arwyn, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -154,7 +154,7 @@
             "ExeEnergyCoef": 67.6,
             "LocX": 40.09526,
             "LocY": 50.90909,
-            "Location": "Arridge, Lunaria"
+            "Location": "Araris, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -167,7 +167,7 @@
             "ExeEnergyCoef": 101.5,
             "LocX": 41.80481,
             "LocY": 55.96409,
-            "Location": "Belmath, Lunaria"
+            "Location": "Arshore, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -180,7 +180,7 @@
             "ExeEnergyCoef": 109.1,
             "LocX": 37.51414,
             "LocY": 55.53226,
-            "Location": "Arholm, Lunaria"
+            "Location": "Armarch, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -193,7 +193,7 @@
             "ExeEnergyCoef": 99.9,
             "LocX": 37.66825,
             "LocY": 56.40962,
-            "Location": "Argard, Lunaria"
+            "Location": "Arden, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -206,7 +206,7 @@
             "ExeEnergyCoef": 105.8,
             "LocX": 44.53816,
             "LocY": 58.75853,
-            "Location": "Arwyn, Lunaria"
+            "Location": "Arstead, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -219,7 +219,7 @@
             "ExeEnergyCoef": 91.1,
             "LocX": 36.06411,
             "LocY": 56.253,
-            "Location": "Argate, Lunaria"
+            "Location": "Arholm, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -232,7 +232,7 @@
             "ExeEnergyCoef": 103.7,
             "LocX": 36.61549,
             "LocY": 59.535,
-            "Location": "Armere, Lunaria"
+            "Location": "Beldrath, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -245,7 +245,7 @@
             "ExeEnergyCoef": 146.6,
             "LocX": 36.11868,
             "LocY": 53.62981,
-            "Location": "Armath, Lunaria"
+            "Location": "Arthal, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -258,7 +258,7 @@
             "ExeEnergyCoef": 108.6,
             "LocX": 44.46949,
             "LocY": 50.85653,
-            "Location": "Arden, Lunaria"
+            "Location": "Arenis, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -271,7 +271,7 @@
             "ExeEnergyCoef": 116.7,
             "LocX": 36.25761,
             "LocY": 56.59751,
-            "Location": "Arthal, Lunaria"
+            "Location": "Belndel, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -284,7 +284,7 @@
             "ExeEnergyCoef": 123.9,
             "LocX": 44.64363,
             "LocY": 59.28913,
-            "Location": "Armora, Lunaria"
+            "Location": "Arthis, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -297,7 +297,7 @@
             "ExeEnergyCoef": 57.0,
             "LocX": 38.73421,
             "LocY": 58.99614,
-            "Location": "Beldrath, Lunaria"
+            "Location": "Arrand, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -323,7 +323,7 @@
             "ExeEnergyCoef": 80.6,
             "LocX": 37.28942,
             "LocY": 59.0542,
-            "Location": "Arvara, Lunaria"
+            "Location": "Arfell, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -336,7 +336,7 @@
             "ExeEnergyCoef": 138.8,
             "LocX": 39.85414,
             "LocY": 55.39234,
-            "Location": "Arford, Lunaria"
+            "Location": "Armath, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -349,7 +349,7 @@
             "ExeEnergyCoef": 101.4,
             "LocX": 36.9041,
             "LocY": 50.96931,
-            "Location": "Ardrath, Lunaria"
+            "Location": "Belmath, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -362,7 +362,7 @@
             "ExeEnergyCoef": 87.3,
             "LocX": 42.29076,
             "LocY": 56.73365,
-            "Location": "Arthyn, Lunaria"
+            "Location": "Arvale, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -375,7 +375,7 @@
             "ExeEnergyCoef": 96.4,
             "LocX": 43.61673,
             "LocY": 52.48656,
-            "Location": "Araris, Lunaria"
+            "Location": "Belenis, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -388,7 +388,7 @@
             "ExeEnergyCoef": 144.2,
             "LocX": 37.78545,
             "LocY": 52.49806,
-            "Location": "Arenth, Lunaria"
+            "Location": "Armora, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -401,7 +401,7 @@
             "ExeEnergyCoef": 143.4,
             "LocX": 35.97909,
             "LocY": 56.52145,
-            "Location": "Araren, Lunaria"
+            "Location": "Arvara, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -414,7 +414,7 @@
             "ExeEnergyCoef": 68.1,
             "LocX": 36.66311,
             "LocY": 54.85641,
-            "Location": "Belmere, Lunaria"
+            "Location": "Ardarth, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -427,7 +427,7 @@
             "ExeEnergyCoef": 155.3,
             "LocX": 35.02155,
             "LocY": 53.90422,
-            "Location": "Arndel, Lunaria"
+            "Location": "Arthyn, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -440,7 +440,7 @@
             "ExeEnergyCoef": 73.9,
             "LocX": 44.95423,
             "LocY": 55.55768,
-            "Location": "Arrand, Lunaria"
+            "Location": "Arford, Lunaria"
         },
         {
             "DeviceType": "Fog",
@@ -466,7 +466,7 @@
             "ExeEnergyCoef": 58.8,
             "LocX": 40.0285,
             "LocY": 58.5272,
-            "Location": "Aralis, Lunaria"
+            "Location": "Belmere, Lunaria"
         },
         {
             "DeviceType": "Cloud",

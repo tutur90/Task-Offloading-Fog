@@ -25,7 +25,11 @@ training:
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration: {'strategy': 'epsilon_greedy', 'epsilon': 1.0, 'epsilon_min': 0.05, 'epsilon_decay': 0.5}
+  exploration:
+    strategy: "boltzmann"
+    temperature: 1.0
+    temperature_min: 0.05
+    temperature_decay: 0.5
 
   reward:
     momentum: 0.999
@@ -46,7 +50,7 @@ model:
   n_layers: 2
   # obs_type: ["cpu"]
   # obs_type: ["cpu", "buffer"]
-  obs_type: ["cpu", "bw", "buffer"]
+  obs_type: ["cpu", "bw", "buffer", "task"]
   bias: true
   dropout: 0
 
