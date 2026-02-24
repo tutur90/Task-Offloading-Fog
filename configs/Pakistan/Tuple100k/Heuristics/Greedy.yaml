@@ -12,5 +12,5 @@ env:
   refresh_rate: 0.005
 
 
-obs_type: "cpu" 
+obs_type: "buffer" 
 

@@ -7,6 +7,6 @@ eval:
   expected_values: [0.2, 4.0, 300.0]
 
 env:
-  dataset: "Pakistan"
-  flag: "Tuple30K"
+  dataset: "Synthetic"
+  flag: "50N100T150D"
   refresh_rate: 0.005

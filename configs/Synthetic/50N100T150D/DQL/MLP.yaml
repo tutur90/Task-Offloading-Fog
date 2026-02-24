@@ -1,4 +1,3 @@
-
 policy: "MLP"
 algo: "DQL"
 
@@ -6,7 +5,7 @@ seed: 42
 
 env:
   dataset: "Synthetic"
-  flag: "50N100T100D"
+  flag: "50N100T150D"
   refresh_rate: 0.005
 
 eval:
@@ -22,40 +21,37 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 2000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 5.e-5
+  lr: 8.e-5
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
   exploration:
-    strategy: "boltzmann"
-    temperature: 1.
-    temperature_min: 0.05
-    temperature_decay: 0.5
-
-  # clip_grad_norm: 1.0          # Max norm for gradient clipping
+    strategy: "epsilon_greedy"
+    epsilon: 1.0
+    epsilon_min: 0.05
+    epsilon_decay: 0.5
+    decay_type: "exp"
 
   reward:
     momentum: 0.999
-    norm: "standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    norm: "log1p_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     scale: 1
     eps: 1.e-2
 
-
   optimizer:
     type: "RMSprop"
-    weight_decay: 0
+    # weight_decay: 0
+    
   lambda: [0.350000,0.350000,0.300000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 
 model:
-  d_model: 256
-  n_layers: 3
+  d_model: 512
+  n_layers: 2
   # obs_type: ["cpu"]
   # obs_type: ["cpu", "buffer"]
   obs_type: ["cpu", "bw", "buffer"]
   bias: true
   dropout: 0
-
-
 

@@ -279,7 +279,7 @@ def main():
                         help="Number of tasks (derived from density × nodes if omitted)")
     parser.add_argument("--num-nodes", type=int, default=None,
                         help="Total nodes incl. 1 edge (max 200, derived if omitted)")
-    parser.add_argument("--density", type=float, default=REF_DENSITY,
+    parser.add_argument("--density", type=float, default=None,
                         help=f"Tasks per node per minute (default: {REF_DENSITY:.2f})")
     parser.add_argument("--max-time", type=float, default=REF_MAX_TIME_S,
                         help=f"Max generation time in seconds (default: {REF_MAX_TIME_S})")
@@ -289,8 +289,8 @@ def main():
                         help=f"Cloud fraction of non-edge nodes (default: {DEFAULT_CLOUD_RATIO:.4f})")
     parser.add_argument("--train-ratio", type=float, default=0.7,
                         help="Train split fraction (default: 0.7)")
-    parser.add_argument("--output-dir",  type=str, default="./output",
-                        help="Output directory (default: ./output)")
+    parser.add_argument("--output-dir",  type=str, default=None,
+                        help="Output directory (default: ./data/{N}N{T}T{D}D)")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED,
                         help=f"Random seed (default: {DEFAULT_SEED})")
 
@@ -301,6 +301,9 @@ def main():
     random.seed(args.seed)
     np.random.seed(args.seed)
 
+    density_given = args.density is not None
+    density = args.density if density_given else REF_DENSITY
+
     total_r = args.fog_ratio + args.cloud_ratio
     fog_r   = args.fog_ratio   / total_r
     cloud_r = args.cloud_ratio / total_r
@@ -310,15 +313,19 @@ def main():
     if args.num_tasks is not None and args.num_nodes is not None:
         num_tasks   = args.num_tasks
         total_nodes = min(MAX_NODES, max(3, args.num_nodes))
+        if density_given:
+            # All three specified: derive max_time from num_tasks, num_nodes, density
+            max_time_min  = num_tasks / (total_nodes * density)
+            args.max_time = max_time_min * 60
         eff_density = num_tasks / (total_nodes * max_time_min)
     elif args.num_tasks is not None:
         num_tasks   = args.num_tasks
-        total_nodes = min(MAX_NODES, max(3, round(num_tasks / (args.density * max_time_min))))
-        eff_density = args.density
+        total_nodes = min(MAX_NODES, max(3, round(num_tasks / (density * max_time_min))))
+        eff_density = density
     else:
         total_nodes = min(MAX_NODES, max(3, args.num_nodes))
-        num_tasks   = max(10, round(args.density * total_nodes * max_time_min))
-        eff_density = args.density
+        num_tasks   = max(10, round(density * total_nodes * max_time_min))
+        eff_density = density
 
     # ── Fog / cloud split ──
     non_edge  = total_nodes - 1
@@ -327,6 +334,10 @@ def main():
     if num_fog + num_cloud != non_edge:
         num_fog = non_edge - num_cloud
     total_nodes = 1 + num_fog + num_cloud
+
+    if args.output_dir is None:
+        tasks_k = num_tasks // 1000
+        args.output_dir = f"./data/{total_nodes}N{tasks_k}T{round(eff_density)}D"
 
     print(f"┌─ Configuration ────────────────────────────────────")
     print(f"│  Nodes   : {total_nodes} total  (1 edge, {num_fog} fog, {num_cloud} cloud)")

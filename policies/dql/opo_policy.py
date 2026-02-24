@@ -318,6 +318,8 @@ class OPOPolicy(DQNPolicy):
         states, actions, rewards, next_states, dones = zip(*batch)
         obs_batch, task_obs_batch = zip(*states)
         next_obs_batch, next_task_obs_batch = zip(*next_states)
+        
+        rewards = self.aggregate_reward(rewards)  # Aggregate reward components into a single scalar for each transition
 
         obs_tensor = torch.tensor(np.array(obs_batch), dtype=self.dtype, device=self.device)
         task_tensor = torch.tensor(np.array(task_obs_batch), dtype=self.dtype, device=self.device)
@@ -348,8 +350,8 @@ class OPOPolicy(DQNPolicy):
         loss = self.criterion(predicted_q, target_q)
         loss.backward()
 
-        if self.clip_grad_norm:
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip_grad_norm)
+        
+        grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip_grad_norm)
 
         self.optimizer.step()
 
@@ -357,7 +359,8 @@ class OPOPolicy(DQNPolicy):
         self._train_load_lstm()
         self._train_task_lstm()
 
-        return loss.item()
+
+        return loss.item(), grad_norm.item()
 
     # ------------------------------------------------------------------
     # Checkpoint helpers (extend base class to include LSTMs)

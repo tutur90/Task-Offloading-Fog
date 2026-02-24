@@ -8,6 +8,9 @@ eval:
 
 env:
   dataset: "Synthetic"
-  flag: "50N100T100D"
+  flag: "50N100T150D"
   refresh_rate: 0.005
+
+
+obs_type: "cpu" 
 

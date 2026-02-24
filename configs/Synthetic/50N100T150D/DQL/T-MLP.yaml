@@ -50,7 +50,7 @@ model:
   n_layers: 2
   # obs_type: ["cpu"]
   # obs_type: ["cpu", "buffer"]
-  obs_type: ["cpu", "bw", "buffer"]
+  obs_type: ["cpu", "bw", "buffer", "task"]
   bias: true
   dropout: 0
 
