@@ -1,6 +1,6 @@
 
-policy: "Greedy"
-algo: "Greedy"
+policy: "Random"
+algo: "Random"
 
 eval:
   lambda: [1.889e-03, 4.394e+00, 2.605e+02]
@@ -8,9 +8,5 @@ eval:
 
 env:
   dataset: "Synthetic"
-  flag: "50N100T150D"
+  flag: "100N100T180D"
   refresh_rate: 0.005
-
-
-obs_type: "buffer" 
-
