@@ -21,19 +21,15 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 2000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 1.e-4
+  lr: 8.e-5
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration:
-    strategy: "boltzmann"
-    temperature: 1.0
-    temperature_min: 0.05
-    temperature_decay: 0.5
+  exploration: {'strategy': 'epsilon_greedy', 'epsilon': 1.0, 'epsilon_min': 0.05, 'epsilon_decay': 0.5}
 
   reward:
     momentum: 0.999
-    norm: "standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    norm: "log1p_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     scale: 1
     eps: 1.e-2
 
@@ -46,7 +42,7 @@ training:
   log_freq: 0      # Steps between logging training metrics
 
 model:
-  d_model: 256
+  d_model: 512
   n_layers: 2
   # obs_type: ["cpu"]
   # obs_type: ["cpu", "buffer"]
