@@ -157,31 +157,26 @@ class DQNPolicy:
         self.exploration_strategy = config["training"]["exploration"]["strategy"]
         
         _expl = config["training"]["exploration"]
-        if _expl["strategy"] == "epsilon_greedy":
-            self.explore_start = _expl.get("epsilon", 1.0)
-            self.explore_min   = _expl.get("epsilon_min", 0.01)
-            self.explore_decay = _expl.get("epsilon_decay", 0.3)
-        elif _expl["strategy"] == "boltzmann":
-            self.explore_start = _expl.get("temperature", 1.0)
-            self.explore_min   = _expl.get("temperature_min", 0.1)
-            self.explore_decay = _expl.get("temperature_decay", 0.5)
-        elif _expl["strategy"] == "thompson":
-            # n_samples=1: true Thompson Sampling (one posterior sample)
-            # n_samples>1: mean over multiple samples (smoother, less explorative)
+        # Default (value, min, decay_fraction) per strategy
+        _DEFAULTS = {
+            "epsilon_greedy":  (1.0, 0.01, 0.3),
+            "boltzmann":       (1.0, 0.1,  0.5),
+            "parameter_noise": (1.0, 0.01, 0.5),
+            "ucb":             (1.0, None, 1.0),  # min=None → defaults to value (no decay)
+        }
+        if self.exploration_strategy == "thompson":
             self.thompson_n_samples = _expl.get("n_samples", 1)
-        elif _expl["strategy"] == "noisy_net":
+        elif self.exploration_strategy == "noisy_net":
             self.noisy_sigma_init = _expl.get("sigma_init", 0.5)
-        elif _expl["strategy"] == "parameter_noise":
-            self.explore_start = _expl.get("sigma", 1.0)
-            self.explore_min   = _expl.get("sigma_min", 0.01)
-            self.explore_decay = _expl.get("sigma_decay", 0.5)
-        elif _expl["strategy"] == "ucb":
-            self.explore_start = _expl.get("ucb_c", 1.0)
-            self.explore_min   = _expl.get("ucb_c_min", self.explore_start)
-            self.explore_decay = _expl.get("ucb_c_decay", 1.0)
-            self.ucb_count_decay = _expl.get("count_decay", 1.0)  # γ ∈ (0,1]; 1.0 = no decay
+        elif self.exploration_strategy in _DEFAULTS:
+            _dv, _dmin, _ddecay = _DEFAULTS[self.exploration_strategy]
+            self.explore_start = _expl.get("explore_value", _dv)
+            self.explore_min   = _expl.get("explore_min",   _dmin if _dmin is not None else self.explore_start)
+            self.explore_decay = _expl.get("explore_decay", _ddecay)
+            if self.exploration_strategy == "ucb":
+                self.ucb_count_decay = _expl.get("count_decay", 1.0)  # γ ∈ (0,1]; 1.0 = no decay
         else:
-            raise ValueError(f"Unknown exploration strategy: {_expl['strategy']}")
+            raise ValueError(f"Unknown exploration strategy: {self.exploration_strategy}")
 
         if self.exploration_strategy not in ("thompson", "noisy_net"):
             self.explore_decay_type = _expl.get("decay_type", "linear")
