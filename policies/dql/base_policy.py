@@ -323,10 +323,8 @@ class DQNPolicy:
             
         return r
     
-    def _norm_reward(self, reward, _lambda, log1p=False):
+    def _norm_reward(self, reward, _lambda):
         
-        if log1p:
-            reward = [np.log1p(r) if r else 0 for r in reward]
 
         self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if reward[i] else self.reward_mean[i] for i in range(3)]  
         self.reward_var = [self.reward_var[i] * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) if reward[i] else self.reward_var[i] for i in range(3)]
@@ -609,7 +607,7 @@ class DQNPolicy:
 
         return loss.item(), grad_norm.item()    
 
-    def update(self):
+    def update(self, metric_momentum=0.99995):
         """
         Performs an update over a sampled batch of transitions using batched operations,
         moves tensors to the appropriate device and dtype.
@@ -625,8 +623,8 @@ class DQNPolicy:
             loss, grad_norm = self._update()
             if self.soft_update:
                 self.update_target_network()
-            self.avg_loss = self.avg_loss * 0.999 + loss * 0.001
-            self.avg_grad_norm = self.avg_grad_norm * 0.999 + grad_norm * 0.001 
+            self.avg_loss = self.avg_loss * metric_momentum + loss * (1 - metric_momentum)
+            self.avg_grad_norm = self.avg_grad_norm * metric_momentum + grad_norm * (1 - metric_momentum) 
             return loss, grad_norm
 
     def update_target_network(self):

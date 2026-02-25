@@ -23,7 +23,7 @@ training:
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration: {'strategy': 'ucb', 'ucb_c': 2.0}
+  exploration: {'strategy': 'ucb', 'explore_value': 6.0}
 
   reward:
     momentum: 0.999
@@ -36,12 +36,12 @@ training:
 
   optimizer:
     type: "RMSprop"
-    # weight_decay: 0.005
+    weight_decay: 0.005
 
   lambda: [0.350000,0.350000,0.300000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
-  # clip_grad_norm: 15.0          # Max norm for gradient clipping
+  clip_grad_norm: 1.0          # Max norm for gradient clipping
 
 
 model:
@@ -54,4 +54,4 @@ model:
   obs_type: ["cpu", "bw", "buffer"]
 
 
-    
+device: auto
