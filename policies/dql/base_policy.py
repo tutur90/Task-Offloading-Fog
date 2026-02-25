@@ -156,36 +156,37 @@ class DQNPolicy:
         
         self.exploration_strategy = config["training"]["exploration"]["strategy"]
         
-        if config["training"]["exploration"]["strategy"] == "epsilon_greedy":
-            self.epsilon_start = config["training"]["exploration"].get("epsilon", 1.0)
-            self.epsilon = self.epsilon_start
-            self.epsilon_min = config["training"]["exploration"].get("epsilon_min", 0.01)
-            self.epsilon_decay = config["training"]["exploration"].get("epsilon_decay", 0.3)
-            self.epsilon_decay_type = config["training"]["exploration"].get("decay_type", "linear")
-            self.epsilon_ema_alpha = None  # computed in set_training_steps(), only used for 'exp'
-        elif config["training"]["exploration"]["strategy"] == "boltzmann":
-            self.temperature = config["training"]["exploration"].get("temperature", 1.0)
-            self.temperature_start = self.temperature
-            self.temperature_min = config["training"]["exploration"].get("temperature_min", 0.1)
-            self.temperature_decay = config["training"]["exploration"].get("temperature_decay", 0.5)
-            self.temperature_ema_alpha = None  # computed in set_training_steps()
-        elif config["training"]["exploration"]["strategy"] == "thompson":
+        _expl = config["training"]["exploration"]
+        if _expl["strategy"] == "epsilon_greedy":
+            self.explore_start = _expl.get("epsilon", 1.0)
+            self.explore_min   = _expl.get("epsilon_min", 0.01)
+            self.explore_decay = _expl.get("epsilon_decay", 0.3)
+        elif _expl["strategy"] == "boltzmann":
+            self.explore_start = _expl.get("temperature", 1.0)
+            self.explore_min   = _expl.get("temperature_min", 0.1)
+            self.explore_decay = _expl.get("temperature_decay", 0.5)
+        elif _expl["strategy"] == "thompson":
             # n_samples=1: true Thompson Sampling (one posterior sample)
             # n_samples>1: mean over multiple samples (smoother, less explorative)
-            self.thompson_n_samples = config["training"]["exploration"].get("n_samples", 1)
-        elif config["training"]["exploration"]["strategy"] == "noisy_net":
-            self.noisy_sigma_init = config["training"]["exploration"].get("sigma_init", 0.5)
-        elif config["training"]["exploration"]["strategy"] == "parameter_noise":
-            self.sigma = config["training"]["exploration"].get("sigma", 1.0)
-            self.sigma_start = self.sigma
-            self.sigma_min = config["training"]["exploration"].get("sigma_min", 0.01)
-            self.sigma_decay = config["training"]["exploration"].get("sigma_decay", 0.5)
-            self.sigma_decay_type = config["training"]["exploration"].get("decay_type", "linear")
-            self.sigma_ema_alpha = None  # computed in set_training_steps(), only used for 'exp'
-        elif config["training"]["exploration"]["strategy"] == "ucb":
-            self.ucb_c = config["training"]["exploration"].get("ucb_c", 1.0)
+            self.thompson_n_samples = _expl.get("n_samples", 1)
+        elif _expl["strategy"] == "noisy_net":
+            self.noisy_sigma_init = _expl.get("sigma_init", 0.5)
+        elif _expl["strategy"] == "parameter_noise":
+            self.explore_start = _expl.get("sigma", 1.0)
+            self.explore_min   = _expl.get("sigma_min", 0.01)
+            self.explore_decay = _expl.get("sigma_decay", 0.5)
+        elif _expl["strategy"] == "ucb":
+            self.explore_start = _expl.get("ucb_c", 1.0)
+            self.explore_min   = _expl.get("ucb_c_min", self.explore_start)
+            self.explore_decay = _expl.get("ucb_c_decay", 1.0)
+            self.ucb_count_decay = _expl.get("count_decay", 1.0)  # γ ∈ (0,1]; 1.0 = no decay
         else:
-            raise ValueError(f"Unknown exploration strategy: {config['training']['exploration']['strategy']}")
+            raise ValueError(f"Unknown exploration strategy: {_expl['strategy']}")
+
+        if self.exploration_strategy not in ("thompson", "noisy_net"):
+            self.explore_decay_type = _expl.get("decay_type", "linear")
+            self.explore_value = self.explore_start
+            self.explore_ema_alpha = None  # computed in set_training_steps(), only used for 'exp'
         # Replay buffer for transitions.
         self.buffer_size = config["training"].get("buffer_size", 10000)
         self.batch_size = config["training"].get("batch_size", 64)
@@ -381,61 +382,30 @@ class DQNPolicy:
         return obs, task_obs
 
     def set_training_steps(self, total_steps):
-        """Set total training steps for linear epsilon schedule."""
+        """Set total training steps for exploration schedule."""
         self.total_training_steps = total_steps
         self.warmup_steps = int(total_steps * self.warmup_ratio)
-        if self.exploration_strategy == "epsilon_greedy" and self.epsilon_decay_type == "exp":
-            decay_steps = max(1, int(total_steps * self.epsilon_decay))
-            # At decay_steps: epsilon = 5% of epsilon_start (floored by epsilon_min)
-            self.epsilon_ema_alpha = 0.05 ** (1.0 / decay_steps)
-        if self.exploration_strategy == "parameter_noise" and self.sigma_decay_type == "exp":
-            decay_steps = max(1, int(total_steps * self.sigma_decay))
-            # At decay_steps: sigma = 5% of sigma_start (floored by sigma_min)
-            self.sigma_ema_alpha = 0.05 ** (1.0 / decay_steps)
-        if self.exploration_strategy == "boltzmann":
-            t_decay_steps = max(1, int(total_steps * self.temperature_decay))
-            # Per-step EMA alpha: T_start * alpha^t_decay_steps ≈ T_min
-            self.temperature_ema_alpha = (self.temperature_min / self.temperature_start) ** (1.0 / t_decay_steps)
+        if self.exploration_strategy not in ("thompson", "noisy_net") and self.explore_decay_type == "exp" and self.explore_min < self.explore_start:
+            decay_steps = max(1, int(total_steps * self.explore_decay))
+            # EMA alpha s.t. explore_start * alpha^decay_steps = explore_min
+            self.explore_ema_alpha = (self.explore_min / self.explore_start) ** (1.0 / decay_steps)
 
 
-    def _update_epsilon(self):
-        """Linearly decay exploration parameter over training."""
-        if self.total_training_steps is None:
+    def _update_explore(self):
+        """Decay the exploration parameter over training (linear or exp)."""
+        if self.total_training_steps is None or self.exploration_strategy in ("thompson", "noisy_net"):
             return
         steps_since_learn = self.total_steps - self.learning_starts
-
-        if self.exploration_strategy == "epsilon_greedy":
-            if steps_since_learn <= 0:
-                self.epsilon = self.epsilon_start
-            elif self.epsilon_decay_type == "exp" and self.epsilon_ema_alpha is not None:
-                # EMA decay: reaches 5% of epsilon_start at decay_steps, floored by epsilon_min
-                self.epsilon = max(self.epsilon * self.epsilon_ema_alpha, self.epsilon_min)
+        if steps_since_learn <= 0:
+            self.explore_value = self.explore_start
+        elif self.explore_decay_type == "exp" and self.explore_ema_alpha is not None:
+            self.explore_value = max(self.explore_value * self.explore_ema_alpha, self.explore_min)
+        else:
+            decay_steps = int(self.total_training_steps * self.explore_decay)
+            if steps_since_learn >= decay_steps:
+                self.explore_value = self.explore_min
             else:
-                # Linear decay
-                decay_steps = int(self.total_training_steps * self.epsilon_decay)
-                if steps_since_learn >= decay_steps:
-                    self.epsilon = self.epsilon_min
-                else:
-                    self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_min) * (steps_since_learn / decay_steps)
-
-        if self.exploration_strategy == "parameter_noise":
-            if steps_since_learn <= 0:
-                self.sigma = self.sigma_start
-            elif self.sigma_decay_type == "exp" and self.sigma_ema_alpha is not None:
-                self.sigma = max(self.sigma * self.sigma_ema_alpha, self.sigma_min)
-            else:
-                decay_steps = int(self.total_training_steps * self.sigma_decay)
-                if steps_since_learn >= decay_steps:
-                    self.sigma = self.sigma_min
-                else:
-                    self.sigma = self.sigma_start - (self.sigma_start - self.sigma_min) * (steps_since_learn / decay_steps)
-
-        # Boltzmann temperature EMA annealing: T <- T * alpha each step
-        if self.exploration_strategy == "boltzmann":
-            if steps_since_learn <= 0:
-                self.temperature = self.temperature_start
-            elif self.temperature_ema_alpha is not None:
-                self.temperature = max(self.temperature * self.temperature_ema_alpha, self.temperature_min)
+                self.explore_value = self.explore_start - (self.explore_start - self.explore_min) * (steps_since_learn / decay_steps)
 
 
 
@@ -465,7 +435,7 @@ class DQNPolicy:
 
         if train:
             self.total_steps += 1
-            self._update_epsilon()
+            self._update_explore()
 
         # Random warm-up phase regardless of strategy
         if train and self.total_steps <= self.learning_starts:
@@ -473,7 +443,7 @@ class DQNPolicy:
             return action, state
 
         if self.exploration_strategy == "epsilon_greedy":
-            if train and random.random() < self.epsilon:
+            if train and random.random() < self.explore_value:
                 action = random.randrange(self.num_actions)
             else:
                 with torch.no_grad():
@@ -487,7 +457,7 @@ class DQNPolicy:
                 q_values = self.model(obs_tensor, task_tensor).squeeze()
             if train:
                 # Sample from softmax(Q / temperature)
-                probs = torch.softmax(q_values / self.temperature, dim=0).cpu().numpy()
+                probs = torch.softmax(q_values / self.explore_value, dim=0).cpu().numpy()
                 action = int(np.random.choice(self.num_actions, p=probs))
             else:
                 action = int(torch.argmax(q_values).item())
@@ -532,7 +502,7 @@ class DQNPolicy:
                 q_values = self.model(obs_tensor, task_tensor).squeeze()
             if train:
                 # Additive Gaussian noise on Q-values, then argmax
-                noise = torch.randn_like(q_values) * self.sigma
+                noise = torch.randn_like(q_values) * self.explore_value
                 action = int(torch.argmax(q_values + noise).item())
             else:
                 action = int(torch.argmax(q_values).item())
@@ -542,8 +512,10 @@ class DQNPolicy:
                 self.model.eval()
                 q_values = self.model(obs_tensor, task_tensor).squeeze().cpu().numpy()
             if train:
+                # Decay counts to forget old visits (non-stationary support)
+                self.action_counts *= self.ucb_count_decay
                 # UCB bonus: c * sqrt(log(t) / (1 + N(a)))
-                bonus = self.ucb_c * np.sqrt(np.log(self.total_steps + 1) / (1 + self.action_counts))
+                bonus = self.explore_value * np.sqrt(1/self.num_actions) * np.sqrt(np.log1p(np.sum(self.action_counts)) / (1 + self.action_counts))
                 action = int(np.argmax(q_values + bonus))
                 self.action_counts[action] += 1
             else:

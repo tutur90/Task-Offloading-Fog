@@ -26,7 +26,7 @@ training:
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration: {'strategy': 'ucb', 'ucb_c': 2.0}
+  exploration: {'strategy': 'ucb', explore_value: 6.0 }
 
   reward:
     momentum: 0.999

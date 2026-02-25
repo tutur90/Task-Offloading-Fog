@@ -14,7 +14,7 @@ eval:
 
 
 training:
-  num_epochs: 50
+  num_epochs: 40
   learning_starts: 5000    # random steps before learning begins
   warmup: 0                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
@@ -25,8 +25,7 @@ training:
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration:
-    strategy: "thompson"
+  exploration: {'strategy': 'ucb', explore_value: 2.0 }
 
   reward:
     momentum: 0.999

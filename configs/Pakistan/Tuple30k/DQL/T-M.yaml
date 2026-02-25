@@ -15,7 +15,7 @@ eval:
 
 
 training:
-    num_epochs: 40
+    num_epochs: 20
     learning_starts: 5000
     warmup: 0
     buffer_size: 50000
@@ -25,7 +25,7 @@ training:
     lr: 0.0002
     lr_decay: 1
     gamma: 0.99
-    exploration: {'strategy': 'boltzmann', 'temperature': 1.0, 'temperature_min': 0.1, 'temperature_decay': 0.7}
+    exploration: {'strategy': 'boltzmann', 'temperature': 0.20, 'temperature_min': 0.08, 'temperature_decay': 0.7, "decay_type": "linear"}
     reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01}
     optimizer: {'type': 'RMSprop', 'weight_decay': 0}
     lambda: [0.35, 0.35, 0.3]

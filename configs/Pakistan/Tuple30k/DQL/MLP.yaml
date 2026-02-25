@@ -25,12 +25,7 @@ training:
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration:
-    strategy: "ucb"
-    ucb_c: 2.0
-    ucb_c_min: 0.1        # final value after decay (default: no decay)
-    ucb_c_decay: 0.5      # fraction of training steps over which to decay
-    decay_type: "linear"  # "linear" or "exp"
+  exploration: {'strategy': 'ucb', explore_value: 2.0, explore_min: 0.1, count_decay: 0.9995, }
 
   reward:
     momentum: 0.999
