@@ -23,7 +23,7 @@ class NATD(BaseModel):
         # self.trasformer_encoder = TransformerEncoder(d_model=d_model, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout)
 
         self.transformer_encoder = nn.TransformerDecoder(
-            encoder_layer=nn.TransformerDecoderLayer(
+            decoder_layer=nn.TransformerDecoderLayer(
                 d_model=d_model,
                 nhead=n_heads,
                 dim_feedforward=d_ff if d_ff is not None else d_model*mlp_ratio,
@@ -32,9 +32,7 @@ class NATD(BaseModel):
                 batch_first=True,
                 activation="gelu"
                 ),
-            num_layers=n_layers,
-            mask_check=False,
-            enable_nested_tensor=False
+            num_layers=n_layers
         )
         self.fc = nn.Linear(d_model, 1)
 
@@ -44,7 +42,7 @@ class NATD(BaseModel):
         x = self.nodes_embed(nodes)
         x = self.pos_nodes_embed(x)
 
-        x = self.transformer_encoder(x, self.task_embed(task), tgt_is_causal=False)
+        x = self.transformer_encoder(x, self.task_embed(task).unsqueeze(1), tgt_is_causal=False)
 
         x = self.fc(x)
         return x
