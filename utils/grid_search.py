@@ -84,7 +84,9 @@ def parse_grid_search_params(param_strings):
     """
     param_specs = {}
     for param_str in param_strings:
+        print(f"Parsing grid search param: {param_str}")
         key, values_str = param_str.split("=")
+        
         values = []
         for v in values_str.split(","):
             v = v.strip()
