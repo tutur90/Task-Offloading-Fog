@@ -14,7 +14,7 @@ eval:
 
 
 training:
-    num_epochs: 50
+    num_epochs: 60
     learning_starts: 5000
     warmup: 0
     buffer_size: 50000
@@ -28,7 +28,7 @@ training:
     reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
     optimizer: {'type': 'RMSprop'}
     lambda: [0.35, 0.35, 0.3]
-    early_stop_patience: 20
+    early_stop_patience: 25
     log_freq: 0
 
 model:
