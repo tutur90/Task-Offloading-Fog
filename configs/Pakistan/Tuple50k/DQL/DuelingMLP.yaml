@@ -25,6 +25,7 @@ training:
   lr: 3.e-4
   lr_decay: 1
   gamma: 0.99
+  double_dqn: true
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
   exploration:
     strategy: "boltzmann"

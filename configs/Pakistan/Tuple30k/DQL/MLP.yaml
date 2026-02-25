@@ -11,34 +11,30 @@ env:
 
 eval:
   lambda: [1.889e-03, 4.394e+00, 2.605e+02]
-  expected_values: [0.2, 4.0, 300.0]
 
 
 training:
-  num_epochs: 40
+  num_epochs: 30
   learning_starts: 5000    # random steps before learning begins
   warmup: 0                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
   batch_size: 512          # samples per update
   target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 5.e-4
+  lr: 5.e-5
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration:
-    strategy: "boltzmann"
-    temperature: 1.0
-    temperature_min: 0.05
-    temperature_decay: 0.5
-
-  clip_grad_norm: 1.0          # Max norm for gradient clipping
+  exploration: {'strategy': 'ucb', explore_value: 2.0, explore_min: 0.1, count_decay: 0.9995, }
 
   reward:
     momentum: 0.999
-    norm: "ln_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    norm: "log1p_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     scale: 1
     eps: 1.e-2
+    clip: 5.0
+    storage_norm: true
+
   optimizer:
     type: "RMSprop"
     weight_decay: 0
