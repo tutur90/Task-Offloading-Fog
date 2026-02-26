@@ -6,7 +6,7 @@ from policies.model.modules.noebert import NeoBERT, NeoBERTConfig
 
 
 class NATE(BaseModel):
-    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, qk_norm=True, **kwargs):
+    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, qk_norm=True, learnable_qk_norm=True, **kwargs):
         super().__init__()
 
         self.nodes_embed = nn.Linear(d_in, d_model)
@@ -18,6 +18,7 @@ class NATE(BaseModel):
             intermediate_size=d_ff if d_ff is not None else d_model * mlp_ratio,
             dropout=dropout,
             qk_norm=qk_norm,
+            learnable_qk_norm=learnable_qk_norm,
         ))
         self.fc = nn.Linear(d_model, 1)
 

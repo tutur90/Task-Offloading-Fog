@@ -37,13 +37,18 @@ class NeoBERTConfig:
     norm_eps: float = 1e-6
     dropout: float = 0.0
     qk_norm: bool = True
+    learnable_qk_norm: bool = True
 
     def __post_init__(self):
         if self.hidden_size % self.num_attention_heads != 0:
             raise ValueError("hidden_size must be divisible by num_attention_heads")
         self.dim_head = self.hidden_size // self.num_attention_heads
 
+def rmsnorm(x, eps):
+    def _norm(y):
+        return y * torch.rsqrt(y.pow(2).mean(-1, keepdim=True) + eps)
 
+    return _norm(x.float()).type_as(x)
 # --- Encoder Block ---
 
 class EncoderBlock(nn.Module):
@@ -63,8 +68,10 @@ class EncoderBlock(nn.Module):
         self.ffn_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
         self.dropout = nn.Dropout(config.dropout)
         
-        if config.qk_norm:
-            self.tau = self.tau = nn.Parameter(torch.ones(config.num_attention_heads, 1))
+        if config.qk_norm and config.learnable_qk_norm:
+            self.tau = nn.Parameter(torch.ones(config.num_attention_heads, 1))
+        else:
+            self.tau = None
 
     def forward(self, x, attention_mask, output_attentions, max_seqlen=None, cu_seqlens=None):
         attn_output, attn_weights = self._att_block(
@@ -86,10 +93,12 @@ class EncoderBlock(nn.Module):
         # QK norm
         
         if self.config.qk_norm:
-            xq = xq / torch.sqrt(torch.sum(xq ** 2, dim=-1, keepdim=True) + self.config.norm_eps)
-            xk = xk / torch.sqrt(torch.sum(xk ** 2, dim=-1, keepdim=True) + self.config.norm_eps)
+            xq = rmsnorm(xq, self.config.norm_eps)
+            xk = rmsnorm(xk, self.config.norm_eps)
             
-            xq = xq * self.tau
+            if self.tau is not None:
+            
+                xq = xq * self.tau
 
         attn_weights = None
         if cu_seqlens is not None:
