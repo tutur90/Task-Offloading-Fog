@@ -1,8 +1,7 @@
 
 import torch
 from policies.dql.base_policy import DQNPolicy
-from policies.model.nate import NATE
-from policies.model.t_nate import TNATE
+from policies.model.nate import NATE, TNATE
 import copy
 import torch.nn as nn
 import torch.optim as optim

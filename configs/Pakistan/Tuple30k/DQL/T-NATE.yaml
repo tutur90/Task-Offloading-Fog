@@ -1,5 +1,5 @@
 
-policy: "NATD"
+policy: "T-NATE"
 algo: "DQL"
 
 env:
@@ -21,22 +21,19 @@ training:
   lr: 8.e-5
   lr_decay: 1
   gamma: 0.99
-  exploration: {'strategy': 'ucb', 'explore_value': 4.0}
-  reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01}
-  optimizer: {'type': 'RMSprop'}
+  exploration: {'strategy': 'ucb', 'explore_value': 3.0}
+  reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'eps': 0.01}
+  optimizer: {'type': 'RMSprop', 'weight_decay': 0.005}
   lambda: [0.35, 0.35, 0.3]
   early_stop_patience: 20
   log_freq: 0
-  # clip_grad_norm: 2.0
+  clip_grad_norm: 2.0
     
 model:
   d_model: 64
   n_layers: 4
   n_heads: 2
   mlp_ratio: 4
-  dropout: 0.1
-  mode: task
+  dropout: 0.0
   obs_type: ['cpu', 'bw', 'buffer', 'task']
-
-
-    
+  qk_norm: true

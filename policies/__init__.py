@@ -27,8 +27,9 @@ policies = {
     "T-NOTE": NOTEPolicy,
     
     "NATE": NATEPolicy,
+    "T-NATE": NATEPolicy,
     
-     "NATD": NATDPolicy,
+    "NATD": NATDPolicy,
     
     "OPO": OPOPolicy,
     "NPGA": NPGAPolicy,

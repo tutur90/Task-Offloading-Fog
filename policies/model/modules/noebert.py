@@ -36,6 +36,7 @@ class NeoBERTConfig:
     decoder_init_range: float = 0.02
     norm_eps: float = 1e-6
     dropout: float = 0.0
+    qk_norm: bool = True
 
     def __post_init__(self):
         if self.hidden_size % self.num_attention_heads != 0:
@@ -61,6 +62,9 @@ class EncoderBlock(nn.Module):
         self.attention_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
         self.ffn_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
         self.dropout = nn.Dropout(config.dropout)
+        
+        if config.qk_norm:
+            self.tau = self.tau = nn.Parameter(torch.ones(config.num_attention_heads, 1))
 
     def forward(self, x, attention_mask, output_attentions, max_seqlen=None, cu_seqlens=None):
         attn_output, attn_weights = self._att_block(
@@ -80,8 +84,12 @@ class EncoderBlock(nn.Module):
         )
 
         # QK norm
-        xq = xq / torch.sqrt(torch.sum(xq ** 2, dim=-1, keepdim=True) + self.config.norm_eps)
-        xk = xk / torch.sqrt(torch.sum(xk ** 2, dim=-1, keepdim=True) + self.config.norm_eps)
+        
+        if self.config.qk_norm:
+            xq = xq / torch.sqrt(torch.sum(xq ** 2, dim=-1, keepdim=True) + self.config.norm_eps)
+            xk = xk / torch.sqrt(torch.sum(xk ** 2, dim=-1, keepdim=True) + self.config.norm_eps)
+            
+            xq = xq * self.tau
 
         attn_weights = None
         if cu_seqlens is not None:

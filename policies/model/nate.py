@@ -6,7 +6,7 @@ from policies.model.modules.noebert import NeoBERT, NeoBERTConfig
 
 
 class NATE(BaseModel):
-    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, mode="mixed", **kwargs):
+    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, qk_norm=True, **kwargs):
         super().__init__()
 
         self.nodes_embed = nn.Linear(d_in, d_model)
@@ -17,6 +17,7 @@ class NATE(BaseModel):
             num_attention_heads=n_heads,
             intermediate_size=d_ff if d_ff is not None else d_model * mlp_ratio,
             dropout=dropout,
+            qk_norm=qk_norm,
         ))
         self.fc = nn.Linear(d_model, 1)
 
@@ -31,10 +32,10 @@ class NATE(BaseModel):
 
 class TNATE(NATE):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, **kwargs):
-        super().__init__(d_in=d_in+d_task, d_pos=d_pos, d_task=d_task, d_model=d_model, mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout, mode="task", **kwargs)
+        super().__init__(d_in=d_in+d_task, d_pos=d_pos, d_task=d_task, d_model=d_model, mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout, **kwargs)
         
     def _forward(self, nodes, task):
-        x = self.nodes_embed(torch.cat([nodes, task], dim=-1))
+        x = self.nodes_embed(torch.cat([nodes, task.unsqueeze(1).repeat(1, nodes.shape[1], 1)], dim=-1))
         x = self.pos_nodes_embed(x)
         x, _, _ = self.transformer_encoder(inputs_embeds=x)
         x = self.fc(x)
