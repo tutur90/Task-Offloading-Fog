@@ -80,3 +80,17 @@ class TNATE(NATE):
         x, _, _ = self.transformer_encoder(inputs_embeds=x)
         x = self.fc(x)
         return x
+
+        
+# class TNATE(NATE):
+#     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, **kwargs):
+#         super().__init__(d_in=d_in, d_pos=d_pos+1, d_task=d_task, d_model=d_model, mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout, **kwargs)
+#         self.nodes_embed = nn.Linear(d_in, d_model)
+#         self.task_embed = nn.Linear(d_task, d_model)
+        
+#     def _forward(self, nodes, task):
+#         x = torch.cat([self.nodes_embed(nodes), self.task_embed(task.unsqueeze(1))], dim=1)
+#         x = self.pos_nodes_embed(x)
+#         x, _, _ = self.transformer_encoder(inputs_embeds=x)
+#         x = self.fc(x[:, :-1, :])
+#         return x
