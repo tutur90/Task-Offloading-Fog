@@ -8,7 +8,7 @@ from policies.model.modules.noebert import NeoBERT, NeoBERTConfig
 
 
 class RelativeNodeEncoder(nn.Module):
-    def __init__(self, d_in, d_model):
+    def __init__(self, d_in, d_model,):
         super().__init__()
         # absolute + deviation + rank + distance to max + distance to min
         self.proj = nn.Linear(d_in * 5, d_model)
@@ -25,6 +25,42 @@ class RelativeNodeEncoder(nn.Module):
         dist_to_min = nodes - nodes.min(dim=1, keepdim=True).values
         
         x = torch.cat([nodes, diff, rank, dist_to_max, dist_to_min], dim=-1)
+        return self.proj(x)
+    
+class RelativeNodeEncoder(nn.Module):
+    def __init__(self, d_in, d_model, features=["dist_to_max", "dist_to_min"]):
+        super().__init__()
+        # absolute + deviation + rank + distance to max + distance to min
+        self.features = features
+        self.proj = nn.Linear(d_in * (len(features) + 1), d_model)  # +1 for bias term
+    
+    def forward(self, nodes):
+        # nodes: (B, N, d_in)
+        
+        features = {
+            "nodes": nodes,
+        }
+        
+        if "diff" in self.features:
+            mean = nodes.mean(dim=1, keepdim=True)
+            features["diff"] = nodes - mean
+        
+        if "rank" in self.features:
+            rank = nodes.argsort(dim=1).argsort(dim=1).float()
+            rank = rank / (nodes.size(1) - 1)
+            features["rank"] = rank
+            
+        if "dist_to_max" in self.features:
+            dist_to_max = nodes.max(dim=1, keepdim=True).values - nodes
+            features["dist_to_max"] = dist_to_max
+            
+        if "dist_to_min" in self.features:
+            dist_to_min = nodes - nodes.min(dim=1, keepdim=True).values
+            features["dist_to_min"] = dist_to_min
+        
+        
+        x = torch.cat(list(features.values()), dim=-1)
+        
         return self.proj(x)
 
 class NATE(BaseModel):
@@ -57,6 +93,7 @@ class NATE(BaseModel):
             qk_norm=qk_norm,
             learnable_qk_norm=learnable_qk_norm,
         ))
+
         self.fc = nn.Linear(d_model, 1)
         
 
@@ -73,6 +110,15 @@ class FiLMConditioner(nn.Module):
         super().__init__()
         self.gamma = nn.Linear(d_task, d_model)  # scale
         self.beta = nn.Linear(d_task, d_model)   # shift
+        
+    def _init_weights(self):
+        # Gamma: output ~1.0 at init (identity scaling)
+        nn.init.zeros_(self.gamma.weight)
+        nn.init.ones_(self.gamma.bias)
+        
+        # Beta: output ~0.0 at init (no shift)
+        nn.init.zeros_(self.beta.weight)
+        nn.init.zeros_(self.beta.bias)
         
     def forward(self, node_embeds, task_features):
         # task_features: (B, d_task)
@@ -104,10 +150,13 @@ class TNATE(NATE):
             raise ValueError(f"Unknown conditioning type: {conditioning}")
 
     def _forward(self, nodes, task):
-        x = torch.cat([nodes, task.unsqueeze(1).repeat(1, nodes.shape[1], 1)], dim=-1)
-        x = self.pos_nodes_embed(self.nodes_embed(x))
+        x = self.pos_nodes_embed(self.nodes_embed(nodes))
+        
         x = self.conditioner(x, task)
+        
         x, _, _ = self.transformer_encoder(inputs_embeds=x)
+        
+        
         x = self.fc(x)
         return x
 
