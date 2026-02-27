@@ -68,11 +68,6 @@ class EncoderBlock(nn.Module):
         self.ffn_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
         self.dropout = nn.Dropout(config.dropout)
         
-        if config.qk_norm and config.learnable_qk_norm:
-            self.tau = nn.Parameter(torch.ones(config.num_attention_heads, 1))
-        else:
-            self.tau = None
-
     def forward(self, x, attention_mask, output_attentions, max_seqlen=None, cu_seqlens=None):
         attn_output, attn_weights = self._att_block(
             self.attention_norm(x), attention_mask, output_attentions, max_seqlen, cu_seqlens
@@ -95,10 +90,7 @@ class EncoderBlock(nn.Module):
         if self.config.qk_norm:
             xq = rmsnorm(xq, self.config.norm_eps)
             xk = rmsnorm(xk, self.config.norm_eps)
-            
-            if self.tau is not None:
-            
-                xq = xq * self.tau
+
 
         attn_weights = None
         if cu_seqlens is not None:
@@ -106,7 +98,7 @@ class EncoderBlock(nn.Module):
                 q=xq.squeeze(0), k=xk.squeeze(0), v=xv.squeeze(0),
                 cu_seqlens_q=cu_seqlens, cu_seqlens_k=cu_seqlens,
                 max_seqlen_q=max_seqlen, max_seqlen_k=max_seqlen,
-                dropout_p=self.config.dropout, causal=False,
+                dropout_p=0.0, causal=False,
             )
         elif output_attentions:
             scale = xq.size(-1) ** -0.5
@@ -121,7 +113,7 @@ class EncoderBlock(nn.Module):
                 key=xk.transpose(1, 2),
                 value=xv.transpose(1, 2),
                 attn_mask=attention_mask,
-                dropout_p=self.config.dropout,
+                dropout_p=0.0,
             ).transpose(1, 2)
 
         return self.wo(attn.reshape(batch_size, seq_len, self.config.hidden_size)), attn_weights
