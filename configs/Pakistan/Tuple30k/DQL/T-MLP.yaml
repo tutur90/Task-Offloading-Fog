@@ -25,9 +25,9 @@ training:
     gamma: 0.99
     exploration:
       strategy: "boltzmann_gumbel"   # Gumbel-max trick ≡ Boltzmann sampling (Ciosek & Whiteson, 2017)
-      explore_value: 1.0             # initial temperature T (high → near-uniform; low → near-greedy)
-      explore_min: 0.05              # floor temperature
-      explore_decay: 0.6             # fraction of training steps over which T decays
+      explore_value: 1             # initial temperature T (high → near-uniform; low → near-greedy)
+      explore_min: 0.1              # floor temperature
+      explore_decay: 0.4             # fraction of training steps over which T decays
       decay_type: "linear"           # "linear" or "exp"
 
     reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
