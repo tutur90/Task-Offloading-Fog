@@ -137,6 +137,28 @@ class DQNPolicy:
         self.reward_clip = _reward.get("clip", 5.0)
         self.reward_storage_norm = _reward.get("storage_norm", False)
 
+    def _get_param_groups(self, weight_decay):
+        """Split parameters into decay / no-decay groups.
+
+        Excluded from weight decay:
+        - ndim == 1: RMSNorm/LayerNorm scale parameters
+        - "bias" in name: regular biases AND ParallelLinear biases (2-D)
+        - "norm" in name: explicit guard for any norm weight regardless of shape
+        - "embedding" in name: positional / token embeddings (2-D, should not shrink)
+        """
+        decay, no_decay = [], []
+        for name, param in self.model.named_parameters():
+            if not param.requires_grad:
+                continue
+            if param.ndim == 1 or "bias" in name or "norm" in name or "embedding" in name:
+                no_decay.append(param)
+            else:
+                decay.append(param)
+        return [
+            {"params": decay, "weight_decay": weight_decay},
+            {"params": no_decay, "weight_decay": 0.0},
+        ]
+
     def _init_optimizer(self, config):
         """Initialize optimizer, loss criterion and lambda weights."""
         config["training"]["optimizer"] = config["training"].get("optimizer", {})
@@ -144,15 +166,14 @@ class DQNPolicy:
         opt_type = opt_cfg.get("type", "Adam")
         weight_decay = opt_cfg.get("weight_decay", 0)
 
+        param_groups = self._get_param_groups(weight_decay)
+
         if opt_type == "Adam":
-            self.optimizer = optim.AdamW(self.model.parameters(), lr=self.lr,
-                                         weight_decay=weight_decay, betas=(0.9, 0.999))
+            self.optimizer = optim.AdamW(param_groups, lr=self.lr, betas=(0.9, 0.999))
         elif opt_type == "SGD":
-            self.optimizer = optim.SGD(self.model.parameters(), lr=self.lr,
-                                       weight_decay=weight_decay)
+            self.optimizer = optim.SGD(param_groups, lr=self.lr)
         elif opt_type == "RMSprop":
-            self.optimizer = optim.RMSprop(self.model.parameters(), lr=self.lr,
-                                           weight_decay=weight_decay)
+            self.optimizer = optim.RMSprop(param_groups, lr=self.lr)
         else:
             raise ValueError(f"Unknown optimizer type: {opt_type}")
 
