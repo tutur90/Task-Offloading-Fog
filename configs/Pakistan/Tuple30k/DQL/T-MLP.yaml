@@ -23,7 +23,13 @@ training:
     lr: 8.e-05
     lr_decay: 1
     gamma: 0.99
-    exploration: {'strategy': 'ucb', 'explore_value': 3.0}
+    exploration:
+      strategy: "boltzmann_gumbel"   # Gumbel-max trick ≡ Boltzmann sampling (Ciosek & Whiteson, 2017)
+      explore_value: 1.0             # initial temperature T (high → near-uniform; low → near-greedy)
+      explore_min: 0.05              # floor temperature
+      explore_decay: 0.6             # fraction of training steps over which T decays
+      decay_type: "linear"           # "linear" or "exp"
+
     reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
     optimizer: {'type': 'RMSprop', 'weight_decay': 0}
     lambda: [0.35, 0.35, 0.3]

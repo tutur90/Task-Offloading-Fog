@@ -97,10 +97,11 @@ class DQNPolicy:
 
         _expl = tr["exploration"]
         _DEFAULTS = {
-            "epsilon_greedy":  (1.0, 0.01, 0.3),
-            "boltzmann":       (1.0, 0.1,  0.5),
-            "parameter_noise": (1.0, 0.01, 0.5),
-            "ucb":             (1.0, None, 1.0),  # min=None → defaults to value (no decay)
+            "epsilon_greedy":    (1.0, 0.01, 0.3),
+            "boltzmann":         (1.0, 0.1,  0.5),
+            "boltzmann_gumbel":  (1.0, 0.1,  0.5),  # Gumbel-max trick ≡ Boltzmann sampling
+            "parameter_noise":   (1.0, 0.01, 0.5),
+            "ucb":               (1.0, None, 1.0),   # min=None → defaults to value (no decay)
         }
 
         if self.exploration_strategy == "thompson":
@@ -347,6 +348,30 @@ class DQNPolicy:
             else:
                 action = int(torch.argmax(q_values).item())
 
+        elif self.exploration_strategy == "boltzmann_gumbel":
+            # Boltzmann-Gumbel Exploration (Ciosek & Whiteson, NeurIPS 2017).
+            #
+            # The Gumbel-max trick proves:
+            #   argmax_a( Q(s,a)/T + G_a ),  G_a ~ Gumbel(0,1) i.i.d.
+            # is *exactly* distributed as sampling from Boltzmann(Q, T).
+            #
+            # The asymmetric (right-skewed) Gumbel noise provides natural optimism:
+            # actions whose Q-values are uncertain receive a positive bonus on average,
+            # unlike symmetric noise (e.g. Gaussian parameter noise).
+            #
+            # Sampling Gumbel(0,1) via the inverse-CDF:
+            #   G = -log(-log(U)),  U ~ Uniform(0,1)
+            with torch.no_grad():
+                self.model.eval()
+                q_values = self.model(obs_tensor, task_tensor).squeeze()
+            if train:
+                u = torch.clamp(torch.rand_like(q_values), min=1e-20, max=1.0 - 1e-20)
+                gumbel_noise = -torch.log(-torch.log(u))          # G ~ Gumbel(0,1)
+                perturbed = q_values / self.explore_value + gumbel_noise
+                action = int(torch.argmax(perturbed).item())
+            else:
+                action = int(torch.argmax(q_values).item())
+
         elif self.exploration_strategy == "thompson":
             if train:
                 self.model.train()
@@ -392,7 +417,7 @@ class DQNPolicy:
                 q_values = self.model(obs_tensor, task_tensor).squeeze().cpu().numpy()
             if train:
                 self.action_counts *= self.ucb_count_decay
-                bonus = self.explore_value * np.sqrt(1 / self.num_actions) * np.sqrt(np.log1p(np.sum(self.action_counts)) / (1 + self.action_counts))
+                bonus = self.explore_value * np.sqrt(np.log1p(np.sum(self.action_counts)) / (1 + self.action_counts))
                 action = int(np.argmax(q_values + bonus))
                 self.action_counts[action] += 1
             else:
@@ -400,7 +425,7 @@ class DQNPolicy:
 
         else:
             raise ValueError(f"Unknown exploration strategy: '{self.exploration_strategy}'. "
-                             f"Choose from: 'epsilon_greedy', 'boltzmann', 'thompson', 'parameter_noise', 'noisy_net', 'ucb'.")
+                             f"Choose from: 'epsilon_greedy', 'boltzmann', 'boltzmann_gumbel', 'thompson', 'parameter_noise', 'noisy_net', 'ucb'.")
 
         return action, state
 
