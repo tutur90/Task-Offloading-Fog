@@ -2,7 +2,7 @@
 policy: "T-NATE"
 algo: "DQL"
 
-seed: 42
+seed: 45
 
 env:
   dataset: "Pakistan"
@@ -14,7 +14,7 @@ eval:
 
 
 training:
-    num_epochs: 30
+    num_epochs: 20
     learning_starts: 5000
     warmup: 0.1
     buffer_size: 50000
@@ -24,14 +24,19 @@ training:
     lr: 8.e-05
     lr_decay: 1
     gamma: 0.99
-    exploration: {'strategy': 'ucb', 'explore_value': 6.0}
+    exploration:
+      strategy: "boltzmann_gumbel"   # Gumbel-max trick ≡ Boltzmann sampling (Ciosek & Whiteson, 2017)
+      explore_value: 2           # initial temperature T (high → near-uniform; low → near-greedy)
+      explore_min: 0.1              # floor temperature
+      explore_decay: 0.4             # fraction of training steps over which T decays
+      decay_type: "linear"           # "linear" or "exp"
     reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01}
     optimizer: {'type': 'RMSprop', weight_decay: 0.00}
     lambda: [0.35, 0.35, 0.3]
     early_stop_patience: 20
     log_freq: 0
     clip_grad_norm: 0.2
-    
+
 model:
     d_model: 64
     n_layers: 4
