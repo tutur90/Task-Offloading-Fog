@@ -289,6 +289,92 @@ def run_search(config, config_path, args):
             print(f"Could not generate contour plot: {e}")
 
 
+def run_multi_seed(config, config_path, seeds, args):
+    """Train over multiple seeds and report aggregate statistics.
+
+    Reuses HparamSearch (GridSampler on the seed axis) for parallelism,
+    GPU round-robin, and Optuna-backed resumability.
+    """
+    from utils.hparam_search import HparamSearch, GridSampler
+
+    dataset     = config["env"]["dataset"]
+    flag        = config["env"]["flag"]
+    policy_name = config["policy"]
+
+    results_dir = os.path.join("logs", dataset, flag, policy_name)
+
+    # Stable tag so different seed sets get separate studies/logs.
+    if len(seeds) <= 10:
+        seeds_tag = "_".join(str(s) for s in seeds)
+    else:
+        import hashlib
+        h = hashlib.md5(str(seeds).encode()).hexdigest()[:8]
+        seeds_tag = f"n{len(seeds)}_{h}"
+
+    storage_path = os.path.join(results_dir, f"multi_seed_{seeds_tag}.log")
+    study_name   = f"multi_seed_{seeds_tag}"
+
+    num_gpus = get_num_gpus()
+    if num_gpus > 0:
+        print(f"Detected {num_gpus} GPU(s) — distributing workers round-robin.")
+
+    search = HparamSearch(
+        param_specs={"seed": seeds},
+        sampler=GridSampler(shuffle=False),   # preserve seed order
+        study_name=study_name,
+        storage_path=storage_path,
+        n_trials=None,                        # grid = all seeds
+        num_workers=args.num_workers or 1,
+        seed=0,
+        num_gpus=num_gpus,
+    )
+
+    def objective(params, trial_number=None):
+        seed_config = yaml.safe_load(open(config_path))
+        apply_params_to_config(seed_config, params)   # sets seed_config["seed"]
+        seed_config["device"] = config["device"]
+        if trial_number is not None:
+            seed_config["worker_id"] = trial_number
+        val_metrics, test_metrics, best_epoch = main(seed_config)
+        metrics = val_metrics if val_metrics is not None else test_metrics
+        return {
+            "value":        float(metrics[3]),
+            "val_metrics":  [float(v) for v in val_metrics]  if val_metrics  is not None else [],
+            "test_metrics": [float(v) for v in test_metrics] if test_metrics is not None else [],
+            "best_epoch":   int(best_epoch) if best_epoch is not None else 0,
+        }
+
+    _, _, study = search.run(objective)
+
+    # Aggregate stats across all completed trials.
+    completed = [t for t in study.trials if t.state.name == "COMPLETE"]
+    all_val  = [t.user_attrs["val_metrics"]  for t in completed if t.user_attrs.get("val_metrics")]
+    all_test = [t.user_attrs["test_metrics"] for t in completed if t.user_attrs.get("test_metrics")]
+
+    summary: dict = {"seeds": seeds, "n_completed": len(completed)}
+
+    print("\n" + "=" * 60)
+    print(f"Multi-seed summary  —  {len(seeds)} seeds: {seeds}")
+    for label, rows, key in [("Val", all_val, "val"), ("Test", all_test, "test")]:
+        if not rows:
+            continue
+        arr   = np.array(rows)
+        means = arr.mean(axis=0).tolist()
+        stds  = arr.std(axis=0).tolist()
+        summary[key] = {"mean": means, "std": stds, "n": len(rows)}
+        print(f"\n{label} metrics (mean ± std over {len(rows)} runs):")
+        for idx, (m, s) in enumerate(zip(means, stds)):
+            print(f"  [{idx}] {m:.4f} ± {s:.4f}")
+    print("=" * 60)
+
+    import json
+    summary_path = storage_path.replace(".log", "_summary.json")
+    with open(summary_path, "w") as f:
+        json.dump(summary, f, indent=2)
+    print(f"Summary saved: {summary_path}")
+    print(f"Study log:     {storage_path}")
+
+
 def get_num_gpus():
     """Detect the number of available CUDA GPUs without initializing CUDA."""
     import subprocess
@@ -337,6 +423,20 @@ def parse_args():
         help=("Device to run on (e.g., 'cuda:0' or 'cpu'). By default, uses GPU if available, otherwise CPU. "
               "Note: For hyperparameter search with multiple workers, set this to 'cuda' to allow automatic GPU assignment."),
     )
+    seed_group = parser.add_mutually_exclusive_group()
+    seed_group.add_argument(
+        "--seeds", type=int, nargs="+", default=None,
+        metavar="SEED",
+        help=(
+            "Run training over specific seeds and report aggregate stats (mean ± std). "
+            "Example: --seeds 42 123 456. Resumable: already-completed seeds are skipped."
+        ),
+    )
+    seed_group.add_argument(
+        "--n_seeds", type=int, default=None,
+        metavar="N",
+        help="Shortcut for --seeds 0 1 ... N-1.",
+    )
     return parser.parse_args()
 
 
@@ -351,7 +451,13 @@ if __name__ == "__main__":
         
     config["device"] = args.device
 
-    if args.search is not None:
+    seeds = args.seeds
+    if args.n_seeds is not None:
+        seeds = list(range(args.n_seeds))
+
+    if seeds is not None:
+        run_multi_seed(config, config_path, seeds, args)
+    elif args.search is not None:
         run_search(config, config_path, args)
     else:
         val_metrics, test_metrics, best_epoch = main(config)
