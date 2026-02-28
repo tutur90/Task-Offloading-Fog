@@ -4,7 +4,7 @@ import math
 import torch.nn.functional as F
 from policies.model.base_model import BaseModel
 from policies.model.modules.transformer import LearnedPositionalEncoding
-from policies.model.modules.noebert import NeoBERT, NeoBERTConfig
+from policies.model.modules.noebert import NeoBERT, NeoBERTConfig, CNeoBERT
 
 
 class RelativeNodeEncoder(nn.Module):
@@ -84,17 +84,24 @@ class NATE(BaseModel):
 
         self.pos_nodes_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
 
-        self.transformer_encoder = NeoBERT(NeoBERTConfig(
-            hidden_size=d_model,
-            num_hidden_layers=n_layers,
-            num_attention_heads=n_heads,
-            intermediate_size=d_ff if d_ff is not None else d_model * mlp_ratio,
-            dropout=dropout,
-            qk_norm=qk_norm,
-            learnable_qk_norm=learnable_qk_norm,
-        ))
 
         self.fc = nn.Linear(d_model, 1)
+        
+        self._init_encoder(d_model, mlp_ratio, d_ff, n_heads, n_layers, dropout, qk_norm, d_task=d_task)
+        
+    def _init_encoder(self, d_model, mlp_ratio, d_ff, n_heads, n_layers, dropout, qk_norm, d_task=None):
+        if d_ff is None:
+            d_ff = d_model * mlp_ratio
+        
+        encoder_config = NeoBERTConfig(
+            hidden_size=d_model,
+            intermediate_size=d_ff,
+            num_attention_heads=n_heads,
+            num_hidden_layers=n_layers,
+            dropout=dropout,
+            qk_norm=qk_norm,
+        )
+        self.transformer_encoder = NeoBERT(encoder_config)
         
 
     def _forward(self, nodes, task=None):
@@ -140,21 +147,31 @@ class AdditiveConditioner(nn.Module):
 
 class TNATE(NATE):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, conditioning="film", **kwargs):
+        self.conditioning = conditioning
         super().__init__(d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model, mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout, **kwargs)
         
-        if conditioning == "film":
-            self.conditioner = FiLMConditioner(d_task, d_model)
-        elif conditioning == "add":
-            self.conditioner = AdditiveConditioner(d_task, d_model)
-        else:
-            raise ValueError(f"Unknown conditioning type: {conditioning}")
+    
+    def _init_encoder(self, d_model, mlp_ratio, d_ff, n_heads, n_layers, dropout, qk_norm, d_task=None):
+        if d_ff is None:
+            d_ff = d_model * mlp_ratio
+        
+        encoder_config = NeoBERTConfig(
+            hidden_size=d_model,
+            intermediate_size=d_ff,
+            num_attention_heads=n_heads,
+            num_hidden_layers=n_layers,
+            dropout=dropout,
+            qk_norm=qk_norm,
+        )
+        
+        conditioner_cls = FiLMConditioner if self.conditioning == "film" else AdditiveConditioner
+        
+        self.transformer_encoder = CNeoBERT(encoder_config, conditioner_cls, d_task)
 
     def _forward(self, nodes, task):
         x = self.pos_nodes_embed(self.nodes_embed(nodes))
         
-        x = self.conditioner(x, task)
-        
-        x, _, _ = self.transformer_encoder(inputs_embeds=x)
+        x, _, _ = self.transformer_encoder(inputs_embeds=x, condition=task)
         
         
         x = self.fc(x)

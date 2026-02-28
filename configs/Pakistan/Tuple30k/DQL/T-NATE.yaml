@@ -19,14 +19,14 @@ training:
     warmup: 0.1
     buffer_size: 50000
     batch_size: 256
-    target_update_freq: 2000
-    update_freq: 16
+    target_update_freq: 1000
+    update_freq: 8
     lr: 8.e-05
     lr_decay: 1
     gamma: 0.99
     exploration:
       strategy: "ucb"
-      explore_value: 3.0
+      explore_value: 1.0
 
     reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01}
     optimizer: {'type': 'RMSprop', weight_decay: 0.00}
@@ -37,7 +37,7 @@ training:
 
 model:
     d_model: 64
-    n_layers: 2
+    n_layers: 4
     n_heads: 2
     mlp_ratio: 4
     dropout: 0.0

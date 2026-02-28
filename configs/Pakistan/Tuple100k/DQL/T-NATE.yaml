@@ -1,5 +1,5 @@
 
-policy: "NATE"
+policy: "T-NATE"
 algo: "DQL"
 
 seed: 0
@@ -40,6 +40,5 @@ model:
     n_heads: 2
     mlp_ratio: 4
     dropout: 0.0
-    obs_type: ['cpu', 'bw', 'buffer']
+    obs_type: ['cpu', 'bw', 'buffer', 'task']
     qk_norm: True
-    learnable_qk_norm: False

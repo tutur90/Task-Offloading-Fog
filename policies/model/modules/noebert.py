@@ -164,3 +164,31 @@ class NeoBERT(nn.Module):
 
         x = self.layer_norm(x)
         return x, hidden_states or None, attentions or None
+    
+class CNeoBERT(NeoBERT):
+    def __init__(self, config: NeoBERTConfig, conditioner, d_condition):
+        super().__init__(config)
+        self.conditioners = nn.ModuleList([conditioner(d_condition, config.hidden_size) for _ in range(config.num_hidden_layers)])
+        
+    def forward(
+        self,
+        inputs_embeds: torch.Tensor,
+        condition: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        output_hidden_states: bool = False,
+        output_attentions: bool = False,
+    ):
+        x = inputs_embeds
+        
+        hidden_states, attentions = [], []
+        for i in range(self.config.num_hidden_layers):
+            layer = self.transformer_encoder[i]
+            x = self.conditioners[i](x, condition)
+            x, attn = layer(x, attention_mask, output_attentions)
+            if output_hidden_states:
+                hidden_states.append(x)
+            if output_attentions:
+                attentions.append(attn)
+
+        x = self.layer_norm(x)
+        return x, hidden_states or None, attentions or None
