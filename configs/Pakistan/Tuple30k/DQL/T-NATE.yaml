@@ -2,7 +2,7 @@
 policy: "T-NATE"
 algo: "DQL"
 
-seed: 44
+seed: 0
 
 env:
   dataset: "Pakistan"
@@ -14,14 +14,14 @@ eval:
 
 
 training:
-    num_epochs: 30
+    num_epochs: 20
     learning_starts: 5000
     warmup: 0.1
     buffer_size: 50000
     batch_size: 256
     target_update_freq: 1000
     update_freq: 8
-    lr: 8.e-05
+    lr: 5.e-05
     lr_decay: 1
     gamma: 0.99
     exploration:
@@ -36,13 +36,13 @@ training:
     # clip_grad_norm: 0.2
 
 model:
-    d_model: 64
-    n_layers: 4
-    n_heads: 2
+    d_model: 128
+    n_layers: 1
+    n_heads: 8
     mlp_ratio: 4
     dropout: 0.0
     obs_type: ['cpu', 'bw', 'buffer', 'task']
     qk_norm: True
-    embed: gelu  
+    embed: gelu
 
 device: auto

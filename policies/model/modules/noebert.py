@@ -163,7 +163,7 @@ class NeoBERT(nn.Module):
                 attentions.append(attn)
 
         x = self.layer_norm(x)
-        return x, hidden_states or None, attentions or None
+        return x
     
 class CNeoBERT(NeoBERT):
     def __init__(self, config: NeoBERTConfig, conditioner, d_condition):
@@ -191,4 +191,4 @@ class CNeoBERT(NeoBERT):
                 attentions.append(attn)
 
         x = self.layer_norm(x)
-        return x, hidden_states or None, attentions or None
+        return x
