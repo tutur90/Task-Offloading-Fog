@@ -545,45 +545,48 @@ class HparamSearch:
     def save_csv(self, study: optuna.Study, output_path: str) -> None:
         """Save all completed trials to a CSV file.
 
-        Columns: trial, value, <param columns>, <val_metric_i>, <test_metric_i>, best_epoch.
+        Columns mirror the Optuna dashboard table:
+            trial | State | value | <Param cols> | val_metrics | test_metrics | best_epoch
+        val_metrics and test_metrics are kept as full lists.
         Sorted by value (best first, respecting direction).
         """
         import csv
 
-        reverse   = self.direction == "maximize"
-        completed = sorted(
-            [t for t in study.trials if t.state.name == "COMPLETE"],
-            key=lambda t: t.value,
+        reverse = self.direction == "maximize"
+        trials  = sorted(
+            study.trials,
+            key=lambda t: (t.value is None, t.value),
             reverse=reverse,
         )
-        if not completed:
-            print("[HparamSearch] No completed trials to export.")
+        if not trials:
+            print("[HparamSearch] No trials to export.")
             return
 
-        # Discover metric list lengths from the first trial that has them.
-        n_val  = len(next((t.user_attrs["val_metrics"]  for t in completed if "val_metrics"  in t.user_attrs), []))
-        n_test = len(next((t.user_attrs["test_metrics"] for t in completed if "test_metrics" in t.user_attrs), []))
-
-        val_cols  = [f"val_{i}"  for i in range(n_val)]
-        test_cols = [f"test_{i}" for i in range(n_test)]
         param_cols = list(self.param_specs.keys())
-        fieldnames = ["trial", "value"] + param_cols + val_cols + test_cols + ["best_epoch"]
+        fieldnames = (
+            ["trial", "State", "value"]
+            + [f"Param {p}" for p in param_cols]
+            + ["UserAttribute val_metrics", "UserAttribute test_metrics", "best_epoch"]
+        )
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         with open(output_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
-            for t in completed:
-                row: dict = {"trial": t.number, "value": t.value}
-                row.update(t.params)
-                for i, col in enumerate(val_cols):
-                    row[col] = t.user_attrs.get("val_metrics", [None] * n_val)[i]
-                for i, col in enumerate(test_cols):
-                    row[col] = t.user_attrs.get("test_metrics", [None] * n_test)[i]
+            for t in trials:
+                row: dict = {
+                    "trial":   t.number,
+                    "State":   t.state.name.capitalize(),
+                    "value":   t.value if t.value is not None else "",
+                }
+                for p in param_cols:
+                    row[f"Param {p}"] = t.params.get(p, "")
+                row["UserAttribute val_metrics"]  = t.user_attrs.get("val_metrics",  "")
+                row["UserAttribute test_metrics"] = t.user_attrs.get("test_metrics", "")
                 row["best_epoch"] = t.user_attrs.get("best_epoch", "")
                 writer.writerow(row)
 
-        print(f"[HparamSearch] Results saved to {output_path}  ({len(completed)} trials)")
+        print(f"[HparamSearch] Results saved to {output_path}  ({len(trials)} trials)")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
