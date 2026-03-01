@@ -541,3 +541,78 @@ class HparamSearch:
             ]
             extra = ("  ← " + " | ".join(extra_parts)) if extra_parts else ""
             print(f"  {rank:3d}. [{t.value:.6f}] {params_str}{extra}")
+
+    def save_csv(self, study: optuna.Study, output_path: str) -> None:
+        """Save all completed trials to a CSV file.
+
+        Columns: trial, value, <param columns>, <val_metric_i>, <test_metric_i>, best_epoch.
+        Sorted by value (best first, respecting direction).
+        """
+        import csv
+
+        reverse   = self.direction == "maximize"
+        completed = sorted(
+            [t for t in study.trials if t.state.name == "COMPLETE"],
+            key=lambda t: t.value,
+            reverse=reverse,
+        )
+        if not completed:
+            print("[HparamSearch] No completed trials to export.")
+            return
+
+        # Discover metric list lengths from the first trial that has them.
+        n_val  = len(next((t.user_attrs["val_metrics"]  for t in completed if "val_metrics"  in t.user_attrs), []))
+        n_test = len(next((t.user_attrs["test_metrics"] for t in completed if "test_metrics" in t.user_attrs), []))
+
+        val_cols  = [f"val_{i}"  for i in range(n_val)]
+        test_cols = [f"test_{i}" for i in range(n_test)]
+        param_cols = list(self.param_specs.keys())
+        fieldnames = ["trial", "value"] + param_cols + val_cols + test_cols + ["best_epoch"]
+
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        with open(output_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for t in completed:
+                row: dict = {"trial": t.number, "value": t.value}
+                row.update(t.params)
+                for i, col in enumerate(val_cols):
+                    row[col] = t.user_attrs.get("val_metrics", [None] * n_val)[i]
+                for i, col in enumerate(test_cols):
+                    row[col] = t.user_attrs.get("test_metrics", [None] * n_test)[i]
+                row["best_epoch"] = t.user_attrs.get("best_epoch", "")
+                writer.writerow(row)
+
+        print(f"[HparamSearch] Results saved to {output_path}  ({len(completed)} trials)")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLI: convert an existing .log file to CSV
+#   python -m utils.hparam_search path/to/study.log [output.csv]
+# ─────────────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Usage: python -m utils.hparam_search <study.log> [output.csv]")
+        sys.exit(1)
+
+    log_path = sys.argv[1]
+    csv_path = sys.argv[2] if len(sys.argv) > 2 else log_path.replace(".log", ".csv")
+
+    _storage  = _make_journal_storage(log_path)
+    _studies  = optuna.get_all_study_names(storage=_storage)
+    if not _studies:
+        print(f"No studies found in {log_path}")
+        sys.exit(1)
+    if len(_studies) > 1:
+        print(f"Multiple studies found: {_studies}. Using first.")
+    _study = optuna.load_study(study_name=_studies[0], storage=_storage)
+
+    # Build a minimal HparamSearch just for the save_csv helper.
+    _param_specs = {k: list({t.params[k] for t in _study.trials if k in t.params})
+                    for k in (_study.trials[0].params if _study.trials else {})}
+    _hs = HparamSearch(param_specs=_param_specs, sampler=GridSampler(),
+                       study_name=_studies[0], storage_path=log_path)
+    _hs.save_csv(_study, csv_path)
