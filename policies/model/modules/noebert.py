@@ -38,6 +38,7 @@ class NeoBERTConfig:
     dropout: float = 0.0
     qk_norm: bool = True
     learnable_qk_norm: bool = True
+    condition_each_layer: bool = False
 
     def __post_init__(self):
         if self.hidden_size % self.num_attention_heads != 0:
@@ -183,7 +184,8 @@ class CNeoBERT(NeoBERT):
         hidden_states, attentions = [], []
         for i in range(self.config.num_hidden_layers):
             layer = self.transformer_encoder[i]
-            x = self.conditioners[i](x, condition)
+            x = self.conditioners[i](x, condition) if self.config.condition_each_layer or i == 0 else x
+            
             x, attn = layer(x, attention_mask, output_attentions)
             if output_hidden_states:
                 hidden_states.append(x)

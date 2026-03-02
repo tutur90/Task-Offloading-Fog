@@ -180,8 +180,9 @@ class MLPConditioner(nn.Module):
         return x
         
 class TNATE(NATE):
-    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, conditioning="film", **kwargs):
+    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, conditioning="film", condition_each_layer=False, **kwargs):
         self.conditioning = conditioning
+        self.condition_each_layer = condition_each_layer
         super().__init__(d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model, mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout, **kwargs)
         
     
@@ -201,6 +202,7 @@ class TNATE(NATE):
             num_hidden_layers=n_layers,
             dropout=dropout,
             qk_norm=qk_norm,
+            condition_each_layer=self.condition_each_layer
         )
         
         conditioner_cls = FiLMConditioner if self.conditioning == "film" else AdditiveConditioner
