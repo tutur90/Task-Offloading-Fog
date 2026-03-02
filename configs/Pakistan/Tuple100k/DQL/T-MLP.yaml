@@ -1,4 +1,4 @@
-policy: "MLP"
+policy: "T-MLP"
 algo: "DQL"
 
 seed: 42
@@ -14,14 +14,14 @@ eval:
 
 
 training:
-  num_epochs: 50
+  num_epochs: 30
   learning_starts: 5000    # random steps before learning begins
   warmup: 0                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
-  batch_size: 512          # samples per update
-  target_update_freq: 2000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
+  batch_size: 256          # samples per update
+  target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 8.e-5
+  lr: 5.e-5
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
@@ -34,11 +34,12 @@ training:
     norm: "log1p_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     scale: 1
     eps: 1.e-2
+    clip: 5.0
+    storage_norm: true
 
   optimizer:
     type: "RMSprop"
-    # weight_decay: 0
-    
+    weight_decay: 0
   lambda: [0.350000,0.350000,0.300000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics

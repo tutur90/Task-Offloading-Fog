@@ -276,6 +276,7 @@ def run_search(config, config_path, args):
 
     best_params, best_value, study = search.run(objective)
     search.print_results(study)
+    search.save_csv(study, os.path.join(results_dir, f"hparam_{search_name}.csv"))
 
     # Generate an interactive contour plot when exactly 2 params are tuned.
     if len(param_specs) == 2:
