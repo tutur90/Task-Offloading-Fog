@@ -10,6 +10,13 @@ training:
   pop_size: 30          # Population size for NPGA
   mutation_rate: 0.1    # Mutation rate for Gaussian mutation
 
+selection:
+  # Minimum acceptable quality per objective (acts as upper bound since all objectives are minimized).
+  # Individuals exceeding any threshold are disqualified during selection.
+  # Set to null to disable the constraint for that objective.
+  # Objectives order: [ttr, latency, energy]
+  min_scores: [null, null, null]
+
 model:
   d_model: 128
   n_layers: 3

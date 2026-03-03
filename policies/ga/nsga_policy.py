@@ -433,10 +433,36 @@ class NSGA2Policy:
         """
         return [Individual(weights, biases, self.obs_type, self.norm) for weights, biases in offspring]
 
+    def _is_feasible(self, fitness_tuple):
+        """
+        Check if an individual meets the minimum score thresholds for all objectives.
+
+        Thresholds act as upper bounds on each minimized objective: an individual is
+        feasible only if all its objective values are <= the corresponding threshold.
+        Set a threshold to None to disable that constraint.
+
+        Parameters:
+          fitness_tuple: Tuple of objective values (ttr, latency, energy, ...)
+
+        Returns:
+          True if feasible, False if any active threshold is exceeded.
+        """
+        min_scores = self.config.get("selection", {}).get("min_scores", None)
+        if not min_scores:
+            return True
+        for obj_val, threshold in zip(fitness_tuple[:3], min_scores):
+            if threshold is not None and obj_val > threshold:
+                return False
+        return True
+
     def select_from_combined(self, parent_fitness, offspring, offspring_fitness):
         """
         Combine parents and offspring, then select next generation using
         non-dominated sorting and crowding distance.
+
+        Individuals that exceed any min_scores threshold defined in config["selection"]
+        are considered infeasible and are only used to fill remaining slots when there
+        are not enough feasible individuals.
 
         Parameters:
           parent_fitness: Full fitness values for current population (parents) - can be 3 or 4 values
@@ -468,31 +494,62 @@ class NSGA2Policy:
         # Combine current population and offspring (size 2N)
         combined_population = self.population + offspring
 
-        # Select next generation using non-dominated sorting and crowding distance
-        # Modified to track indices
-        fronts = self.non_dominated_sort(combined_selection_fitness)
+        # Partition individuals into feasible and infeasible based on min_scores thresholds
+        feasible_indices = [i for i, f in enumerate(combined_full_fitness) if self._is_feasible(f)]
+        infeasible_indices = [i for i, f in enumerate(combined_full_fitness) if not self._is_feasible(f)]
+
+        n_infeasible = len(infeasible_indices)
+        if n_infeasible > 0:
+            print(f"[NSGA-II] {n_infeasible}/{len(combined_population)} individuals disqualified "
+                  f"by min_scores thresholds.")
+
+        # Run NSGA-II selection on feasible individuals only
+        feasible_population = [combined_population[i] for i in feasible_indices]
+        feasible_selection_fitness = [combined_selection_fitness[i] for i in feasible_indices]
+        feasible_full_fitness = [combined_full_fitness[i] for i in feasible_indices]
+
         new_population = []
         new_fitness = []
-        selected_indices = []
 
-        for front in fronts:
-            if len(new_population) + len(front) <= pop_size:
-                for idx in front:
-                    new_population.append(combined_population[idx])
-                    new_fitness.append(combined_full_fitness[idx])
-                    selected_indices.append(idx)
-            else:
-                front_fitness = [combined_selection_fitness[idx] for idx in front]
-                distances = self.crowding_distance(front_fitness)
-                sorted_front = sorted(list(zip(front, distances)), key=lambda x: -x[1])
-                for idx, _ in sorted_front:
-                    if len(new_population) < pop_size:
-                        new_population.append(combined_population[idx])
-                        new_fitness.append(combined_full_fitness[idx])
-                        selected_indices.append(idx)
-                    else:
-                        break
-                break
+        if feasible_population:
+            fronts = self.non_dominated_sort(feasible_selection_fitness)
+            for front in fronts:
+                if len(new_population) + len(front) <= pop_size:
+                    for idx in front:
+                        new_population.append(feasible_population[idx])
+                        new_fitness.append(feasible_full_fitness[idx])
+                else:
+                    front_fitness = [feasible_selection_fitness[idx] for idx in front]
+                    distances = self.crowding_distance(front_fitness)
+                    sorted_front = sorted(list(zip(front, distances)), key=lambda x: -x[1])
+                    for idx, _ in sorted_front:
+                        if len(new_population) < pop_size:
+                            new_population.append(feasible_population[idx])
+                            new_fitness.append(feasible_full_fitness[idx])
+                        else:
+                            break
+                    break
+
+        # If not enough feasible individuals, fill remaining slots with the least-violating
+        # infeasible individuals (sorted by sum of constraint violations)
+        if len(new_population) < pop_size and infeasible_indices:
+            min_scores = self.config.get("selection", {}).get("min_scores", None)
+
+            def constraint_violation(idx):
+                f = combined_full_fitness[idx]
+                total = 0.0
+                if min_scores:
+                    for obj_val, threshold in zip(f[:3], min_scores):
+                        if threshold is not None and obj_val > threshold:
+                            total += obj_val - threshold
+                return total
+
+            sorted_infeasible = sorted(infeasible_indices, key=constraint_violation)
+            for idx in sorted_infeasible:
+                if len(new_population) >= pop_size:
+                    break
+                new_population.append(combined_population[idx])
+                new_fitness.append(combined_full_fitness[idx])
 
         # Update population
         self.population = new_population
