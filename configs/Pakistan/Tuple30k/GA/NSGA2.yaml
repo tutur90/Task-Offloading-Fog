@@ -29,7 +29,7 @@ selection:
 
 
 model:
-  d_model: 64
+  d_model: 256
   n_layers: 2
   # obs_type: ["cpu"]
   obs_type: ["cpu", "bw", "buffer"]
