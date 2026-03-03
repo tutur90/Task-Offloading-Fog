@@ -13,6 +13,9 @@ eval:
   expected_values: [0.2, 4.0, 300.0]
 
 
+eval:
+    lambda: [0.001889, 4.394, 260.5]
+    expected_values: [0.2, 4.0, 300.0]
 training:
     num_epochs: 60
     learning_starts: 5000
@@ -21,22 +24,22 @@ training:
     batch_size: 256
     target_update_freq: 1000
     update_freq: 8
-    lr: 5.e-05
+    lr: 3.e-05
     lr_decay: 1
-    gamma: 0.8
+    gamma: 0.90
     exploration: {'strategy': 'ucb', 'explore_value': 0.5}
     reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
     optimizer: {'type': 'RMSprop'}
     lambda: [0.35, 0.35, 0.3]
-    early_stop_patience: 25
+    early_stop_patience: 30
     log_freq: 0
-
 model:
     d_model: 512
     n_layers: 2
     obs_type: ['cpu', 'bw', 'buffer']
     bias: True
     dropout: 0
-
 device: auto
+
+
 

@@ -64,7 +64,7 @@ class Individual:
 
 
 class NSGA2Policy:
-    def __init__(self, env, config):
+    def __init__(self, env, config, dataset=None):
         self.config = config
         self.env = env
 

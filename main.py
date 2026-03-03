@@ -376,6 +376,20 @@ def run_multi_seed(config, config_path, seeds, args):
     print(f"Study log:     {storage_path}")
 
 
+def print_top_k_results(samples, metrics, k=10, label="Results"):
+    """Print the top-k lambda configurations sorted by score (descending)."""
+    import numpy as np
+    metrics = np.array(metrics)
+    sorted_indices = np.argsort(metrics[:, 3])[::-1][:k]
+    print(f"\n--- Top {k} {label} ---")
+    print(f"{'Rank':<6} {'λ0':>6} {'λ1':>6} {'λ2':>6} {'TTR':>8} {'Latency':>10} {'Power':>10} {'Score':>8}")
+    for rank, idx in enumerate(sorted_indices, 1):
+        l = samples[idx]
+        ttr, lat, pwr, score = metrics[idx]
+        print(f"{rank:<6} {l[0]:>6.3f} {l[1]:>6.3f} {l[2]:>6.3f} {ttr:>8.4f} {lat:>10.4f} {pwr:>10.4f} {score:>8.4f}")
+    print()
+
+
 def get_num_gpus():
     """Detect the number of available CUDA GPUs without initializing CUDA."""
     import subprocess

@@ -2,7 +2,7 @@
 policy: "T-MLP"
 algo: "DQL"
 
-seed: 42
+seed: 4
 
 env:
   dataset: "Pakistan"
@@ -12,6 +12,7 @@ env:
 eval:
     lambda: [0.001889, 4.394, 260.5]
     expected_values: [0.2, 4.0, 300.0]
+
 training:
     num_epochs: 20
     learning_starts: 5000
@@ -23,24 +24,21 @@ training:
     lr: 8.e-05
     lr_decay: 1
     gamma: 0.99
-    exploration:
-      strategy: "boltzmann_gumbel"   # Gumbel-max trick ≡ Boltzmann sampling (Ciosek & Whiteson, 2017)
-      explore_value: 1             # initial temperature T (high → near-uniform; low → near-greedy)
-      explore_min: 0.1              # floor temperature
-      explore_decay: 0.4             # fraction of training steps over which T decays
-      decay_type: "linear"           # "linear" or "exp"
-
+    exploration: {'strategy': 'ucb', 'explore_value': 1.0}
     reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
     optimizer: {'type': 'RMSprop', 'weight_decay': 0}
     lambda: [0.35, 0.35, 0.3]
     early_stop_patience: 20
     log_freq: 0
+
 model:
     d_model: 256
     n_layers: 2
     obs_type: ['cpu', 'bw', 'buffer', 'task']
+
     bias: True
     dropout: 0
+
 device: auto
 
 

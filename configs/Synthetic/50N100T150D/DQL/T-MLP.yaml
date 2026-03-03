@@ -1,11 +1,11 @@
-policy: "MLP"
+policy: "T-MLP"
 algo: "DQL"
 
 seed: 42
 
 env:
-  dataset: "Pakistan"
-  flag: "Tuple100K"
+  dataset: "Synthetic"
+  flag: "50N100T150D"
   refresh_rate: 0.005
 
 eval:
@@ -21,16 +21,13 @@ training:
   batch_size: 512          # samples per update
   target_update_freq: 2000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
-  lr: 8.e-5
+  lr: 5.e-6
   lr_decay: 1
-  gamma: 0.99
+  gamma: 0.9
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
   exploration:
-    strategy: "boltzmann"
-    temperature: 1.0
-    temperature_min: 0.05
-    temperature_decay: 0.5
-
+    strategy: "ucb"
+    explore_value: 0.5
   reward:
     momentum: 0.999
     norm: "log1p_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
@@ -41,8 +38,8 @@ training:
     type: "RMSprop"
     # weight_decay: 0
     
-  lambda: [0.350000,0.350000,0.300000]
-  early_stop_patience: 20 # Early stopping patience (generations without improvement)
+  lambda: [0.50000,0.300000,0.200000]
+  early_stop_patience: 30 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 
 model:
