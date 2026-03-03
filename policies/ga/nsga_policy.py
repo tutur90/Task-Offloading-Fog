@@ -448,6 +448,8 @@ class NSGA2Policy:
           True if feasible, False if any active threshold is exceeded.
         """
         min_scores = self.config.get("selection", {}).get("min_scores", None)
+        
+        # print(f"Checking feasibility for fitness {fitness_tuple} against thresholds {min_scores}")
         if not min_scores:
             return True
         for obj_val, threshold in zip(fitness_tuple[:3], min_scores):

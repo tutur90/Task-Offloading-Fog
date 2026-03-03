@@ -226,14 +226,18 @@ def main(config):
 
 def _lambda_search_worker(args):
     """Multiprocessing worker for lambda grid search."""
-    i, params, config_path, num_gpus = args
+    i, params, config_path, num_gpus, device = args
     if num_gpus > 0:
         gpu_id = i % num_gpus
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        worker_device = "cuda"
         print(f"[Worker {i}] Assigned to GPU {gpu_id}")
+    else:
+        worker_device = device
     with open(config_path, "r") as f:
         worker_config = yaml.safe_load(f)
     worker_config["worker_id"] = i
+    worker_config["device"] = worker_device
     worker_config["training"]["lambda"] = params.tolist()
     key = lambda_to_key(params)
     print(f"[Worker {i}] lambda={worker_config['training']['lambda']}")
@@ -265,6 +269,7 @@ def run_lambda_search(config, config_path, args, n_steps):
     if num_gpus > 0:
         print(f"Detected {num_gpus} GPU(s) — workers distributed round-robin")
 
+    device = config["device"]
     work_items = []
     for i, params in enumerate(samples):
         key = lambda_to_key(params)
@@ -272,7 +277,7 @@ def run_lambda_search(config, config_path, args, n_steps):
             val_metrics[i]  = progress["val_metrics"][key]
             test_metrics[i] = progress["test_metrics"][key]
         else:
-            work_items.append((i, params, config_path, num_gpus))
+            work_items.append((i, params, config_path, num_gpus, device))
 
     max_workers = args.num_workers if args.num_workers else multiprocessing.cpu_count()
     num_workers = min(max_workers, len(work_items))
