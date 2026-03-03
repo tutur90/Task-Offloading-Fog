@@ -497,6 +497,42 @@ def get_num_gpus():
     return 0
 
 
+def plot_lambda_search(config):
+    """Re-generate ternary plots and top-k table from existing lambda grid search results."""
+    from utils.plots import plot_ternary
+
+    dataset     = config["env"]["dataset"]
+    flag        = config["env"]["flag"]
+    policy_name = config["policy"]
+    results_dir = f"logs/{dataset}/{flag}/{policy_name}"
+    results_file = f"{results_dir}/lambda_grid_search_progress.json"
+
+    progress = load_grid_search_progress(results_file)
+    if not progress["completed"]:
+        print(f"No completed results found in {results_file}")
+        return
+
+    # Reconstruct arrays from stored keys (format: "l0,l1,l2" with 6 decimals).
+    keys    = list(progress["completed"].keys())
+    samples = np.array([[float(v) for v in k.split(",")] for k in keys])
+    val_metrics  = np.array([progress["val_metrics"][k]  for k in keys])
+    test_metrics = np.array([progress["test_metrics"][k] for k in keys])
+
+    print(f"Loaded {len(keys)} completed lambda configurations from {results_file}")
+
+    k = min(100, len(keys))
+    print_top_k_results(samples, val_metrics,  k=k, label="Validation Results")
+    print_top_k_results(samples, test_metrics, k=k, label="Test Results")
+
+    plot_ternary(samples, values=test_metrics[:, 3], title="Test Score Lambda Grid",
+                 labels=["λ0", "λ1", "λ2"],
+                 output_path=f"{results_dir}/lambda_grid_search_test.png", max_value=0.8)
+    plot_ternary(samples, values=val_metrics[:, 3],  title="Validation Score Lambda Grid",
+                 labels=["λ0", "λ1", "λ2"],
+                 output_path=f"{results_dir}/lambda_grid_search_val.png",  max_value=0.8)
+    print(f"Plots saved to {results_dir}/")
+
+
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description="Run Task Offloading Policy")
@@ -544,6 +580,14 @@ def parse_args():
         metavar="N",
         help="Shortcut for --seeds 0 1 ... N-1.",
     )
+    parser.add_argument(
+        "--plot", type=str, default=None,
+        metavar="TYPE",
+        help=(
+            'Generate plots from existing results without re-running. '
+            'Currently supported: "lambda" — ternary plots from lambda_grid_search_progress.json.'
+        ),
+    )
     return parser.parse_args()
 
 
@@ -562,7 +606,12 @@ if __name__ == "__main__":
     if args.n_seeds is not None:
         seeds = list(range(args.n_seeds))
 
-    if seeds is not None:
+    if args.plot is not None:
+        if args.plot == "lambda":
+            plot_lambda_search(config)
+        else:
+            print(f"Unknown plot type '{args.plot}'. Supported: lambda")
+    elif seeds is not None:
         run_multi_seed(config, config_path, seeds, args)
     elif args.search is not None:
         # Special case: --search "lambda=N" triggers ternary lambda grid search.
