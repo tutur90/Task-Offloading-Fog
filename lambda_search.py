@@ -45,7 +45,7 @@ def run_search_worker(args):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Lambda probability grid search")
-    parser.add_argument('--config', type=str, required=True, help='Path to the config file.')
+    parser.add_argument('config', type=str, required=True, help='Path to the config file.')
     parser.add_argument('--n_steps', type=int, default=21, help='Number of steps for the probability grid (default: 21).')
     parser.add_argument('--num_workers', type=int, default=None, help='Number of parallel workers (default: CPU count).')
     return parser.parse_args()
