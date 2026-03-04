@@ -477,7 +477,7 @@ def print_top_k_results(samples, metrics, k=10, label="Results"):
     """Print the top-k lambda configurations sorted by score (descending)."""
     import numpy as np
     metrics = np.array(metrics)
-    sorted_indices = np.argsort(metrics[:, 3])[::-1][:k]
+    sorted_indices = np.argsort(metrics[:, 3])[:k]
     print(f"\n--- Top {k} {label} ---")
     print(f"{'Rank':<6} {'λ0':>6} {'λ1':>6} {'λ2':>6} {'TTR':>8} {'Latency':>10} {'Power':>10} {'Score':>8}")
     for rank, idx in enumerate(sorted_indices, 1):

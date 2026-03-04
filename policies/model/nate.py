@@ -163,9 +163,9 @@ class MLPConditioner(nn.Module):
         super().__init__()
         if d_hidden is None:
             d_hidden = d_model * 4
-        self.mlp = SwiGLU(d_model, d_hidden, d_model)
-        self.pre_norm = nn.RMSNorm(d_model, eps=1e-6)
-        self.post_norm = nn.RMSNorm(d_model, eps=1e-6)
+        # self.mlp = SwiGLU(d_model, d_hidden, d_model)
+        # self.pre_norm = nn.RMSNorm(d_model, eps=1e-6)
+        # self.post_norm = nn.RMSNorm(d_model, eps=1e-6)
         self.conditioner = FiLMConditioner(d_task, d_model) if conditioning == "film" else AdditiveConditioner(d_task, d_model)
         
     def forward(self, inputs_embeds, condition):
@@ -173,14 +173,14 @@ class MLPConditioner(nn.Module):
         
         x = self.conditioner(inputs_embeds, condition)
         
-        x = self.pre_norm(x)
+        # x = self.pre_norm(x)
         
-        x = self.mlp(x).unsqueeze(1)  # (B, 1, d_model)
-        x = self.post_norm(x)
+        # x = self.mlp(x).unsqueeze(1)  # (B, 1, d_model)
+        # x = self.post_norm(x)
         return x
         
 class TNATE(NATE):
-    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, conditioning="film", condition_each_layer=False, **kwargs):
+    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None, n_heads=4, n_layers=3, dropout=0.1, conditioning="film", condition_each_layer=True, **kwargs):
         self.conditioning = conditioning
         self.condition_each_layer = condition_each_layer
         super().__init__(d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model, mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers, dropout=dropout, **kwargs)

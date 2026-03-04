@@ -1,0 +1,50 @@
+
+policy: "TPTO"
+algo: "PPO"
+
+env:
+  dataset: "Pakistan"
+  flag: "Tuple100K"
+  refresh_rate: 0.005
+
+eval:
+  lambda: [3.993e-02, 4.321e+00, 2.654e+02]
+  expected_values: [0.2, 4.0, 300.0]
+
+training:
+  num_epochs: 40
+  lr: 3.e-4
+  lr_decay: 1.0
+  gamma: 0.99
+
+  # PPO-specific
+  gae_lambda: 0.95        # GAE trace-decay factor
+  clip_eps: 0.2           # PPO clip ratio ε
+  entropy_coef: 0.01      # entropy bonus coefficient (c2)
+  value_loss_coef: 0.5    # value loss coefficient (c1)
+  clip_grad_norm: 0.5     # gradient clipping
+  ppo_epochs: 4           # gradient epochs per rollout
+  rollout_size: 512       # transitions collected before each PPO update
+  mini_batch_size: 64     # mini-batch size for PPO gradient steps
+
+  reward:
+    momentum: 0.999
+    norm: "ln_standard"
+    eps: 1.e-2
+
+  optimizer:
+    type: "Adam"
+    weight_decay: 0.0
+
+  lambda: [0.350000, 0.350000, 0.300000]
+  early_stop_patience: 20
+  log_freq: 200
+
+
+model:
+  d_model: 128
+  n_layers: 3
+  n_heads: 4
+  mlp_ratio: 4
+  dropout: 0.1
+  obs_type: ["cpu", "bw", "buffer"]
