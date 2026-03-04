@@ -27,7 +27,7 @@ training:
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
   exploration:
     strategy: "ucb"
-    explore_value: 0.5
+    explore_value: 0.2
   reward:
     momentum: 0.999
     norm: "log1p_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
