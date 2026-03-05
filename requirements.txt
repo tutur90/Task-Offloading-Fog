@@ -10,7 +10,7 @@ torch
 PyYAML
 scipy
 
-flash-attn
+# flash-attn
 
 # Hparams
 optuna
