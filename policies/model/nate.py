@@ -7,6 +7,9 @@ from policies.model.modules.transformer import LearnedPositionalEncoding
 from policies.model.modules.noebert import NeoBERT, NeoBERTConfig, CNeoBERT, SwiGLU
 
 
+torch.backends.cuda.matmul.allow_tf32 = True
+
+
 # =============================================================================
 # Utilities
 # =============================================================================
