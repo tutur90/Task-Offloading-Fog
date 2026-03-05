@@ -1,0 +1,49 @@
+
+policy: "T-NATE"
+algo: "DQL"
+
+seed: 0
+
+env:
+  dataset: "Pakistan"
+  flag: "Tuple30K"
+  refresh_rate: 0.005
+
+eval:
+  lambda: [1.889e-03, 4.394e+00, 2.605e+02]
+
+
+training:
+    num_epochs: 20
+    learning_starts: 5000
+    warmup: 0.1
+    buffer_size: 50000
+    batch_size: 256
+    target_update_freq: 1000
+    update_freq: 8
+    lr: 1.e-05
+    lr_decay: 1
+    gamma: 0.99
+    exploration:
+      strategy: "ucb"
+      explore_value: 1.0
+
+    reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01}
+    optimizer: {'type': 'RMSprop', weight_decay: 0.00}
+    lambda: [0.35, 0.35, 0.3]
+    early_stop_patience: 20
+    log_freq: 0
+    # clip_grad_norm: 0.2
+
+model:
+    d_model: 128
+    n_layers: 1
+    n_heads: 16
+    mlp_ratio: 4
+    dropout: 0.0
+    obs_type: ['cpu', 'bw', 'buffer', 'task']
+    qk_norm: True
+    embed: regular  # 'regular' or 'sinusoidal'
+    condition_each_layer: True
+
+device: auto

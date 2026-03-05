@@ -45,11 +45,13 @@ class NeoBERTConfig:
             raise ValueError("hidden_size must be divisible by num_attention_heads")
         self.dim_head = self.hidden_size // self.num_attention_heads
 
+
 def rmsnorm(x, eps):
     def _norm(y):
         return y * torch.rsqrt(y.pow(2).mean(-1, keepdim=True) + eps)
-
     return _norm(x.float()).type_as(x)
+
+
 # --- Encoder Block ---
 
 class EncoderBlock(nn.Module):
@@ -60,15 +62,13 @@ class EncoderBlock(nn.Module):
         self.qkv = nn.Linear(config.hidden_size, config.hidden_size * 3, bias=False)
         self.wo = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
 
-        multiple_of = 8
-        intermediate_size = int(2 * config.intermediate_size / 3)
-        intermediate_size = multiple_of * ((intermediate_size + multiple_of - 1) // multiple_of)
-        self.ffn = SwiGLU(config.hidden_size, intermediate_size, config.hidden_size, bias=False)
+        # Use intermediate_size directly — scaling should be done once upstream
+        self.ffn = SwiGLU(config.hidden_size, config.intermediate_size, config.hidden_size, bias=False)
 
         self.attention_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
         self.ffn_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
         self.dropout = nn.Dropout(config.dropout)
-        
+
     def forward(self, x, attention_mask, output_attentions, max_seqlen=None, cu_seqlens=None):
         attn_output, attn_weights = self._att_block(
             self.attention_norm(x), attention_mask, output_attentions, max_seqlen, cu_seqlens
@@ -86,12 +86,9 @@ class EncoderBlock(nn.Module):
             .chunk(3, dim=-1)
         )
 
-        # QK norm
-        
         if self.config.qk_norm:
             xq = rmsnorm(xq, self.config.norm_eps)
             xk = rmsnorm(xk, self.config.norm_eps)
-
 
         attn_weights = None
         if cu_seqlens is not None:
@@ -153,7 +150,6 @@ class NeoBERT(nn.Module):
         output_attentions: bool = False,
     ):
         x = inputs_embeds
-        
 
         hidden_states, attentions = [], []
         for layer in self.transformer_encoder:
@@ -165,12 +161,17 @@ class NeoBERT(nn.Module):
 
         x = self.layer_norm(x)
         return x
-    
+
+
 class CNeoBERT(NeoBERT):
-    def __init__(self, config: NeoBERTConfig, conditioner, d_condition):
+    def __init__(self, config: NeoBERTConfig, conditioner_cls, d_condition):
         super().__init__(config)
-        self.conditioners = nn.ModuleList([conditioner(d_condition, config.hidden_size) for _ in range(config.num_hidden_layers)])
-        
+        # Only allocate conditioners that are actually used
+        n_cond = config.num_hidden_layers if config.condition_each_layer else 1
+        self.conditioners = nn.ModuleList(
+            [conditioner_cls(d_condition, config.hidden_size) for _ in range(n_cond)]
+        )
+
     def forward(
         self,
         inputs_embeds: torch.Tensor,
@@ -180,12 +181,14 @@ class CNeoBERT(NeoBERT):
         output_attentions: bool = False,
     ):
         x = inputs_embeds
-        
+
         hidden_states, attentions = [], []
-        for i in range(self.config.num_hidden_layers):
-            layer = self.transformer_encoder[i]
-            x = self.conditioners[i](x, condition) if self.config.condition_each_layer or i == 0 else x
-            
+        for i, layer in enumerate(self.transformer_encoder):
+            if self.config.condition_each_layer:
+                x = self.conditioners[i](x, condition)
+            elif i == 0:
+                x = self.conditioners[0](x, condition)
+
             x, attn = layer(x, attention_mask, output_attentions)
             if output_hidden_states:
                 hidden_states.append(x)

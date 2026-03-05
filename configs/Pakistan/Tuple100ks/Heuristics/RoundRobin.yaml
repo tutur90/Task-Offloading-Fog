@@ -1,0 +1,13 @@
+
+policy: "RoundRobin"
+algo: "RoundRobin"
+
+eval:
+  lambda: [1.889e-03, 4.394e+00, 2.605e+02]
+  expected_values: [0.2, 4.0, 300.0]
+  
+env:
+  dataset: "Pakistan"
+  flag: "Tuple30K"
+  refresh_rate: 0.005
+

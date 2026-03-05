@@ -22,7 +22,7 @@ training:
     batch_size: 256
     target_update_freq: 1000
     update_freq: 8
-    lr: 2.e-5
+    lr: 5.e-5
     lr_decay: 1
     gamma: 0.99
     exploration: {'strategy': 'ucb', 'explore_value': 1.0}

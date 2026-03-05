@@ -18,9 +18,9 @@ class Scenario(BaseScenario):
         if dataset == 'Topo4MEC':
             assert flag in ['25N50E', '50N50E', '100N150E', 'MilanCityCenter'], \
             f"Invalid flag={flag}"
-        elif dataset == 'Pakistan':
-            assert flag in ['Tuple30K', 'Tuple50K', 'Tuple100K'], \
-            f"Invalid flag={flag}"
+        # elif dataset == 'Pakistan':
+            # assert flag in ['Tuple30K', 'Tuple50K', 'Tuple100K'], \
+            # f"Invalid flag={flag}"
         # elif dataset == 'Synthetic':
         #     assert flag in ['small', 'medium', 'large'], \
         #     f"Invalid flag={flag}"

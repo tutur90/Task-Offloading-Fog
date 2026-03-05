@@ -42,5 +42,5 @@ model:
     obs_type: ['cpu', 'bw', 'buffer', 'task']
     qk_norm: True
     embed: regular
-    conditioning: "additive"
+    conditioning: additive
 
