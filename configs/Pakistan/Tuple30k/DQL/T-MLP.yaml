@@ -21,7 +21,7 @@ training:
     batch_size: 512
     target_update_freq: 4000
     update_freq: 16
-    lr: 5.0e-05
+    lr: 5.0e-5
     lr_decay: 1
     gamma: 0.99
     exploration: {'strategy': 'ucb', 'explore_value': 1.0}
@@ -32,7 +32,7 @@ training:
     log_freq: 0
 
 model:
-    d_model: 256
+    d_model: 128
     n_layers: 2
     obs_type: ['cpu', 'bw', 'buffer', 'task']
 

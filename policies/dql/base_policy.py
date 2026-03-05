@@ -202,7 +202,7 @@ class DQNPolicy:
         pass
 
     def _norm_reward_fn(self, reward):
-        if self.reward_norm == "standard":
+        if "standard" in self.reward_norm:
             r = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "mean":
             r = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
@@ -211,12 +211,8 @@ class DQNPolicy:
         elif self.reward_norm == "max":
             self.reward_max = [max(self.reward_max[i], reward[i]) for i in range(3)]
             r = [reward[i] / (self.reward_max[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
-        elif self.reward_norm == "log1p":
-            r = [np.log1p(reward[i]) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "log1p_mean":
             r = [np.log1p(reward[i]) - (np.log1p(self.reward_mean[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
-        elif self.reward_norm == "log1p_standard":
-            r = [(np.log1p(reward[i]) - np.log1p(self.reward_mean[i])) / np.log1p(np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "expected":
             r = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "none":
@@ -232,6 +228,8 @@ class DQNPolicy:
     
     def _norm_reward(self, reward, _lambda):
         
+        if "log1p" in self.reward_norm:
+            reward = [np.log1p(reward[i]) if reward[i] else 0 for i in range(3)]
 
         self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if reward[i] else self.reward_mean[i] for i in range(3)]
         self.reward_var  = [self.reward_var[i]  * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) if reward[i] else self.reward_var[i]  for i in range(3)]
