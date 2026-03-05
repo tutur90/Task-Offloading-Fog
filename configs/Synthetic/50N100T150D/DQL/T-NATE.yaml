@@ -15,32 +15,33 @@ eval:
     lambda: [0.001889, 4.394, 260.5]
 
 training:
-    num_epochs: 50
+    num_epochs: 40
     learning_starts: 5000
     warmup: 0.1
     buffer_size: 50000
     batch_size: 512
     target_update_freq: 2000
     update_freq: 8
-    lr: 2.0e-06
+    lr: 3.0e-06
     lr_decay: 1
     gamma: 0.99
     exploration: {'strategy': 'ucb', 'explore_value': 0.3}
     reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
     optimizer: {'type': 'RMSprop', 'weight_decay': 0.0}
-    lambda: [0.50, 0.3, 0.2]
+    lambda: [0.50, 0.3, 0.1]
     early_stop_patience: 20
     log_freq: 0
     # clip_grad_norm: 0.5
 
 model:
     d_model: 256
-    n_layers: 2
+    n_layers: 4
     n_heads: 16
     mlp_ratio: 4
     dropout: 0.0
     obs_type: ['cpu', 'bw', 'buffer', 'task']
     qk_norm: True
     embed: regular
-    conditioning: additive
+    pre_conditioning: add
+    per_layer_conditioning: adarms
 

@@ -7,6 +7,20 @@ from policies.model.modules.transformer import LearnedPositionalEncoding
 from policies.model.modules.noebert import NeoBERT, NeoBERTConfig, CNeoBERT, SwiGLU
 
 
+# =============================================================================
+# Utilities
+# =============================================================================
+
+def compute_intermediate_size(d_model, mlp_ratio, multiple_of=8):
+    """LLaMA-style SwiGLU sizing: 2/3 expansion, rounded to multiple_of."""
+    raw = int(2 * d_model * mlp_ratio / 3)
+    return multiple_of * ((raw + multiple_of - 1) // multiple_of)
+
+
+# =============================================================================
+# Node Encoder
+# =============================================================================
+
 class RelativeNodeEncoder(nn.Module):
     def __init__(self, d_in, d_model):
         super().__init__()
@@ -20,7 +34,7 @@ class RelativeNodeEncoder(nn.Module):
         diff = nodes - mean
 
         rank = nodes.argsort(dim=1).argsort(dim=1).float()
-        rank = rank / max(N - 1, 1)  # avoid division by zero when N=1
+        rank = rank / max(N - 1, 1)  # safe when N=1
 
         dist_to_max = nodes.max(dim=1, keepdim=True).values - nodes
         dist_to_min = nodes - nodes.min(dim=1, keepdim=True).values
@@ -29,59 +43,69 @@ class RelativeNodeEncoder(nn.Module):
         return self.proj(x)
 
 
-# --- Conditioners ---
+# =============================================================================
+# Pre-encoder conditioners (applied once to embeddings before the transformer)
+#
+# Recommendations:
+#   film : best default — expressive (scale + shift), identity at init.
+#   add  : simpler, fewer params, fine for shallow models.
+# =============================================================================
 
 class FiLMConditioner(nn.Module):
-    """Task modulates node representations via learned scale + shift.
-    Initialized to identity: gamma=1, beta=0."""
+    """Scale + shift embeddings from task features. Identity init (gamma=1, beta=0)."""
     def __init__(self, d_task, d_model):
         super().__init__()
         self.gamma = nn.Linear(d_task, d_model)
         self.beta = nn.Linear(d_task, d_model)
-        # Identity init so conditioning is a no-op at start of training
         nn.init.zeros_(self.gamma.weight)
         nn.init.ones_(self.gamma.bias)
         nn.init.zeros_(self.beta.weight)
         nn.init.zeros_(self.beta.bias)
 
     def forward(self, node_embeds, task_features):
-        gamma = self.gamma(task_features).unsqueeze(1)  # (B, 1, d_model)
+        gamma = self.gamma(task_features).unsqueeze(1)
         beta = self.beta(task_features).unsqueeze(1)
         return gamma * node_embeds + beta
 
 
-class AdditiveConditioner(nn.Module):
-    """Task modulates node representations via learned additive embedding."""
+class PreAdditiveConditioner(nn.Module):
+    """Add task embedding to node embeddings. Zero init -> no-op at start."""
     def __init__(self, d_task, d_model):
         super().__init__()
         self.task_embed = nn.Linear(d_task, d_model, bias=False)
-        nn.init.zeros_(self.task_embed.weight)  # no-op at init
+        nn.init.zeros_(self.task_embed.weight)
 
     def forward(self, node_embeds, task_features):
-        task_emb = self.task_embed(task_features).unsqueeze(1)  # (B, 1, d_model)
+        task_emb = self.task_embed(task_features).unsqueeze(1)
         return node_embeds + task_emb
 
 
+PRE_CONDITIONER_REGISTRY = {
+    "film": FiLMConditioner,
+    "add": PreAdditiveConditioner,
+}
+
+
+# =============================================================================
+# MLPConditioner — fallback for n_layers=0 in TNATE
+# =============================================================================
+
 class MLPConditioner(nn.Module):
-    """Lightweight conditioner wrapper for the n_layers=0 fallback."""
-    def __init__(self, d_task, d_model, d_hidden=None, conditioning="film"):
+    """Lightweight conditioner wrapper for the n_layers=0 case."""
+    def __init__(self, d_task, d_model, d_ff=None, pre_conditioning="film"):
         super().__init__()
-        conditioner_cls = FiLMConditioner if conditioning == "film" else AdditiveConditioner
-        self.conditioner = conditioner_cls(d_task, d_model)
+        if pre_conditioning in PRE_CONDITIONER_REGISTRY:
+            self.conditioner = PRE_CONDITIONER_REGISTRY[pre_conditioning](d_task, d_model)
+        else:
+            raise ValueError(f"Unknown pre_conditioning for MLPConditioner: {pre_conditioning}")
 
     def forward(self, inputs_embeds, condition):
         return self.conditioner(inputs_embeds, condition)
 
 
-# --- Compute LLaMA-style intermediate size once ---
-
-def compute_intermediate_size(d_model, mlp_ratio, multiple_of=8):
-    """LLaMA-style SwiGLU sizing: 2/3 expansion, rounded to multiple_of."""
-    raw = int(2 * d_model * mlp_ratio / 3)
-    return multiple_of * ((raw + multiple_of - 1) // multiple_of)
-
-
-# --- NATE ---
+# =============================================================================
+# NATE (unconditioned)
+# =============================================================================
 
 class NATE(BaseModel):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
@@ -116,14 +140,23 @@ class NATE(BaseModel):
             raise ValueError(f"Unknown embed type: {embed}")
 
     def _init_non_encoder_weights(self):
-        """Init weights for modules outside the transformer encoder."""
+        """Init all modules NOT inside the transformer encoder.
+        Covers nodes_embed, pos_nodes_embed, fc, and n_layers=0 fallback.
+        Modules that self-init (conditioners inside CNeoBERT/MLPConditioner)
+        are excluded to preserve their zero/identity init."""
         init_std = 0.02
-        for module in [self.nodes_embed, self.pos_nodes_embed, self.fc]:
-            for p in module.parameters():
-                if p.dim() >= 2:
-                    nn.init.normal_(p, mean=0.0, std=init_std)
-                elif p.dim() == 1:
-                    nn.init.zeros_(p)
+        encoder_params = (
+            set(self.transformer_encoder.parameters())
+            if isinstance(self.transformer_encoder, (NeoBERT, CNeoBERT, MLPConditioner))
+            else set()
+        )
+        for p in self.parameters():
+            if p in encoder_params:
+                continue
+            if p.dim() >= 2:
+                nn.init.normal_(p, mean=0.0, std=init_std)
+            elif p.dim() == 1:
+                nn.init.zeros_(p)
 
     def _init_encoder(self, d_model, mlp_ratio, d_ff, n_heads, n_layers, dropout, qk_norm, d_task=None):
         if d_ff is None:
@@ -154,27 +187,52 @@ class NATE(BaseModel):
         return x
 
 
-# --- TNATE ---
+# =============================================================================
+# TNATE (task-conditioned)
+#
+# Two-stage conditioning:
+#   1. Pre-encoder  (pre_conditioning):       "film", "add", "none"
+#   2. Per-layer    (per_layer_conditioning):  "none", "adarms", "adaln_zero", "add", "prefix"
+#
+# Recommended combos:
+#   Shallow (2-4 layers): pre=film, per_layer=none         — simplest, sufficient
+#   Medium  (4-8 layers): pre=film, per_layer=adarms       — best balance
+#   Deep    (8+ layers):  pre=add,  per_layer=adaln_zero   — most expressive
+# =============================================================================
 
 class TNATE(NATE):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
-                 n_heads=4, n_layers=3, dropout=0.1, conditioning="film",
-                 condition_each_layer=True, **kwargs):
-        # Store before super().__init__ because _init_encoder needs them
-        self.conditioning = conditioning
-        self.condition_each_layer = condition_each_layer
+                 n_heads=4, n_layers=3, dropout=0.1,
+                 pre_conditioning="film", per_layer_conditioning="none",
+                 n_prefix=4, **kwargs):
+        # Store before super().__init__ because _init_encoder reads them
+        self.pre_conditioning = pre_conditioning
+        self.per_layer_conditioning = per_layer_conditioning
+        self.n_prefix = n_prefix
+
         super().__init__(
             d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model,
             mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers,
             dropout=dropout, **kwargs,
         )
 
+        # Pre-encoder conditioner (separate from transformer encoder)
+        if pre_conditioning in PRE_CONDITIONER_REGISTRY:
+            self.pre_conditioner = PRE_CONDITIONER_REGISTRY[pre_conditioning](d_task, d_model)
+        elif pre_conditioning == "none":
+            self.pre_conditioner = None
+        else:
+            raise ValueError(
+                f"Unknown pre_conditioning: '{pre_conditioning}'. "
+                f"Choose from: {list(PRE_CONDITIONER_REGISTRY.keys()) + ['none']}"
+            )
+
     def _init_encoder(self, d_model, mlp_ratio, d_ff, n_heads, n_layers, dropout, qk_norm, d_task=None):
         if d_ff is None:
             d_ff = compute_intermediate_size(d_model, mlp_ratio)
 
         if n_layers == 0:
-            self.transformer_encoder = MLPConditioner(d_task, d_model, d_ff, self.conditioning)
+            self.transformer_encoder = MLPConditioner(d_task, d_model, d_ff, self.pre_conditioning)
             return
 
         encoder_config = NeoBERTConfig(
@@ -184,14 +242,31 @@ class TNATE(NATE):
             num_hidden_layers=n_layers,
             dropout=dropout,
             qk_norm=qk_norm,
-            condition_each_layer=self.condition_each_layer,
         )
 
-        conditioner_cls = FiLMConditioner if self.conditioning == "film" else AdditiveConditioner
-        self.transformer_encoder = CNeoBERT(encoder_config, conditioner_cls, d_task)
+        if self.per_layer_conditioning == "none":
+            self.transformer_encoder = NeoBERT(encoder_config)
+        else:
+            self.transformer_encoder = CNeoBERT(
+                encoder_config,
+                d_condition=d_task,
+                per_layer_type=self.per_layer_conditioning,
+                n_prefix=self.n_prefix,
+            )
 
     def _forward(self, nodes, task):
         x = self.pos_nodes_embed(self.nodes_embed(nodes))
-        x = self.transformer_encoder(inputs_embeds=x, condition=task)
-        x = self.fc(x)
-        return x
+
+        # Stage 1: pre-encoder conditioning
+        if self.pre_conditioner is not None:
+            x = self.pre_conditioner(x, task)
+
+        # Stage 2: encoder (with optional per-layer conditioning)
+        if isinstance(self.transformer_encoder, CNeoBERT):
+            x = self.transformer_encoder(inputs_embeds=x, condition=task)
+        elif isinstance(self.transformer_encoder, MLPConditioner):
+            x = self.transformer_encoder(inputs_embeds=x, condition=task)
+        else:
+            x = self.transformer_encoder(inputs_embeds=x)
+
+        return self.fc(x)
