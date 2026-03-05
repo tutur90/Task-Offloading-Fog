@@ -8,7 +8,7 @@ eval:
 
 env:
   dataset: "Pakistan"
-  flag: "Tuple30K"
+  flag: "Tuple50K"
   refresh_rate: 0.005
 
 
