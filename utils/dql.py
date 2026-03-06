@@ -17,7 +17,7 @@ def update_transitions(policy: DQNPolicy, env: Env, stored_transitions: dict, co
             if val[0] == 0:
                 latency = sum(val[2])
                 energy = sum(val[3])
-                tdr = 0
+                tdr = -1
                 
             else:
                 latency = None

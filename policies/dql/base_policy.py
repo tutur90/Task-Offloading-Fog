@@ -133,6 +133,7 @@ class DQNPolicy:
         self.reward_var = [1.0] * 3
         self.reward_max = config.get("eval", {}).get("lambda", [1.0] * 3)
         self.avg_reward = 0
+        self.reward_log1p = _reward.get("log1p", True)
         self.expected_reward = config.get("eval", {}).get("lambda", None)
         self.reward_patch = _reward.get("patch", 0.01)
         self.reward_clip = _reward.get("clip", 5.0)
@@ -202,9 +203,9 @@ class DQNPolicy:
         pass
 
     def _norm_reward_fn(self, reward):
-        if self.reward_norm == "standard" or self.reward_norm == "log1p_standard":
+        if self.reward_norm == "standard":
             r = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
-        elif self.reward_norm == "partial_standard" or self.reward_norm == "log1p_partial_standard":
+        elif self.reward_norm == "partial_standard":
             r = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] and i != 0 else 0 for i in range(3)]
         elif self.reward_norm == "mean":
             r = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
@@ -230,8 +231,11 @@ class DQNPolicy:
     
     def _norm_reward(self, reward, _lambda):
         
-        if "log1p" in self.reward_norm:
-            reward = [np.log1p(reward[i]) if reward[i] else 0 for i in range(3)]
+        if self.reward_log1p:
+            if reward[1] is not None:
+                reward[1] = np.log1p(reward[1])
+            if reward[2] is not None:
+                reward[2] = np.log1p(reward[2])
 
         self.reward_mean = [self.reward_mean[i] * self.reward_momentum + reward[i] * (1 - self.reward_momentum) if reward[i] else self.reward_mean[i] for i in range(3)]
         self.reward_var  = [self.reward_var[i]  * self.reward_momentum + (reward[i] - self.reward_mean[i]) ** 2 * (1 - self.reward_momentum) if reward[i] else self.reward_var[i]  for i in range(3)]
