@@ -29,7 +29,7 @@ training:
 
   reward:
     momentum: 0.999
-    norm: "log1p_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    norm: "max"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     scale: 1
     eps: 1.e-2
     clip: 5.0
