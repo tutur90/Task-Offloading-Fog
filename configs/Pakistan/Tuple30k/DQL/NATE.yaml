@@ -15,23 +15,25 @@ eval:
     lambda: [0.001889, 4.394, 260.5]
 
 training:
-    num_epochs: 30
-    learning_starts: 5000
-    warmup: 0.1
-    buffer_size: 50000
-    batch_size: 256
-    target_update_freq: 1000
-    update_freq: 8
-    lr: 5.e-5
-    lr_decay: 1
-    gamma: 0.99
-    exploration: {'strategy': 'ucb', 'explore_value': 1.0}
-    reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
-    optimizer: {'type': 'RMSprop', weight_decay: 0.0}
-    lambda: [0.35, 0.35, 0.3]
-    early_stop_patience: 20
-    log_freq: 0
-    clip_grad_norm: 1
+  num_epochs: 30
+  learning_starts: 5000    # random steps before learning begins
+  warmup: 0                # LR warmup as ratio of total training steps
+  buffer_size: 100000      # max replay buffer size
+  batch_size: 32          # samples per update
+  target_update_freq: 10000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
+  update_freq: 4          # steps between policy updates
+  lr: 1.0e-4
+  lr_decay: 1
+  gamma: 0.99
+  # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
+  exploration: {'strategy': 'ucb', explore_value: 1.0 }
+  reward: {'momentum': 0.999, 'norm': 'partial_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
+  optimizer: {'type': 'RMSprop', weight_decay: 0.0}
+  lambda: [0.6, 0.2, 0.2]
+  early_stop_patience: 20
+  log_freq: 0
+  clip_grad_norm: 10
+  log_freq: 0
 
 
 model:

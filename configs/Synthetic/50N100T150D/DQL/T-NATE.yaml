@@ -26,7 +26,7 @@ training:
     lr_decay: 1
     gamma: 0.99
     exploration: {'strategy': 'ucb', 'explore_value': 0.3}
-    reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
+    reward: {'momentum': 0.999, 'norm': 'standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
     optimizer: {'type': 'RMSprop', 'weight_decay': 0.0}
     lambda: [0.50, 0.3, 0.1]
     early_stop_patience: 20
@@ -35,7 +35,7 @@ training:
 
 model:
     d_model: 256
-    n_layers: 4
+    n_layers: 1
     n_heads: 16
     mlp_ratio: 4
     dropout: 0.0
@@ -43,5 +43,6 @@ model:
     qk_norm: True
     embed: regular
     pre_conditioning: add
-    per_layer_conditioning: adarms
+    per_layer_conditioning: none
+    n_prefix: 4
 

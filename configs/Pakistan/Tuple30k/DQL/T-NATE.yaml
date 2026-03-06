@@ -17,21 +17,21 @@ training:
   num_epochs: 30
   learning_starts: 5000    # random steps before learning begins
   warmup: 0                # LR warmup as ratio of total training steps
-  buffer_size: 50000      # max replay buffer size
-  batch_size: 512          # samples per update
-  target_update_freq: 4000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
-  update_freq: 16          # steps between policy updates
-  lr: 1.e-5
+  buffer_size: 100000      # max replay buffer size
+  batch_size: 32          # samples per update
+  target_update_freq: 10000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
+  update_freq: 4          # steps between policy updates
+  lr: 1.0e-4
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration: {'strategy': 'ucb', explore_value: 1}
+  exploration: {'strategy': 'ucb', explore_value: 1.0 }
 
   reward:
     momentum: 0.999
-    norm: "log1p_standard"  # "none", "mean"
+    norm: "partial_standard"  # "none", "mean"
     scale: 1
-    eps: 1.e-2
+    eps: 2.e-1
     clip: 5.0
     storage_norm: true
 
@@ -39,7 +39,7 @@ training:
     type: "RMSprop"
     weight_decay: 0
 
-  lambda: [0.35000,0.35000,0.300000]
+  lambda: [2.000, 0.5000, 0.100000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 
@@ -51,9 +51,9 @@ model:
     dropout: 0.0
     obs_type: ['cpu', 'bw', 'buffer', 'task']
     qk_norm: True
-    embed: regular  # 'regular' or 'sinusoidal'
+    embed: regular  
     pre_conditioning: add  # 'add' or 'concat'
-    per_layer_conditioning: prefix  # 'none', 'adarms', or 'adarms_v2'
+    per_layer_conditioning: prefix  # 'none', 'adarms', 'prefix'
     n_prefix: 1
 
 device: auto

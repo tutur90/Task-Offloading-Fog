@@ -202,14 +202,16 @@ class DQNPolicy:
         pass
 
     def _norm_reward_fn(self, reward):
-        if "standard" in self.reward_norm:
+        if self.reward_norm == "standard" or self.reward_norm == "log1p_standard":
             r = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
+        elif self.reward_norm == "partial_standard" or self.reward_norm == "log1p_partial_standard":
+            r = [(reward[i] - self.reward_mean[i]) / (np.sqrt(self.reward_var[i]) + self.reward_eps) if reward[i] and i != 0 else 0 for i in range(3)]
         elif self.reward_norm == "mean":
             r = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "partial_mean":
             r = [reward[i] / (self.reward_mean[i] + self.reward_eps) if reward[i] and i != 0 else 0 for i in range(3)]
         elif self.reward_norm == "max":
-            self.reward_max = [max(self.reward_max[i], reward[i]) for i in range(3)]
+            self.reward_max = [max(self.reward_max[i], reward[i]) if reward[i] else self.reward_max[i] for i in range(3)]
             r = [reward[i] / (self.reward_max[i] + self.reward_eps) if reward[i] else 0 for i in range(3)]
         elif self.reward_norm == "log1p_mean":
             r = [np.log1p(reward[i]) - (np.log1p(self.reward_mean[i]) + self.reward_eps) if reward[i] else 0 for i in range(3)]
