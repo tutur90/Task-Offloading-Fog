@@ -25,7 +25,7 @@ training:
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration: {'strategy': 'ucb', explore_value: 1.0 }
+  exploration: {'strategy': 'ucb', explore_value: 0.5 }
 
   reward:
     momentum: 0.999
@@ -45,8 +45,8 @@ training:
   log_freq: 0      # Steps between logging training metrics
 
 model:
-  d_model: 256
-  n_layers: 2
+  d_model: 64
+  n_layers: 3
   # obs_type: ["cpu"]
   # obs_type: ["bw"]
   obs_type: ["cpu", "bw", "buffer"]
