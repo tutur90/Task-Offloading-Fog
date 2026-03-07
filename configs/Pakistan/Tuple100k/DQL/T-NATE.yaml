@@ -15,23 +15,35 @@ eval:
     lambda: [0.001889, 4.394, 260.5]
 
 training:
-    num_epochs: 30
-    learning_starts: 5000
-    warmup: 0.1
-    buffer_size: 50000
-    batch_size: 256
-    target_update_freq: 1000
-    update_freq: 8
-    lr: 3.e-05
-    lr_decay: 1
-    gamma: 0.99
-    exploration: {'strategy': 'ucb', 'explore_value': 1.0}
-    reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
-    optimizer: {'type': 'RMSprop', 'weight_decay': 0.0}
-    lambda: [0.35, 0.35, 0.3]
-    early_stop_patience: 20
-    log_freq: 0
-    clip_grad_norm: 0.5
+  num_epochs: 30
+  learning_starts: 5000    # random steps before learning begins
+  warmup: 0                # LR warmup as ratio of total training steps
+  buffer_size: 100000      # max replay buffer size
+  batch_size: 64          # samples per update
+  target_update_freq: 10000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
+  update_freq: 4          # steps between policy updates
+  lr: 3.0e-5
+  lr_decay: 1
+  gamma: 0.99
+  # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
+  exploration: {'strategy': 'ucb', explore_value: 1.0 }
+
+  lambda: [0.8, 0.100, 0.100]
+  early_stop_patience: 20 # Early stopping patience (generations without improvement)
+  log_freq: 0      # Steps between logging training metrics
+
+  reward:
+    momentum: 0.999
+    norm: "partial_standard"  # "none", "mean"
+    
+    scale: 1
+    eps: 2.e-1
+    clip: 5.0
+    storage_norm: true
+
+  optimizer:
+    type: "RMSprop"
+    weight_decay: 0
 
 model:
     d_model: 256
@@ -41,4 +53,7 @@ model:
     dropout: 0.0
     obs_type: ['cpu', 'bw', 'buffer', 'task']
     qk_norm: True
-    embed: gelu
+    embed: regular
+    pre_conditioning: add  # 'add' or 'concat'
+    per_layer_conditioning: prefix  # 'none', 'adarms', 'prefix'
+    n_prefix: 2

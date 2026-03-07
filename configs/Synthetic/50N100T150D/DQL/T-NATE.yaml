@@ -18,17 +18,17 @@ training:
     num_epochs: 40
     learning_starts: 5000
     warmup: 0.1
-    buffer_size: 50000
-    batch_size: 512
+    buffer_size: 100000
+    batch_size: 128
     target_update_freq: 2000
-    update_freq: 8
-    lr: 3.0e-06
+    update_freq: 4
+    lr: 5.0e-06
     lr_decay: 1
     gamma: 0.99
     exploration: {'strategy': 'ucb', 'explore_value': 0.3}
-    reward: {'momentum': 0.999, 'norm': 'standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
+    reward: {'momentum': 0.999, 'norm': 'partial_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True, log1p: True}
     optimizer: {'type': 'RMSprop', 'weight_decay': 0.0}
-    lambda: [0.50, 0.3, 0.1]
+    lambda: [0.70, 0.2, 0.1]
     early_stop_patience: 20
     log_freq: 0
     # clip_grad_norm: 0.5

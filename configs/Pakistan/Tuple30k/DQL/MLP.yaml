@@ -17,7 +17,7 @@ training:
   num_epochs: 30
   learning_starts: 5000    # random steps before learning begins
   warmup: 0                # LR warmup as ratio of total training steps
-  buffer_size: 100000      # max replay buffer size
+  buffer_size: 50000      # max replay buffer size
   batch_size: 32          # samples per update
   target_update_freq: 10000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 4          # steps between policy updates
@@ -25,7 +25,7 @@ training:
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration: {'strategy': 'ucb', explore_value: 0.5 }
+  exploration: {'strategy': 'ucb', explore_value: 1.0 }
 
   reward:
     momentum: 0.999
@@ -40,7 +40,7 @@ training:
     type: "RMSprop"
     weight_decay: 0
 
-  lambda: [0.3000,0.3000,0.3000]
+  lambda: [0.8000,0.1000,0.1000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 

@@ -15,25 +15,25 @@ eval:
 
 training:
     num_epochs: 20
-    learning_starts: 5000
+    learning_starts: 500
     warmup: 0
     buffer_size: 50000
     batch_size: 256
-    target_update_freq: 1000
-    update_freq: 8
+    target_update_freq: 10000
+    update_freq: 4
     lr: 8.e-05
     lr_decay: 1
     gamma: 0.99
     exploration: {'strategy': 'ucb', 'explore_value': 1.0}
-    reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
+    reward: {'momentum': 0.999, 'norm': 'partial_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True, log1p: True}
     optimizer: {'type': 'RMSprop', 'weight_decay': 0}
-    lambda: [0.6, 0.2, 0.2]
+    lambda: [0.8, 0.1, 0.1]
     early_stop_patience: 20
     log_freq: 0
 
 model:
-    d_model: 256
-    n_layers: 2
+    d_model: 64
+    n_layers: 3
     obs_type: ['cpu', 'bw', 'buffer', 'task']
 
     bias: True
