@@ -27,8 +27,8 @@ training:
     lr: 2.e-05
     lr_decay: 1
     gamma: 0.90
-    exploration: {'strategy': 'ucb', 'explore_value': 0.25}
-    reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
+    exploration: {'strategy': 'ucb', 'explore_value': 0.3}
+    reward: {'momentum': 0.999, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True}
     optimizer: {'type': 'RMSprop'}
     lambda: [0.35, 0.35, 0.3]
     early_stop_patience: 30

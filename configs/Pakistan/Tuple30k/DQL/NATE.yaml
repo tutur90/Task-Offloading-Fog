@@ -27,7 +27,7 @@ training:
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
   exploration: {'strategy': 'ucb', explore_value: 1.0 }
-  reward: {'momentum': 0.999, 'norm': 'partial_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
+  reward: {'momentum': 0.999, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True}
   optimizer: {'type': 'RMSprop', weight_decay: 0.0}
   lambda: [0.6, 0.2, 0.2]
   early_stop_patience: 20

@@ -27,12 +27,17 @@ training:
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
   exploration:
     strategy: "ucb"
-    explore_value: 0.2
+    explore_value: 0.3
+
+
   reward:
     momentum: 0.999
-    norm: "log1p_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    norm: "standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     scale: 1
-    eps: 1.e-2
+    eps: 1.e-1
+    clip: 5.0
+    storage_norm: true
+    log1p: true
 
   optimizer:
     type: "RMSprop"
