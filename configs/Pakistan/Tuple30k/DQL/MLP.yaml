@@ -40,7 +40,7 @@ training:
     type: "RMSprop"
     weight_decay: 0
 
-  lambda: [0.8000,0.1000,0.1000]
+  lambda: [0.5500,0.2500,0.2000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 

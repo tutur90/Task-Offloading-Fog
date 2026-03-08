@@ -163,7 +163,8 @@ class NATE(BaseModel):
 
     def _init_encoder(self, d_model, mlp_ratio, d_ff, n_heads, n_layers, dropout, qk_norm, d_task=None):
         if d_ff is None:
-            d_ff = compute_intermediate_size(d_model, mlp_ratio)
+            # d_ff = compute_intermediate_size(d_model, mlp_ratio)
+            d_ff = d_model * mlp_ratio
 
         if n_layers == 0:
             self.transformer_encoder = nn.Sequential(

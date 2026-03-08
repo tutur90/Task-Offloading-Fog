@@ -15,7 +15,7 @@ eval:
 
 training:
     num_epochs: 20
-    learning_starts: 500
+    learning_starts: 5000
     warmup: 0
     buffer_size: 50000
     batch_size: 256
