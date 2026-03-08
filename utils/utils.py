@@ -35,13 +35,23 @@ class Scenario(BaseScenario):
 
 class Checkpoint:
     """A simple class to manage checkpoints."""
-    
-    def __init__(self, path):
+
+    def __init__(self, path, keep_last_n=1):
         self.path = os.path.join(path, "checkpoints")
+        self.keep_last_n = keep_last_n  # None means keep all
+        self._saved_epochs = []
         os.makedirs(self.path, exist_ok=True)
 
     def save(self, policy, epoch):
         policy.save(os.path.join(self.path, f"checkpoint_epoch_{epoch}.pt"))
+        self._saved_epochs.append(epoch)
+        if self.keep_last_n is not None:
+            while len(self._saved_epochs) > self.keep_last_n:
+                old_epoch = self._saved_epochs.pop(0)
+                for ext in (".pt", ".npz"):
+                    old_path = os.path.join(self.path, f"checkpoint_epoch_{old_epoch}{ext}")
+                    if os.path.exists(old_path):
+                        os.remove(old_path)
 
     def load(self, policy, epoch):
         policy.load(os.path.join(self.path, f"checkpoint_epoch_{epoch}.pt"))
@@ -77,7 +87,6 @@ class Logger(BaseLogger):
     """
     def __init__(self, config):
         super().__init__(config)
-        self.log_dir = os.path.join(self.log_dir, "DQRL")
 
         os.makedirs(self.log_dir, exist_ok=True)
         self.best_epoch = 0

@@ -15,7 +15,7 @@ class VisStats:
             save_path (str): Directory where plots will be saved.
             display_numbers (bool): Whether to annotate bars with their numeric values.
         """
-        self.save_path = save_path
+        self.save_path = os.path.join(save_path, "figs")
         os.makedirs(self.save_path, exist_ok=True)
         self.task_info = {}
         self.node_info = {}

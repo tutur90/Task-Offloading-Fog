@@ -555,6 +555,7 @@ class NSGA2Policy:
 
         # Update population
         self.population = new_population
+        self._cached_fitness = new_fitness  # store for checkpointing
 
         return new_fitness
 
@@ -584,25 +585,42 @@ class NSGA2Policy:
         return self.select_from_combined(fitness, offspring, offspring_fitness)
     
     def save(self, path):
-        """Save the current population to a file."""
-        # Convert .pt extension to .npz for numpy format
+        """Save the current population and fitness to a file.
+
+        When save_pareto_only=True (default), only Pareto-front individuals
+        are saved, reducing checkpoint size while preserving the best solutions.
+        """
         if path.endswith('.pt'):
             path = path[:-3] + '.npz'
-        # Flatten population into separate arrays for weights and biases
+
+        population = self.population
+        cached = getattr(self, '_cached_fitness', None)
+
+        save_pareto_only = self.config.get("training", {}).get("save_pareto_only", True)
+        if save_pareto_only and cached is not None:
+            fitness_3obj = [tuple(f[:3]) for f in cached]
+            fronts = self.non_dominated_sort(fitness_3obj)
+            pareto_indices = fronts[0]
+            population = [self.population[i] for i in pareto_indices]
+            cached = [cached[i] for i in pareto_indices]
+            print(f"[Checkpoint] Saving {len(population)}/{len(self.population)} individuals (Pareto front only)")
+
         save_dict = {
             'norm': self.norm,
-            'n_individuals': len(self.population),
+            'n_individuals': len(population),
             'n_layers': self.n_layers,
         }
-        for i, (weights, biases) in enumerate(self.population):
+        for i, (weights, biases) in enumerate(population):
             for j, w in enumerate(weights):
                 save_dict[f'ind_{i}_weight_{j}'] = w
             for j, b in enumerate(biases):
                 save_dict[f'ind_{i}_bias_{j}'] = b
+        if cached is not None:
+            save_dict['fitness'] = np.array(cached)
         np.savez_compressed(path, **save_dict)
 
     def load(self, path):
-        """Load the population from a file."""
+        """Load the population and fitness from a file."""
         # Convert .pt extension to .npz for numpy format
         if path.endswith('.pt'):
             path = path[:-3] + '.npz'
@@ -616,3 +634,8 @@ class NSGA2Policy:
             weights = [data[f'ind_{i}_weight_{j}'] for j in range(n_layers)]
             biases = [data[f'ind_{i}_bias_{j}'] for j in range(n_layers)]
             self.population.append((weights, biases))
+
+        if 'fitness' in data:
+            self._cached_fitness = data['fitness'].tolist()
+        else:
+            self._cached_fitness = None

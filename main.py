@@ -155,7 +155,8 @@ def main(config):
 
     if "training" in config.keys():
 
-        checkpoint = Checkpoint(logger.log_dir)
+        keep_checkpoints = config["training"].get("keep_checkpoints", None)
+        checkpoint = Checkpoint(logger.log_dir, keep_last_n=keep_checkpoints)
 
         valid_size = config["training"].get("valid_size", 0.2)
 
@@ -586,6 +587,15 @@ def parse_args():
         help="Shortcut for --seeds 0 1 ... N-1.",
     )
     parser.add_argument(
+        "--keep_checkpoints", type=int, default=1,
+        metavar="N",
+        help="Keep only the last N checkpoints during training (default: 1).",
+    )
+    parser.add_argument(
+        "--no_pareto_only", action="store_true", default=False,
+        help="Save all individuals in GA checkpoints instead of Pareto-front only (default: Pareto-front only).",
+    )
+    parser.add_argument(
         "--plot", type=str, default=None,
         metavar="TYPE",
         help=(
@@ -606,6 +616,9 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
         
     config["device"] = args.device
+    if "training" in config:
+        config["training"]["keep_checkpoints"] = args.keep_checkpoints
+        config["training"]["save_pareto_only"] = not args.no_pareto_only
 
     seeds = args.seeds
     if args.n_seeds is not None:
