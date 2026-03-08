@@ -13,7 +13,7 @@ import numpy as np
 from core.env import Env
 from core.task import Task
 
-from policies.model.base_model import BaseModel
+from policies.model.base_model import BaseModel, scaled_lr
 
 
 
@@ -66,7 +66,13 @@ class DQNPolicy:
         """Initialize core training hyperparameters and replay buffer."""
         tr = config["training"]
         self.gamma = tr["gamma"]
-        self.lr = tr["lr"]
+        self.lr = scaled_lr(
+            tr["lr"],
+            d_model=config.get("model", {}).get("d_model", 1),
+            num_layers=config.get("model", {}).get("n_layers", 1),
+            ref_d_model=tr.get("ref_d_model"),
+            ref_n_layers=tr.get("ref_n_layers"),
+        )
         self.buffer_size = tr.get("buffer_size", 10000)
         self.batch_size = tr.get("batch_size", 64)
         self.target_update_freq = tr.get("target_update_freq", 1000)

@@ -2,6 +2,16 @@ import torch
 from torch import nn
 import pandas as pd
 
+
+def scaled_lr(base_lr, d_model, num_layers, ref_d_model=None, ref_n_layers=None):
+    lr = base_lr
+    if ref_d_model is not None:
+        lr = lr * (ref_d_model / d_model) ** 0.5
+    if ref_n_layers is not None:
+        lr = lr * (ref_n_layers / num_layers) ** 0.5
+    return lr
+
+
 class BaseModel(nn.Module):   
     def forward(self, x, task):
         x, task = self.normalize(x, task)

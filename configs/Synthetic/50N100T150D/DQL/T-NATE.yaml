@@ -23,6 +23,8 @@ training:
     target_update_freq: 2000
     update_freq: 4
     lr: 5.0e-06
+    ref_d_model: 64
+    ref_n_layers: 1
     lr_decay: 1
     gamma: 0.99
     exploration: {'strategy': 'ucb', 'explore_value': 0.3}

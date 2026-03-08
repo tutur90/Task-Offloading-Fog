@@ -22,6 +22,8 @@ training:
     target_update_freq: 1000
     update_freq: 8
     lr: 1.e-05
+    ref_d_model: 64
+    ref_n_layers: 1
     lr_decay: 1
     gamma: 0.99
     exploration:
