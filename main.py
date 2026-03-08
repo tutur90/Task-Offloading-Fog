@@ -155,7 +155,7 @@ def main(config):
 
     if "training" in config.keys():
 
-        keep_checkpoints = config["training"].get("keep_checkpoints", None)
+        keep_checkpoints = config["training"].get("keep_checkpoints", 1)
         checkpoint = Checkpoint(logger.log_dir, keep_last_n=keep_checkpoints)
 
         valid_size = config["training"].get("valid_size", 0.2)
