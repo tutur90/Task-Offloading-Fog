@@ -181,57 +181,93 @@ class Logger:
                 writer.writeheader()
             writer.writerow(row)
 
-    def plot(self, display=False, excluded_modes=['Testing'], excluded_metrics=[]):
+    def plot(self, display=False, excluded_modes=[], excluded_metrics=[], metric_groups=None):
         """
-        Plots the logged metrics over epochs for each mode and metric. If the Epoch values
-        are not numeric, the x-axis is set as the order of appearance.
+        Plots the logged metrics over epochs.
+
+        Layout: one row per group, one column per metric in that group.
+        All modes (Train, Val, …) are overlaid as separate lines on the same subplot.
+
+        Args:
+            display (bool): Whether to call plt.show().
+            excluded_modes (list): Modes to skip entirely.
+            excluded_metrics (list): Metrics to skip entirely.
+            metric_groups (list[list[str]]): Ordered groups of metric names.
+                Metrics present in the data but not in any group are collected into
+                an extra group appended at the end.
+                Defaults to:
+                    [['TaskDropRate', 'AvgLatency', 'AvgPower'],
+                     ['AvgLoss', 'AvgGradNorm']]
         """
-        # Convert stored rows to a DataFrame.
+        if metric_groups is None:
+            metric_groups = [
+                ['TaskDropRate', 'AvgLatency', 'AvgPower'],
+                ['AvgLoss', 'AvgGradNorm'],
+            ]
+
         df = pd.DataFrame(self.rows)
-        
-        # For plotting, if 'Epoch' cannot be converted to a number, use row order.
+
         try:
             df['Epoch_num'] = pd.to_numeric(df['Epoch'], errors='raise')
         except Exception:
-            # If conversion fails (e.g., empty string), use the row index.
             df['Epoch_num'] = df.groupby(["Mode", "Metric"]).cumcount() + 1
-        
-        modes = df['Mode'].unique() 
-        # Exclude specified modes from plotting.
-        modes = [mode for mode in modes if mode not in excluded_modes]
+
+        modes = [m for m in df['Mode'].unique() if m not in excluded_modes]
         if not modes:
             print("No modes to plot after excluding specified modes.")
             return
-        metrics = df['Metric'].unique()
-        # Exclude specified metrics from plotting.
-        metrics = [metric for metric in metrics if metric not in excluded_metrics]
-        if not metrics:
+
+        all_metrics = [m for m in df['Metric'].unique() if m not in excluded_metrics]
+        if not all_metrics:
             print("No metrics to plot after excluding specified metrics.")
             return
-        num_modes = len(modes)
-        num_metrics = len(metrics)
-        
-        fig, axes = plt.subplots(num_modes, num_metrics, figsize=(6 * num_metrics, 4 * num_modes))
-        # Ensure axes is a 2D array.
-        if num_modes == 1 and num_metrics == 1:
-            axes = np.array([[axes]])
-        elif num_modes == 1:
-            axes = np.array([axes])
-        elif num_metrics == 1:
-            axes = np.array([[ax] for ax in axes])
-        
-        for i, mode in enumerate(modes):
-            for j, metric in enumerate(metrics):
-                subset = df[(df['Mode'] == mode) & (df['Metric'] == metric)]
-                if subset.empty:
-                    continue
-                x = subset['Epoch_num']
-                y = subset['Value']
-                axes[i, j].plot(x, y, marker='o')
-                title_mode = mode if mode != "" else "Unknown"
-                axes[i, j].set_title(f"{title_mode} - {metric}")
-                axes[i, j].set_xlabel("Epoch")
-                axes[i, j].set_ylabel(metric)
+
+        # Build actual groups: only keep metrics present in the data.
+        grouped = set()
+        actual_groups = []
+        for group in metric_groups:
+            present = [m for m in group if m in all_metrics]
+            if present:
+                actual_groups.append(present)
+                grouped.update(present)
+
+        # Remaining metrics that don't belong to any defined group.
+        ungrouped = [m for m in all_metrics if m not in grouped]
+        if ungrouped:
+            actual_groups.append(ungrouped)
+
+        if not actual_groups:
+            print("No metrics to plot.")
+            return
+
+        num_rows = len(actual_groups)
+        num_cols = max(len(g) for g in actual_groups)
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+        fig, axes = plt.subplots(num_rows, num_cols,
+                                 figsize=(6 * num_cols, 4 * num_rows),
+                                 squeeze=False)
+
+        # Hide all cells first; enable only those that are used.
+        for ax_row in axes:
+            for ax in ax_row:
+                ax.set_visible(False)
+
+        for i, group in enumerate(actual_groups):
+            for j, metric in enumerate(group):
+                ax = axes[i][j]
+                ax.set_visible(True)
+                for k, mode in enumerate(modes):
+                    subset = df[(df['Mode'] == mode) & (df['Metric'] == metric)]
+                    if subset.empty:
+                        continue
+                    ax.plot(subset['Epoch_num'], subset['Value'],
+                            marker='o', label=mode, color=colors[k % len(colors)])
+                ax.set_title(metric)
+                ax.set_xlabel("Epoch")
+                ax.set_ylabel(metric)
+                ax.legend()
+
         plt.tight_layout()
         plot_path = os.path.join(self.log_dir, "score_plot.png")
         plt.savefig(plot_path)

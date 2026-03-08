@@ -7,7 +7,7 @@ import seaborn as sns
 SUCCESS = 0
 
 class VisStats:
-    def __init__(self, save_path: str, display_numbers: bool = True):
+    def __init__(self, save_path: str, display_numbers: bool = False):
         """
         Initialize with a path where figures will be saved.
         
@@ -65,8 +65,9 @@ class VisStats:
             energy, cpu_freq, clock = val
             max_cpu_freq = env.scenario.get_node(node_name).max_cpu_freq
             node_list.append([node_name, clock, energy, cpu_freq, max_cpu_freq])
-        self.node_info = pd.DataFrame(node_list, 
-                                      columns=['Node Name', 'Clock', 'Energy', 'CPU Freq', 'Max CPU Freq'])
+        self.node_info = pd.DataFrame(node_list,
+                                      columns=['Node Name', 'Clock', 'Energy', 'CPU Freq', 'Max CPU Freq'])\
+                                     .sort_values(by='Node Name').reset_index(drop=True)
 
     def vis(self, env: Env):
         """Generate and save several visualizations based on the current environment stats."""
@@ -84,7 +85,7 @@ class VisStats:
         task_counts = self.task_info.groupby('Link')['Status'].agg(
             Total='size',
             Success=lambda x: (x == 'SUCCESS').sum()
-        ).reset_index()
+        ).reset_index().sort_values(by='Link').reset_index(drop=True)
         f, ax = plt.subplots(figsize=(10, 6))
         plt.xticks(rotation=45, fontsize=10)
         sns.barplot(x="Link", y="Total", data=task_counts, label="Total", color="lightgray", ax=ax)
@@ -110,7 +111,8 @@ class VisStats:
 
         # 3. Bar chart: Average latency per link (for successful tasks).
         latency = self.task_info[self.task_info['Status'] == 'SUCCESS']\
-                      .groupby('Link')[['Trans Time', 'Wait Time', 'Exe Time', 'Time']].mean().reset_index()
+                      .groupby('Link')[['Trans Time', 'Wait Time', 'Exe Time', 'Time']].mean()\
+                      .reset_index().sort_values(by='Link').reset_index(drop=True)
         latency_melt = latency.melt(id_vars='Link', var_name='Latency Type', value_name='Average')
         f, ax = plt.subplots(figsize=(10, 6))
         sns.barplot(data=latency_melt, x='Link', y='Average', hue='Latency Type', ax=ax)
@@ -123,7 +125,8 @@ class VisStats:
         plt.close(f)
 
         # 4. Bar chart: Energy consumption per node.
-        energy = self.task_info.groupby('Destination')[['Trans Energy', 'Exe Energy']].sum().reset_index()
+        energy = self.task_info.groupby('Destination')[['Trans Energy', 'Exe Energy']].sum()\
+                     .reset_index().sort_values(by='Destination').reset_index(drop=True)
 
         energy = energy.merge(self.node_info, left_on='Destination', right_on='Node Name', suffixes=('_task', '_node'))
         energy['Idle Energy'] = energy['Energy'] - energy["Trans Energy"] - energy["Exe Energy"]
@@ -176,8 +179,6 @@ class VisStats:
         plt.close(f)
         
         # 6. Bar chart: CPU frequency per node (overlay style).
-        
-        self.node_info = self.node_info.sort_values(by='Node Name')
         f, ax = plt.subplots(figsize=(10, 6))
         plt.xticks(rotation=45, fontsize=10)
         # Normalize CPU frequency by clock.
