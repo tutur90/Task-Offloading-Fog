@@ -128,8 +128,8 @@ if __name__ == '__main__':
             completed_count += 1
             print(f"Progress saved ({completed_count}/{len(samples)} completed, best epoch: {best_epoch})")
 
-    k = min(100, len(samples))
-    print_top_k_results(samples, val_metrics, k=k, label="Validation Results")
+    k = min(20, len(samples))
+    # print_top_k_results(samples, val_metrics, k=k, label="Validation Results")
     print_top_k_results(samples, test_metrics, k=k, label="Test Results")
 
     plot_ternary(samples, values=test_metrics[:, 3], title='Test Score Lambda Grid', labels=['λ0', 'λ1', 'λ2'], output_path=f"{results_dir}/lambda_grid_search_test.png", max_value=0.8)

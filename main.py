@@ -306,9 +306,9 @@ def run_lambda_search(config, config_path, args, n_steps):
         for item in work_items:
             _save(*_lambda_search_worker(item))
 
-    k = min(100, len(samples))
+    k = min(20, len(samples))
     print_top_k_results(samples, val_metrics,  k=k, label="Validation Results")
-    print_top_k_results(samples, test_metrics, k=k, label="Test Results")
+    # print_top_k_results(samples, test_metrics, k=k, label="Test Results")
     plot_ternary(samples, values=test_metrics[:, 3], title="Test Score Lambda Grid",
                  labels=["λ0", "λ1", "λ2"],
                  output_path=f"{results_dir}/lambda_grid_search_test.png", max_value=0.8)
@@ -525,9 +525,9 @@ def plot_lambda_search(config):
 
     print(f"Loaded {len(keys)} completed lambda configurations from {results_file}")
 
-    k = min(100, len(keys))
+    k = min(20, len(keys))
     print_top_k_results(samples, val_metrics,  k=k, label="Validation Results")
-    print_top_k_results(samples, test_metrics, k=k, label="Test Results")
+    # print_top_k_results(samples, test_metrics, k=k, label="Test Results")
 
     plot_ternary(samples, values=test_metrics[:, 3], title="Test Score Lambda Grid",
                  labels=["λ0", "λ1", "λ2"],

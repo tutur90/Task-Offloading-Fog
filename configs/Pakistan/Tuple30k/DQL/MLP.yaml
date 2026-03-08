@@ -28,18 +28,20 @@ training:
   exploration: {'strategy': 'ucb', explore_value: 1.0 }
 
   reward:
-    momentum: 0.999
+    momentum: 0.9995
     norm: "standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
     log1p: true
     # scale: 1
+    eps: 1.e-1
     eps: 1.e-1
     clip: 5.0
     storage_norm: true
 
   optimizer:
-    type: "RMSprop"
+    type: "Adam"
     weight_decay: 0
 
+  lambda: [0.5500,0.2500,0.2000]
   lambda: [0.5500,0.2500,0.2000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
