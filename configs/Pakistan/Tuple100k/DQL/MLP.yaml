@@ -18,35 +18,36 @@ training:
   learning_starts: 5000    # random steps before learning begins
   warmup: 0                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
-  batch_size: 256          # samples per update
-  target_update_freq: 1000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
-  update_freq: 8          # steps between policy updates
-  lr: 5.e-5
+  batch_size: 512          # samples per update
+  target_update_freq: 10000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
+  update_freq: 4          # steps between policy updates
+  lr: 2.0e-4
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration:
-    strategy: "ucb" 
-    explore_value: 0.5
+  exploration: {'strategy': 'ucb', explore_value: 1.0 }
 
   reward:
-    momentum: 0.999
-    norm: "log1p_standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
-    scale: 1
-    eps: 1.e-2
+    momentum: 0.9995
+    norm: "standard"  # "none", "mean", "ln_mean", "standard", "ln_standard"
+    log1p: true
+    # scale: 1
+    eps: 1.e-1
+    eps: 1.e-1
     clip: 5.0
     storage_norm: true
 
   optimizer:
-    type: "RMSprop"
+    type: "Adam"
     weight_decay: 0
-  lambda: [0.350000,0.350000,0.300000]
+
+  lambda: [0.5500,0.2500,0.2000]
   early_stop_patience: 20 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 
 model:
   d_model: 512
-  n_layers: 2
+  n_layers: 3
   # obs_type: ["cpu"]
   # obs_type: ["cpu", "buffer"]
   obs_type: ["cpu", "bw", "buffer"]

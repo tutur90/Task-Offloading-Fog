@@ -28,7 +28,7 @@ training:
     exploration: {'strategy': 'ucb', 'explore_value': 1.0}
     reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True, log1p: True}
     optimizer: {'type': 'Adam', 'weight_decay': 0}
-    lambda: [0.5, 0.2, 0.3]
+    lambda: [0.3, 0.4, 0.3]
     early_stop_patience: 20
     log_freq: 0
 
