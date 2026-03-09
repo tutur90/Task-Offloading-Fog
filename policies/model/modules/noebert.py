@@ -4,12 +4,6 @@ import torch.nn.functional as F
 from dataclasses import dataclass
 from typing import Optional
 
-try:
-    from flash_attn.flash_attn_interface import flash_attn_varlen_func
-    FLASH_ATTN_AVAILABLE = True
-except ImportError:
-    FLASH_ATTN_AVAILABLE = False
-
 
 # --- SwiGLU ---
 
@@ -38,7 +32,8 @@ class NeoBERTConfig:
     dropout: float = 0.0
     qk_norm: bool = True
     learnable_qk_norm: bool = True
-    hard_scale_qk: bool = True
+    hard_scale_qk: bool = False
+    sink_attn: bool = True
 
     def __post_init__(self):
         if self.hidden_size % self.num_attention_heads != 0:
@@ -148,6 +143,9 @@ class EncoderBlock(nn.Module):
         self.ffn_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
         self.dropout = nn.Dropout(config.dropout)
 
+        if config.sink_attn:
+            self.sink_logit = nn.Parameter(torch.zeros(1, config.num_attention_heads, 1, 1))
+
     def forward(self, x, attention_mask=None, output_attentions=False, modulation=None):
         """Forward with optional per-layer modulation.
         modulation: tuple from AdaLNZeroConditioner (len 6) or AdaRMSConditioner (len 4), or None."""
@@ -182,7 +180,7 @@ class EncoderBlock(nn.Module):
         x = x + a2 * self.dropout(self.ffn(g2 * self.ffn_norm(x)))
         return x, attn_w
 
-    def _att_block(self, x, attention_mask, output_attentions, max_seqlen=None, cu_seqlens=None):
+    def _att_block(self, x, attention_mask, output_attentions):
         batch_size, seq_len, _ = x.shape
 
         xq, xk, xv = (
@@ -197,31 +195,28 @@ class EncoderBlock(nn.Module):
             
         scale = self.config.dim_head ** -1 if self.config.hard_scale_qk else (self.config.dim_head ** -0.5)
 
-        attn_weights = None
-        if cu_seqlens is not None:
-            attn = flash_attn_varlen_func(
-                q=xq.squeeze(0), k=xk.squeeze(0), v=xv.squeeze(0),
-                cu_seqlens_q=cu_seqlens, cu_seqlens_k=cu_seqlens,
-                max_seqlen_q=max_seqlen, max_seqlen_k=max_seqlen,
-                dropout_p=0.0, causal=False,
-                scale=scale,
-            )
-        elif output_attentions:
-            attn_weights = xq.permute(0, 2, 1, 3) @ xk.permute(0, 2, 3, 1) * scale
-            if attention_mask is not None:
-                attn_weights = attn_weights + attention_mask
-            attn_weights = attn_weights.softmax(-1)
-            attn = (attn_weights @ xv.permute(0, 2, 1, 3)).transpose(1, 2)
-        else:
-            attn = F.scaled_dot_product_attention(
-                query=xq.transpose(1, 2),
-                key=xk.transpose(1, 2),
-                value=xv.transpose(1, 2),
-                attn_mask=attention_mask,
-                dropout_p=0.0,
-                is_causal=False,
-                scale=scale,
-            ).transpose(1, 2)
+        xq_t = xq.transpose(1, 2)  # (B, H, S, D)
+        xk_t = xk.transpose(1, 2)
+        xv_t = xv.transpose(1, 2)
+
+        scores = torch.matmul(xq_t, xk_t.transpose(-2, -1)) * scale
+
+        if attention_mask is not None:
+            scores = scores + attention_mask
+
+        if self.config.sink_attn:
+            sink = self.sink_logit.expand(scores.shape[0], -1, scores.shape[2], 1)
+            scores = torch.cat([scores, sink], dim=-1)  # (B, H, S, S+1)
+
+        attn_weights = F.softmax(scores, dim=-1)
+
+        if self.config.sink_attn:
+            attn_weights = attn_weights[..., :-1]  # drop sink column (B, H, S, S)
+
+        attn = torch.matmul(attn_weights, xv_t).transpose(1, 2)
+
+        if not output_attentions:
+            attn_weights = None
 
         return self.wo(attn.reshape(batch_size, seq_len, self.config.hidden_size)), attn_weights
 
