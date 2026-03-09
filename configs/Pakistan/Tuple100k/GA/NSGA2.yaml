@@ -20,7 +20,7 @@ training:
   mutation_rate: 0.2      # Mutation rate for Gaussian mutation
   early_stop_patience: 100 # Early stopping patience (generations without improvement)
 
-selection:
+# selection:
   # Minimum acceptable quality per objective (acts as upper bound since all objectives are minimized).
   # Individuals exceeding any threshold are disqualified during selection.
   # Set to null to disable the constraint for that objective.
