@@ -181,7 +181,10 @@ class Logger:
                 writer.writeheader()
             writer.writerow(row)
 
-    def plot(self, display=False, excluded_modes=[], excluded_metrics=[], metric_groups=None):
+    def plot(self, display=False, excluded_modes=[], excluded_metrics=[], metric_groups = [
+                ['TaskDropRate', 'AvgLatency', 'AvgPower'],
+                ['AvgLoss', 'AvgGradNorm'],
+            ]):
         """
         Plots the logged metrics over epochs.
 
@@ -199,11 +202,6 @@ class Logger:
                     [['TaskDropRate', 'AvgLatency', 'AvgPower'],
                      ['AvgLoss', 'AvgGradNorm']]
         """
-        if metric_groups is None:
-            metric_groups = [
-                ['TaskDropRate', 'AvgLatency', 'AvgPower'],
-                ['AvgLoss', 'AvgGradNorm'],
-            ]
 
         df = pd.DataFrame(self.rows)
 
@@ -231,32 +229,23 @@ class Logger:
                 actual_groups.append(present)
                 grouped.update(present)
 
-        # Remaining metrics that don't belong to any defined group.
-        ungrouped = [m for m in all_metrics if m not in grouped]
-        if ungrouped:
-            actual_groups.append(ungrouped)
+        # Remaining metrics: each gets its own individual subplot row.
+        for m in all_metrics:
+            if m not in grouped:
+                actual_groups.append([m])
 
         if not actual_groups:
             print("No metrics to plot.")
             return
 
-        num_rows = len(actual_groups)
-        num_cols = max(len(g) for g in actual_groups)
         colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-        fig, axes = plt.subplots(num_rows, num_cols,
-                                 figsize=(6 * num_cols, 4 * num_rows),
-                                 squeeze=False)
+        for gi, group in enumerate(actual_groups):
+            num_cols = len(group)
+            fig, axes = plt.subplots(1, num_cols, figsize=(6 * num_cols, 4), squeeze=False)
 
-        # Hide all cells first; enable only those that are used.
-        for ax_row in axes:
-            for ax in ax_row:
-                ax.set_visible(False)
-
-        for i, group in enumerate(actual_groups):
             for j, metric in enumerate(group):
-                ax = axes[i][j]
-                ax.set_visible(True)
+                ax = axes[0][j]
                 for k, mode in enumerate(modes):
                     subset = df[(df['Mode'] == mode) & (df['Metric'] == metric)]
                     if subset.empty:
@@ -268,12 +257,12 @@ class Logger:
                 ax.set_ylabel(metric)
                 ax.legend()
 
-        plt.tight_layout()
-        plot_path = os.path.join(self.log_dir, "score_plot.png")
-        plt.savefig(plot_path)
-        if display:
-            plt.show()
-        plt.close(fig)
+            plt.tight_layout()
+            plot_path = os.path.join(self.log_dir, f"score_plot_{gi}.png")
+            plt.savefig(plot_path)
+            if display:
+                plt.show()
+            plt.close(fig)
         
 
     def save_csv(self):
