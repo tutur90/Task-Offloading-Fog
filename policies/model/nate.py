@@ -113,8 +113,10 @@ class MLPConditioner(nn.Module):
 class NATE(BaseModel):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1, qk_norm=True,
-                 learnable_qk_norm=True, embed="regular", **kwargs):
+                 learnable_qk_norm=True, embed="regular", d_head=None, **kwargs):
         super().__init__()
+        if d_head is not None:
+            n_heads = d_model // d_head
 
         self.nodes_embed = self._build_embed(embed, d_in, d_model, mlp_ratio)
         self.pos_nodes_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
@@ -208,11 +210,14 @@ class TNATE(NATE):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1,
                  pre_conditioning="film", per_layer_conditioning="none",
-                 n_prefix=4, **kwargs):
+                 n_prefix=4, d_head=None, **kwargs):
         # Store before super().__init__ because _init_encoder reads them
         self.pre_conditioning = pre_conditioning
         self.per_layer_conditioning = per_layer_conditioning
         self.n_prefix = n_prefix
+
+        if d_head is not None:
+            n_heads = d_model // d_head
 
         super().__init__(
             d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model,
