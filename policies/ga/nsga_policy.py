@@ -4,15 +4,22 @@ from core.env import Env
 from core.task import Task
 
 class Individual:
-    def __init__(self, weights, biases, obs_type=["cpu", "buffer", "bw"], norm=None):
+    def __init__(self, weights, biases, obs_type=["cpu", "buffer", "bw"], norm=None, activation='relu'):
         self.weights = weights
         self.biases = biases
         self.obs_type = obs_type
         self.norm = norm  # Normalization factor (max values per feature)
+        self.activation = activation  # Activation function
 
     @staticmethod
-    def ReLU(x):
+    def relu(x):
         return np.maximum(0, x)
+    @staticmethod
+    def sigmoid(x):
+        return 1 / (1 + np.exp(-x))
+    @staticmethod
+    def tanh(x):
+        return np.tanh(x)
 
     def _make_observation(self, env: Env, task: Task, obs_type=["cpu", "buffer", "bw"]):
         """
@@ -59,7 +66,12 @@ class Individual:
         for i in range(len(self.weights)):
             obs = np.dot(obs, self.weights[i]) + self.biases[i]
             if i < len(self.weights) - 1:
-                obs = Individual.ReLU(obs)
+                if self.activation == 'relu':
+                    obs = self.relu(obs)
+                elif self.activation == 'sigmoid':
+                    obs = self.sigmoid(obs)
+                elif self.activation == 'tanh':
+                    obs = self.tanh(obs)
         return np.argmax(obs), obs
 
 
@@ -71,6 +83,8 @@ class NSGA2Policy:
         self.obs_type = config["model"]["obs_type"]
         self.d_model = config["model"]["d_model"]
         self.n_layers = config["model"]["n_layers"]
+        
+        self.activation = config["model"].get("activation", "relu")
 
         # Compute initial observation to determine dimensions and normalization
         initial_obs = self._make_observation(self.env, None, self.obs_type)
@@ -83,10 +97,13 @@ class NSGA2Policy:
         # Determine the observation dimension (flattened size)
         self.n_observations = initial_obs.size
         self.num_actions = len(self.env.scenario.node_id2name)
+        
+        
 
         # Initialize the population (each individual is a tuple of weight matrices and bias vectors).
         self.population = [self.genenerate_individual()
                            for _ in range(config["training"]["pop_size"])]
+        
 
     def _make_observation(self, env, task, obs_type):
         """
@@ -148,7 +165,7 @@ class NSGA2Policy:
         """
         Wrap the population's weight matrices and bias vectors into Individual objects.
         """
-        return [Individual(weights, biases, self.obs_type, self.norm) for weights, biases in self.population]
+        return [Individual(weights, biases, self.obs_type, self.norm, self.activation) for weights, biases in self.population]
 
     # -------------------------------
     # NSGA-II Helper Functions
