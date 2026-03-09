@@ -537,16 +537,24 @@ class NSGA2Policy:
         if len(new_population) < pop_size and infeasible_indices:
             min_scores = self.config.get("selection", {}).get("min_scores", None)
 
-            def constraint_violation(idx):
-                f = combined_full_fitness[idx]
-                total = 0.0
-                if min_scores:
-                    for obj_val, threshold in zip(f[:3], min_scores):
-                        if threshold is not None and obj_val > threshold:
-                            total += obj_val - threshold
-                return total
+            # For each objective, min-max scale raw obj_val values across infeasible individuals,
+            # using the threshold (min_scores) as vmin so that the constraint boundary anchors the scale.
+            # An individual just at the threshold scores 0; the worst violator scores 1.
+            # Summing across objectives gives a comparable total regardless of each objective's magnitude.
+            n_obj = len(min_scores) if min_scores else 0
+            scaled_violations = {idx: 0.0 for idx in infeasible_indices}
+            for obj_i in range(n_obj):
+                threshold = min_scores[obj_i]
+                if threshold is None:
+                    continue
+                obj_vals = {idx: combined_full_fitness[idx][obj_i] for idx in infeasible_indices}
+                vmin = threshold  # constraint boundary is the minimum reference
+                vmax = max(obj_vals.values())
+                vrange = vmax - vmin if vmax != vmin else 1.0
+                for idx in infeasible_indices:
+                    scaled_violations[idx] += max(0.0, obj_vals[idx] - vmin) / vrange
 
-            sorted_infeasible = sorted(infeasible_indices, key=constraint_violation)
+            sorted_infeasible = sorted(infeasible_indices, key=lambda idx: scaled_violations[idx])
             for idx in sorted_infeasible:
                 if len(new_population) >= pop_size:
                     break
