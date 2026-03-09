@@ -25,11 +25,11 @@ selection:
   # Individuals exceeding any threshold are disqualified during selection.
   # Set to null to disable the constraint for that objective.
   # Objectives order: [ttr, latency, energy]
-  min_scores: [0.37, 37., 375.]
+  # min_scores: [0.37, 37., 375.]
 
 
 model:
-  d_model: 64
+  d_model: 32
   n_layers: 2
   # obs_type: ["cpu"]
   obs_type: ["cpu", "bw", "buffer"]

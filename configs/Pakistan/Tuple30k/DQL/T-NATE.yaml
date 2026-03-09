@@ -46,9 +46,9 @@ training:
   log_freq: 0      # Steps between logging training metrics
 
 model:
-    d_model: 128
+    d_model: 256
     n_layers: 2
-    d_head: 16
+    d_heads: 64
     mlp_ratio: 4
     dropout: 0.0
     obs_type: ['cpu', 'bw', 'buffer', 'task']
