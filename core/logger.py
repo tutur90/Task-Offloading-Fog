@@ -181,9 +181,9 @@ class Logger:
                 writer.writeheader()
             writer.writerow(row)
 
-    def plot(self, display=False, excluded_modes=[], excluded_metrics=[], metric_groups = [
+    def plot(self, display=False, excluded_modes=[], excluded_metrics=[], log_scale=True, metric_groups = [
                 ['TaskDropRate', 'AvgLatency', 'AvgPower'],
-                ['AvgLoss', 'AvgGradNorm'],
+                ['AvgLoss', 'AvgGradNorm', 'AvgReward'],
             ]):
         """
         Plots the logged metrics over epochs.
@@ -255,6 +255,8 @@ class Logger:
                 ax.set_title(metric)
                 ax.set_xlabel("Epoch")
                 ax.set_ylabel(metric)
+                if log_scale:
+                    ax.set_yscale('log')
                 ax.legend()
 
             plt.tight_layout()

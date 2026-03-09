@@ -83,12 +83,14 @@ def train(config, policy, train_data, valid_data, logger, checkpoint):
             env.close()
             logger.update_metric('AvgLoss', policy.avg_loss)
             logger.update_metric('AvgGradNorm', policy.avg_grad_norm)
+            logger.update_metric('AvgReward', policy.avg_reward)
         else:
             env = run_epoch(config, policy, train_data, train=True)
             update_metrics(logger, env, config)
             env.close()
             logger.update_metric('AvgLoss', policy.avg_loss)
             logger.update_metric('AvgGradNorm', policy.avg_grad_norm)
+            logger.update_metric('AvgReward', policy.avg_reward)
 
         if hasattr(policy, 'lstm_stats_summary'):
             s = policy.lstm_stats_summary()
