@@ -177,7 +177,29 @@ class VisStats:
             annotate_bars(ax, fmt="{:.1f}")
         f.savefig(os.path.join(self.save_path, 'power_consumption_per_node_per_task.png'))
         plt.close(f)
-        
+
+        # 5b. Bar chart: Avg active power per successfully offloaded task per node.
+        #     Active power = (Trans Energy + Exe Energy) / Clock / num_successful_tasks
+        success_counts = self.task_info[self.task_info['Status'] == 'SUCCESS']\
+                             .groupby('Destination').size().rename('SuccessCount').reset_index()
+        power_per_task = energy[['Node Name', 'Clock', 'Trans Energy', 'Exe Energy']]\
+                             .merge(success_counts, left_on='Node Name', right_on='Destination', how='left')
+        power_per_task['SuccessCount'] = power_per_task['SuccessCount'].fillna(0)
+        power_per_task['Trans Power / Task'] = power_per_task['Trans Energy'] / power_per_task['Clock'] / power_per_task['SuccessCount'].replace(0, float('nan'))
+        power_per_task['Exe Power / Task']   = power_per_task['Exe Energy']   / power_per_task['Clock'] / power_per_task['SuccessCount'].replace(0, float('nan'))
+        power_per_task_melt = power_per_task[['Node Name', 'Trans Power / Task', 'Exe Power / Task']]\
+                                  .melt(id_vars='Node Name', var_name='Power Type', value_name='Power / Task')
+        f, ax = plt.subplots(figsize=(10, 6))
+        sns.barplot(data=power_per_task_melt, x='Node Name', y='Power / Task', hue='Power Type', ax=ax)
+        ax.set_title('Avg Active Power per Successfully Offloaded Task')
+        ax.set_ylabel('Power / Task (Energy / Clock / #Tasks)')
+        plt.xticks(rotation=45, fontsize=10)
+        plt.tight_layout()
+        if self.display_numbers:
+            annotate_bars(ax, fmt="{:.2e}")
+        f.savefig(os.path.join(self.save_path, 'avg_power_per_successful_task.png'))
+        plt.close(f)
+
         # 6. Bar chart: CPU frequency per node (overlay style).
         f, ax = plt.subplots(figsize=(10, 6))
         plt.xticks(rotation=45, fontsize=10)

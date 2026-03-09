@@ -191,20 +191,21 @@ class EncoderBlock(nn.Module):
         )
 
         if self.config.qk_norm:
-            xq = rmsnorm(xq, self.config.norm_eps)
-            xk = rmsnorm(xk, self.config.norm_eps)
+            xq = F.normalize(xq, dim=-1)
+            xk = F.normalize(xk, dim=-1)
 
-        attn_weights = None
+        scale = 1.0 if self.config.qk_norm else None  # None = default 1/√d_k
+
         if cu_seqlens is not None:
             attn = flash_attn_varlen_func(
                 q=xq.squeeze(0), k=xk.squeeze(0), v=xv.squeeze(0),
                 cu_seqlens_q=cu_seqlens, cu_seqlens_k=cu_seqlens,
                 max_seqlen_q=max_seqlen, max_seqlen_k=max_seqlen,
-                dropout_p=0.0, causal=False,
+                dropout_p=0.0, causal=False, softmax_scale=scale,
             )
         elif output_attentions:
-            scale = xq.size(-1) ** -0.5
-            attn_weights = xq.permute(0, 2, 1, 3) @ xk.permute(0, 2, 3, 1) * scale
+            s = scale if scale is not None else xq.size(-1) ** -0.5
+            attn_weights = xq.permute(0, 2, 1, 3) @ xk.permute(0, 2, 3, 1) * s
             if attention_mask is not None:
                 attn_weights = attn_weights + attention_mask
             attn_weights = attn_weights.softmax(-1)
@@ -215,7 +216,7 @@ class EncoderBlock(nn.Module):
                 key=xk.transpose(1, 2),
                 value=xv.transpose(1, 2),
                 attn_mask=attention_mask,
-                dropout_p=0.0,
+                dropout_p=0.0, scale=scale,
             ).transpose(1, 2)
 
         return self.wo(attn.reshape(batch_size, seq_len, self.config.hidden_size)), attn_weights
