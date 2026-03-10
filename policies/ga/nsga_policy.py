@@ -145,14 +145,9 @@ class NSGA2Policy:
     # Mutation  (paper style: θ' = θ + σ·N(0,I), same σ for W and b per layer)
     # -------------------------------------------------------------------------
 
-    def _mutation_sigma(self, fan_in):
-        """Config sigma if set, else He std = sqrt(2/fan_in)."""
-        cfg = self.config["training"].get("mutation_sigma", None)
-        return cfg if cfg is not None else np.sqrt(2.0 / fan_in)
-
     def mutate_layer(self, weight, bias):
         """Mutate a weight matrix and its bias vector with the same sigma."""
-        sigma = self._mutation_sigma(weight.shape[0])
+        sigma = np.std(weight) * self.config["training"].get("mutation_sigma", 1.0)
         return (weight + np.random.randn(*weight.shape) * sigma,
                 bias   + np.random.randn(*bias.shape)   * sigma)
 
