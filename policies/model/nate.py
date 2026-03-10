@@ -61,11 +61,11 @@ PRE_CONDITIONER_REGISTRY = {
 class NATE(BaseModel):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1, qk_norm=True,
-                 learnable_qk_norm=True, embed="regular", d_head=None,
-                 use_attention=True, **kwargs):
+                 learnable_qk_norm=True, embed="regular", d_heads=None,
+                 use_attention=True, output_size=None, obs_type=None):
         super().__init__()
-        if d_head is not None:
-            n_heads = d_model // d_head
+        if d_heads is not None:
+            n_heads = d_model // d_heads
 
         # Store encoder hyperparams (read by _init_encoder)
         self.d_model = d_model
@@ -141,8 +141,8 @@ class TNATE(NATE):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1,
                  pre_conditioning="add", qk_norm=True, learnable_qk_norm=True,
-                 n_prefix=4, d_head=None, embed="regular",
-                 use_attention=True, **kwargs):
+                 n_prefix=4, d_heads=None, embed="regular",
+                 use_attention=True, output_size=None, obs_type=None):
         # Store before super().__init__ because _init_encoder reads them
         self.pre_conditioning = pre_conditioning
         self.n_prefix = n_prefix
@@ -152,8 +152,8 @@ class TNATE(NATE):
             d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model,
             mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers,
             dropout=dropout, qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
-            embed=embed, d_head=d_head,
-            use_attention=use_attention, **kwargs,
+            embed=embed, d_heads=d_heads,
+            use_attention=use_attention, output_size=output_size,
         )
 
         # Pre-encoder conditioner (separate from transformer encoder)

@@ -28,7 +28,7 @@ training:
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
   exploration: {'strategy': 'ucb', explore_value: 1.0 }
-  
+
   reward:
     momentum: 0.9995
     norm: "standard"  # "none", "mean"
@@ -55,7 +55,6 @@ model:
     qk_norm: True
     embed: regular  
     pre_conditioning: add  # 'add' or 'concat'
-    per_layer_conditioning: prefix  # 'none', 'adarms', 'prefix'
     n_prefix: 1
 
 device: auto
