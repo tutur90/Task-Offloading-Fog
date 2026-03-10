@@ -17,7 +17,7 @@ eval:
 training:
   num_epochs: 30
   learning_starts: 5000    # random steps before learning begins
-  warmup: 0                # LR warmup as ratio of total training steps
+  warmup: 0.1                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
   batch_size: 512          # samples per update
   target_update_freq: 10000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value

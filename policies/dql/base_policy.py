@@ -140,8 +140,8 @@ class DQNPolicy:
             per_cfg = {"enabled": per_cfg}
         self.use_per = per_cfg.get("enabled", False)
         if self.use_per:
-            self.per_alpha     = per_cfg.get("alpha",      0.6)
-            self.per_beta_start = per_cfg.get("beta_start", 0.4)
+            self.per_alpha     = per_cfg.get("alpha",      0.5)
+            self.per_beta_start = per_cfg.get("beta_start", 0.5)
             self.per_beta_end   = per_cfg.get("beta_end",   1.0)
             self.per_beta       = self.per_beta_start
             self.per_eps        = per_cfg.get("eps",        1e-6)

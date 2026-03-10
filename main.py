@@ -137,12 +137,6 @@ def train(config, policy, train_data, valid_data, logger, checkpoint):
             print(f"Early stopping at epoch {epoch + 1} (no improvement for {early_stop_patience} epochs)")
             break
 
-        if not is_ga:
-            for param_group in policy.optimizer.param_groups:
-                param_group['lr'] *= config["training"]["lr_decay"]
-            if config["algo"] == "TaskFormer":
-                for param_group in policy.optimizer.param_groups:
-                    param_group['lr'] *= config["training"]["lr_decay"]
 
     return best_val_metrics
 
