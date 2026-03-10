@@ -8,7 +8,9 @@ env:
 training:
   num_epochs: 30        # Number of generations
   pop_size: 30          # Population size
-  mutation_sigma: null  # Gaussian noise std per layer: null = auto (He std = sqrt(2/fan_in))
+  mutation_mode: "fixed"  # "fixed" | "proportional" | "self_adaptive"
+  mutation_sigma: null    # fixed: He std if null; proportional: scale factor (default 0.1)
+  # mutation_tau: 0.1     # self_adaptive only: meta learning rate for σ factors
   # Max allowed value per objective [ttr, latency, energy] — null disables the constraint
   min_scores: [null, null, null]
 

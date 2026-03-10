@@ -113,7 +113,8 @@ class MLPConditioner(nn.Module):
 class NATE(BaseModel):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1, qk_norm=True,
-                 learnable_qk_norm=True, embed="regular", d_head=None, **kwargs):
+                 learnable_qk_norm=True, embed="regular", d_head=None,
+                 use_attention=True, sink_attn=True, **kwargs):
         super().__init__()
         if d_head is not None:
             n_heads = d_model // d_head
@@ -122,7 +123,18 @@ class NATE(BaseModel):
         self.pos_nodes_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
         self.fc = nn.Linear(d_model, 1)
 
-        self._init_encoder(d_model, mlp_ratio, d_ff, n_heads, n_layers, dropout, qk_norm, d_task=d_task)
+        config = NeoBERTConfig(
+            hidden_size=d_model,
+            intermediate_size=d_ff if d_ff is not None else compute_intermediate_size(d_model, mlp_ratio),
+            num_attention_heads=n_heads,
+            num_hidden_layers=n_layers,
+            dropout=dropout,
+            qk_norm=qk_norm,
+            use_attention=use_attention,
+            sink_attn=sink_attn,
+        )
+
+        self._init_encoder(config, d_task=d_task)
         self._init_non_encoder_weights()
 
     @staticmethod
@@ -163,28 +175,16 @@ class NATE(BaseModel):
             elif p.dim() == 1:
                 nn.init.zeros_(p)
 
-    def _init_encoder(self, d_model, mlp_ratio, d_ff, n_heads, n_layers, dropout, qk_norm, d_task=None):
-        if d_ff is None:
-            # d_ff = compute_intermediate_size(d_model, mlp_ratio)
-            d_ff = d_model * mlp_ratio
-
-        if n_layers == 0:
+    def _init_encoder(self, config, d_task=None):
+        if config.num_hidden_layers == 0:
             self.transformer_encoder = nn.Sequential(
-                nn.RMSNorm(d_model, eps=1e-6),
-                SwiGLU(d_model, d_ff, d_model),
-                nn.RMSNorm(d_model, eps=1e-6),
+                nn.RMSNorm(config.hidden_size, eps=1e-6),
+                SwiGLU(config.hidden_size, config.intermediate_size, config.hidden_size),
+                nn.RMSNorm(config.hidden_size, eps=1e-6),
             )
             return
 
-        encoder_config = NeoBERTConfig(
-            hidden_size=d_model,
-            intermediate_size=d_ff,
-            num_attention_heads=n_heads,
-            num_hidden_layers=n_layers,
-            dropout=dropout,
-            qk_norm=qk_norm,
-        )
-        self.transformer_encoder = NeoBERT(encoder_config)
+        self.transformer_encoder = NeoBERT(config)
 
     def _forward(self, nodes, task=None):
         x = self.pos_nodes_embed(self.nodes_embed(nodes))
@@ -210,7 +210,7 @@ class TNATE(NATE):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1,
                  pre_conditioning="film", per_layer_conditioning="none",
-                 n_prefix=4, d_head=None, **kwargs):
+                 n_prefix=4, d_head=None, use_attention=True, sink_attn=True, **kwargs):
         # Store before super().__init__ because _init_encoder reads them
         self.pre_conditioning = pre_conditioning
         self.per_layer_conditioning = per_layer_conditioning
@@ -222,7 +222,7 @@ class TNATE(NATE):
         super().__init__(
             d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model,
             mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers,
-            dropout=dropout, **kwargs,
+            dropout=dropout, use_attention=use_attention, sink_attn=sink_attn, **kwargs,
         )
 
         # Pre-encoder conditioner (separate from transformer encoder)
@@ -236,28 +236,16 @@ class TNATE(NATE):
                 f"Choose from: {list(PRE_CONDITIONER_REGISTRY.keys()) + ['none']}"
             )
 
-    def _init_encoder(self, d_model, mlp_ratio, d_ff, n_heads, n_layers, dropout, qk_norm, d_task=None):
-        if d_ff is None:
-            d_ff = compute_intermediate_size(d_model, mlp_ratio)
-
-        if n_layers == 0:
-            self.transformer_encoder = MLPConditioner(d_task, d_model, d_ff, self.pre_conditioning)
+    def _init_encoder(self, config, d_task=None):
+        if config.num_hidden_layers == 0:
+            self.transformer_encoder = MLPConditioner(d_task, config.hidden_size, config.intermediate_size, self.pre_conditioning)
             return
 
-        encoder_config = NeoBERTConfig(
-            hidden_size=d_model,
-            intermediate_size=d_ff,
-            num_attention_heads=n_heads,
-            num_hidden_layers=n_layers,
-            dropout=dropout,
-            qk_norm=qk_norm,
-        )
-
         if self.per_layer_conditioning == "none":
-            self.transformer_encoder = NeoBERT(encoder_config)
+            self.transformer_encoder = NeoBERT(config)
         else:
             self.transformer_encoder = CNeoBERT(
-                encoder_config,
+                config,
                 d_condition=d_task,
                 per_layer_type=self.per_layer_conditioning,
                 n_prefix=self.n_prefix,

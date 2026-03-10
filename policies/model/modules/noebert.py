@@ -34,6 +34,7 @@ class NeoBERTConfig:
     learnable_qk_norm: bool = True
     hard_scale_qk: bool = False
     sink_attn: bool = True
+    use_attention: bool = True
 
     def __post_init__(self):
         if self.hidden_size % self.num_attention_heads != 0:
@@ -133,18 +134,17 @@ class EncoderBlock(nn.Module):
         super().__init__()
         self.config = config
 
-        self.qkv = nn.Linear(config.hidden_size, config.hidden_size * 3, bias=False)
-        self.wo = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
+        if config.use_attention:
+            self.qkv = nn.Linear(config.hidden_size, config.hidden_size * 3, bias=False)
+            self.wo = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
+            self.attention_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
+            if config.sink_attn:
+                self.sink_logit = nn.Parameter(torch.zeros(1, config.num_attention_heads, 1, 1))
 
         # intermediate_size is used directly — LLaMA-style 2/3 scaling done once upstream
         self.ffn = SwiGLU(config.hidden_size, config.intermediate_size, config.hidden_size, bias=False)
-
-        self.attention_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
         self.ffn_norm = nn.RMSNorm(config.hidden_size, config.norm_eps)
         self.dropout = nn.Dropout(config.dropout)
-
-        if config.sink_attn:
-            self.sink_logit = nn.Parameter(torch.zeros(1, config.num_attention_heads, 1, 1))
 
     def forward(self, x, attention_mask=None, output_attentions=False, modulation=None):
         """Forward with optional per-layer modulation.
@@ -157,26 +157,32 @@ class EncoderBlock(nn.Module):
             return self._forward_standard(x, attention_mask, output_attentions)
 
     def _forward_standard(self, x, attention_mask, output_attentions):
-        attn_out, attn_w = self._att_block(self.attention_norm(x), attention_mask, output_attentions)
-        x = x + self.dropout(attn_out)
+        attn_w = None
+        if self.config.use_attention:
+            attn_out, attn_w = self._att_block(self.attention_norm(x), attention_mask, output_attentions)
+            x = x + self.dropout(attn_out)
         x = x + self.dropout(self.ffn(self.ffn_norm(x)))
         return x, attn_w
 
     def _forward_adaln_zero(self, x, attention_mask, output_attentions, modulation):
         g1, b1, a1, g2, b2, a2 = modulation
-        attn_out, attn_w = self._att_block(
-            g1 * self.attention_norm(x) + b1, attention_mask, output_attentions
-        )
-        x = x + a1 * self.dropout(attn_out)
+        attn_w = None
+        if self.config.use_attention:
+            attn_out, attn_w = self._att_block(
+                g1 * self.attention_norm(x) + b1, attention_mask, output_attentions
+            )
+            x = x + a1 * self.dropout(attn_out)
         x = x + a2 * self.dropout(self.ffn(g2 * self.ffn_norm(x) + b2))
         return x, attn_w
 
     def _forward_adarms(self, x, attention_mask, output_attentions, modulation):
         g1, a1, g2, a2 = modulation
-        attn_out, attn_w = self._att_block(
-            g1 * self.attention_norm(x), attention_mask, output_attentions
-        )
-        x = x + a1 * self.dropout(attn_out)
+        attn_w = None
+        if self.config.use_attention:
+            attn_out, attn_w = self._att_block(
+                g1 * self.attention_norm(x), attention_mask, output_attentions
+            )
+            x = x + a1 * self.dropout(attn_out)
         x = x + a2 * self.dropout(self.ffn(g2 * self.ffn_norm(x)))
         return x, attn_w
 
@@ -243,7 +249,8 @@ class NeoBERT(nn.Module):
         # Scale output projections by depth (GPT-2 / NeoBERT style)
         std = self.config.decoder_init_range / (2 * self.config.num_hidden_layers) ** 0.5
         for layer in self.transformer_encoder:
-            nn.init.normal_(layer.wo.weight, mean=0.0, std=std)
+            if self.config.use_attention:
+                nn.init.normal_(layer.wo.weight, mean=0.0, std=std)
             nn.init.normal_(layer.ffn.w3.weight, mean=0.0, std=std)
 
     def forward(
