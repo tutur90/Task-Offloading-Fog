@@ -6,15 +6,10 @@ env:
   refresh_rate: 0.01
 
 training:
-  num_epochs: 30        # Number of generations for NPGA
-  pop_size: 30          # Population size for NPGA
-  mutation_sigma: null  # Gaussian noise std: null = auto (He std per layer = sqrt(2/fan_in))
-
-selection:
-  # Minimum acceptable quality per objective (acts as upper bound since all objectives are minimized).
-  # Individuals exceeding any threshold are disqualified during selection.
-  # Set to null to disable the constraint for that objective.
-  # Objectives order: [ttr, latency, energy]
+  num_epochs: 30        # Number of generations
+  pop_size: 30          # Population size
+  mutation_sigma: null  # Gaussian noise std per layer: null = auto (He std = sqrt(2/fan_in))
+  # Max allowed value per objective [ttr, latency, energy] — null disables the constraint
   min_scores: [null, null, null]
 
 model:
