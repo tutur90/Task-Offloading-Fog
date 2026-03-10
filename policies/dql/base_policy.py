@@ -16,6 +16,52 @@ from core.task import Task
 from policies.model.base_model import BaseModel, scaled_lr
 
 
+class SumTree:
+    """Binary sum-tree for O(log n) priority updates and sampling (used by PER)."""
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.tree = np.zeros(2 * capacity, dtype=np.float64)
+        self.data = [None] * capacity
+        self.write = 0
+        self.size = 0
+
+    def total(self):
+        return self.tree[1]
+
+    def add(self, priority, data):
+        idx = self.write + self.capacity
+        self.data[self.write] = data
+        self.update(idx, priority)
+        self.write = (self.write + 1) % self.capacity
+        self.size = min(self.size + 1, self.capacity)
+
+    def update(self, idx, priority):
+        change = priority - self.tree[idx]
+        self.tree[idx] = priority
+        idx //= 2
+        while idx >= 1:
+            self.tree[idx] += change
+            idx //= 2
+
+    def get(self, s):
+        idx = 1
+        while idx < self.capacity:
+            left = 2 * idx
+            if s <= self.tree[left]:
+                idx = left
+            else:
+                s -= self.tree[left]
+                idx = left + 1
+        data_idx = idx - self.capacity
+        return idx, self.tree[idx], self.data[data_idx]
+
+    def max_priority(self):
+        if self.size == 0:
+            return 1.0
+        return float(self.tree[self.capacity:self.capacity + self.size].max())
+
+
 
 class DQNPolicy:
     def __init__(self, env: Env, config, dataset=None):
@@ -85,8 +131,21 @@ class DQNPolicy:
         self.warmup_ratio = tr.get("warmup", 0)
         self.warmup_steps = 0       # computed in set_training_steps()
         self.total_training_steps = None  # set by set_training_steps()
-        self.replay_buffer = deque(maxlen=self.buffer_size)
         self.double_dqn = tr.get("double_dqn", False)
+        # Prioritized Experience Replay
+        per_cfg = tr.get("per", {})
+        if isinstance(per_cfg, bool):
+            per_cfg = {"enabled": per_cfg}
+        self.use_per = per_cfg.get("enabled", False)
+        if self.use_per:
+            self.per_alpha     = per_cfg.get("alpha",      0.6)
+            self.per_beta_start = per_cfg.get("beta_start", 0.4)
+            self.per_beta_end   = per_cfg.get("beta_end",   1.0)
+            self.per_beta       = self.per_beta_start
+            self.per_eps        = per_cfg.get("eps",        1e-6)
+            self.replay_buffer  = SumTree(self.buffer_size)
+        else:
+            self.replay_buffer = deque(maxlen=self.buffer_size)
         self.update_count = 0
         self.total_steps = 0
         self.action_counts = np.zeros(self.num_actions, dtype=np.float32)  # for UCB
@@ -441,7 +500,12 @@ class DQNPolicy:
 
     def store_transition(self, state, action, reward, next_state, done):
         """Stores a transition in the replay buffer."""
-        self.replay_buffer.append((state, action, reward, next_state, done))
+        if self.use_per:
+            # New transitions get max priority so they are sampled at least once.
+            priority = self.replay_buffer.max_priority() ** self.per_alpha
+            self.replay_buffer.add(priority, (state, action, reward, next_state, done))
+        else:
+            self.replay_buffer.append((state, action, reward, next_state, done))
 
     def aggregate_reward(self, rewards):
         """Aggregates multiple reward components into a single scalar using lambda weights."""
@@ -461,7 +525,12 @@ class DQNPolicy:
         """
         self._update_lr()
 
-        batch = random.sample(self.replay_buffer, self.batch_size)
+        if self.use_per:
+            batch, tree_indices, is_weights = self._sample_per()
+        else:
+            batch = random.sample(self.replay_buffer, self.batch_size)
+            tree_indices, is_weights = None, None
+
         states, actions, rewards, next_states, dones = zip(*batch)
         obs_batch,      task_obs_batch      = zip(*states)
         next_obs_batch, next_task_obs_batch = zip(*next_states)
@@ -493,7 +562,18 @@ class DQNPolicy:
                 max_next_q, _ = torch.max(next_q_values, dim=1)
             target_q = rewards_tensor if self.gamma == 0 else rewards_tensor + (1 - dones_tensor) * self.gamma * max_next_q
 
-        loss = self.criterion(predicted_q, target_q)
+        if self.use_per:
+            element_loss = F.smooth_l1_loss(predicted_q, target_q, reduction='none')
+            weights_tensor = torch.tensor(is_weights, dtype=self.dtype, device=self.device)
+            loss = (weights_tensor * element_loss).mean()
+            # Update priorities with new TD errors
+            td_errors = (predicted_q - target_q).detach().abs().cpu().numpy()
+            for idx, td_err in zip(tree_indices, td_errors):
+                priority = (float(td_err) + self.per_eps) ** self.per_alpha
+                self.replay_buffer.update(idx, priority)
+        else:
+            loss = self.criterion(predicted_q, target_q)
+
         loss.backward()
 
         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.clip_grad_norm)
@@ -501,13 +581,42 @@ class DQNPolicy:
 
         return loss.item(), grad_norm.item()
 
+    def _sample_per(self):
+        """Sample a batch using prioritized experience replay and compute IS weights."""
+        total = self.replay_buffer.total()
+        segment = total / self.batch_size
+
+        # Anneal beta linearly from beta_start to beta_end over training
+        if self.total_training_steps is not None:
+            progress = max(0.0, (self.total_steps - self.learning_starts) /
+                           max(1, self.total_training_steps - self.learning_starts))
+        else:
+            progress = 0.0
+        beta = min(self.per_beta_end, self.per_beta_start + (self.per_beta_end - self.per_beta_start) * progress)
+
+        tree_indices, priorities, batch = [], [], []
+        for i in range(self.batch_size):
+            s = random.uniform(segment * i, segment * (i + 1))
+            idx, priority, data = self.replay_buffer.get(s)
+            tree_indices.append(idx)
+            priorities.append(priority)
+            batch.append(data)
+
+        probs = np.array(priorities, dtype=np.float64) / total
+        # IS weights: (N * P(i))^{-beta}, normalised by max weight
+        is_weights = (self.replay_buffer.size * probs) ** (-beta)
+        is_weights /= is_weights.max()
+
+        return batch, tree_indices, is_weights.astype(np.float32)
+
     def update(self, metric_momentum=0.99995):
         """
         Performs an update over a sampled batch of transitions using batched operations,
         moves tensors to the appropriate device and dtype.
         """
         self.update_count += 1
-        if len(self.replay_buffer) < self.batch_size or self.total_steps <= self.learning_starts:
+        buf_size = self.replay_buffer.size if self.use_per else len(self.replay_buffer)
+        if buf_size < self.batch_size or self.total_steps <= self.learning_starts:
             return 0.0, None
 
         if not self.soft_update and self.update_count % self.target_update_freq == 0:

@@ -4,46 +4,9 @@ import math
 import torch.nn.functional as F
 from policies.model.base_model import BaseModel
 from policies.model.modules.transformer import LearnedPositionalEncoding
-from policies.model.modules.noebert import NeoBERT, NeoBERTConfig, CNeoBERT, SwiGLU
 
 
 torch.backends.cuda.matmul.allow_tf32 = True
-
-
-# =============================================================================
-# Utilities
-# =============================================================================
-
-def compute_intermediate_size(d_model, mlp_ratio, multiple_of=8):
-    """LLaMA-style SwiGLU sizing: 2/3 expansion, rounded to multiple_of."""
-    raw = int(2 * d_model * mlp_ratio / 3)
-    return multiple_of * ((raw + multiple_of - 1) // multiple_of)
-
-
-# =============================================================================
-# Node Encoder
-# =============================================================================
-
-class RelativeNodeEncoder(nn.Module):
-    def __init__(self, d_in, d_model):
-        super().__init__()
-        # absolute + deviation + rank + distance to max + distance to min
-        self.proj = nn.Linear(d_in * 5, d_model)
-
-    def forward(self, nodes):
-        # nodes: (B, N, d_in)
-        N = nodes.size(1)
-        mean = nodes.mean(dim=1, keepdim=True)
-        diff = nodes - mean
-
-        rank = nodes.argsort(dim=1).argsort(dim=1).float()
-        rank = rank / max(N - 1, 1)  # safe when N=1
-
-        dist_to_max = nodes.max(dim=1, keepdim=True).values - nodes
-        dist_to_min = nodes - nodes.min(dim=1, keepdim=True).values
-
-        x = torch.cat([nodes, diff, rank, dist_to_max, dist_to_min], dim=-1)
-        return self.proj(x)
 
 
 # =============================================================================
@@ -89,22 +52,6 @@ PRE_CONDITIONER_REGISTRY = {
 }
 
 
-# =============================================================================
-# MLPConditioner — fallback for n_layers=0 in TNATE
-# =============================================================================
-
-class MLPConditioner(nn.Module):
-    """Lightweight conditioner wrapper for the n_layers=0 case."""
-    def __init__(self, d_task, d_model, d_ff=None, pre_conditioning="film"):
-        super().__init__()
-        if pre_conditioning in PRE_CONDITIONER_REGISTRY:
-            self.conditioner = PRE_CONDITIONER_REGISTRY[pre_conditioning](d_task, d_model)
-        else:
-            raise ValueError(f"Unknown pre_conditioning for MLPConditioner: {pre_conditioning}")
-
-    def forward(self, inputs_embeds, condition):
-        return self.conditioner(inputs_embeds, condition)
-
 
 # =============================================================================
 # NATE (unconditioned)
@@ -114,27 +61,26 @@ class NATE(BaseModel):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1, qk_norm=True,
                  learnable_qk_norm=True, embed="regular", d_head=None,
-                 use_attention=True, sink_attn=True, **kwargs):
+                 use_attention=True, **kwargs):
         super().__init__()
         if d_head is not None:
             n_heads = d_model // d_head
+
+        # Store encoder hyperparams (read by _init_encoder)
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.n_layers = n_layers
+        self.d_ff = d_ff if d_ff is not None else d_model * mlp_ratio
+        self.dropout = dropout
+        self.qk_norm = qk_norm
+        self.learnable_qk_norm = learnable_qk_norm
+        self.use_attention = use_attention
 
         self.nodes_embed = self._build_embed(embed, d_in, d_model, mlp_ratio)
         self.pos_nodes_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
         self.fc = nn.Linear(d_model, 1)
 
-        config = NeoBERTConfig(
-            hidden_size=d_model,
-            intermediate_size=d_ff if d_ff is not None else compute_intermediate_size(d_model, mlp_ratio),
-            num_attention_heads=n_heads,
-            num_hidden_layers=n_layers,
-            dropout=dropout,
-            qk_norm=qk_norm,
-            use_attention=use_attention,
-            sink_attn=sink_attn,
-        )
-
-        self._init_encoder(config, d_task=d_task)
+        self._init_encoder()
         self._init_non_encoder_weights()
 
     @staticmethod
@@ -147,26 +93,18 @@ class NATE(BaseModel):
                 nn.GELU(),
                 nn.Linear(d_model, d_model),
             )
-        elif embed == "relative":
-            return RelativeNodeEncoder(d_in, d_model)
         elif embed == "no_bias":
             return nn.Linear(d_in, d_model, bias=False)
-        elif embed == "ff":
-            return SwiGLU(d_in, d_model * mlp_ratio, d_model)
         else:
             raise ValueError(f"Unknown embed type: {embed}")
 
     def _init_non_encoder_weights(self):
         """Init all modules NOT inside the transformer encoder.
         Covers nodes_embed, pos_nodes_embed, fc, and n_layers=0 fallback.
-        Modules that self-init (conditioners inside CNeoBERT/MLPConditioner)
-        are excluded to preserve their zero/identity init."""
+        Modules that self-init (conditioners, GRU gates) are excluded
+        to preserve their zero/identity init."""
         init_std = 0.02
-        encoder_params = (
-            set(self.transformer_encoder.parameters())
-            if isinstance(self.transformer_encoder, (NeoBERT, CNeoBERT, MLPConditioner))
-            else set()
-        )
+        encoder_params = set(self.transformer_encoder.parameters())
         for p in self.parameters():
             if p in encoder_params:
                 continue
@@ -175,16 +113,17 @@ class NATE(BaseModel):
             elif p.dim() == 1:
                 nn.init.zeros_(p)
 
-    def _init_encoder(self, config, d_task=None):
-        if config.num_hidden_layers == 0:
-            self.transformer_encoder = nn.Sequential(
-                nn.RMSNorm(config.hidden_size, eps=1e-6),
-                SwiGLU(config.hidden_size, config.intermediate_size, config.hidden_size),
-                nn.RMSNorm(config.hidden_size, eps=1e-6),
-            )
-            return
-
-        self.transformer_encoder = NeoBERT(config)
+    def _init_encoder(self):
+        self.transformer_encoder = GTrXLEncoder(
+            d_model=self.d_model,
+            n_heads=self.n_heads,
+            d_ff=self.d_ff,
+            n_layers=self.n_layers,
+            dropout=self.dropout,
+            qk_norm=self.qk_norm,
+            learnable_qk_norm=self.learnable_qk_norm,
+            use_attention=self.use_attention,
+        )
 
     def _forward(self, nodes, task=None):
         x = self.pos_nodes_embed(self.nodes_embed(nodes))
@@ -194,35 +133,26 @@ class NATE(BaseModel):
 
 
 # =============================================================================
-# TNATE (task-conditioned)
-#
-# Two-stage conditioning:
-#   1. Pre-encoder  (pre_conditioning):       "film", "add", "none"
-#   2. Per-layer    (per_layer_conditioning):  "none", "adarms", "adaln_zero", "add", "prefix"
-#
-# Recommended combos:
-#   Shallow (2-4 layers): pre=film, per_layer=none         — simplest, sufficient
-#   Medium  (4-8 layers): pre=film, per_layer=adarms       — best balance
-#   Deep    (8+ layers):  pre=add,  per_layer=adaln_zero   — most expressive
+# T-NATE (task-conditioned with prefix tokens + pre-encoder conditioning)
 # =============================================================================
 
 class TNATE(NATE):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1,
-                 pre_conditioning="film", per_layer_conditioning="none",
-                 n_prefix=4, d_head=None, use_attention=True, sink_attn=True, **kwargs):
+                 pre_conditioning="add", qk_norm=True, learnable_qk_norm=True,
+                 n_prefix=4, d_head=None, embed="regular",
+                 use_attention=True, **kwargs):
         # Store before super().__init__ because _init_encoder reads them
         self.pre_conditioning = pre_conditioning
-        self.per_layer_conditioning = per_layer_conditioning
         self.n_prefix = n_prefix
-
-        if d_head is not None:
-            n_heads = d_model // d_head
+        self._d_task = d_task
 
         super().__init__(
             d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model,
             mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers,
-            dropout=dropout, use_attention=use_attention, sink_attn=sink_attn, **kwargs,
+            dropout=dropout, qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
+            embed=embed, d_head=d_head,
+            use_attention=use_attention, **kwargs,
         )
 
         # Pre-encoder conditioner (separate from transformer encoder)
@@ -236,34 +166,34 @@ class TNATE(NATE):
                 f"Choose from: {list(PRE_CONDITIONER_REGISTRY.keys()) + ['none']}"
             )
 
-    def _init_encoder(self, config, d_task=None):
-        if config.num_hidden_layers == 0:
-            self.transformer_encoder = MLPConditioner(d_task, config.hidden_size, config.intermediate_size, self.pre_conditioning)
-            return
+    def _init_encoder(self):
+        """Called from NATE.__init__; also builds prefix embedding if needed."""
+        super()._init_encoder()
 
-        if self.per_layer_conditioning == "none":
-            self.transformer_encoder = NeoBERT(config)
+        if self.n_prefix > 0:
+            # Project task features -> n_prefix tokens of size d_model
+            self.prefix_embed = nn.Linear(self._d_task, self.d_model * self.n_prefix)
         else:
-            self.transformer_encoder = CNeoBERT(
-                config,
-                d_condition=d_task,
-                per_layer_type=self.per_layer_conditioning,
-                n_prefix=self.n_prefix,
-            )
+            self.prefix_embed = None
 
     def _forward(self, nodes, task):
         x = self.pos_nodes_embed(self.nodes_embed(nodes))
 
-        # Stage 1: pre-encoder conditioning
+        # Stage 1: pre-encoder conditioning (FiLM / additive / none)
         if self.pre_conditioner is not None:
             x = self.pre_conditioner(x, task)
 
-        # Stage 2: encoder (with optional per-layer conditioning)
-        if isinstance(self.transformer_encoder, CNeoBERT):
-            x = self.transformer_encoder(inputs_embeds=x, condition=task)
-        elif isinstance(self.transformer_encoder, MLPConditioner):
-            x = self.transformer_encoder(inputs_embeds=x, condition=task)
-        else:
-            x = self.transformer_encoder(inputs_embeds=x)
+        # Stage 2: prepend learned prefix tokens derived from task features
+        if self.prefix_embed is not None:
+            B = x.size(0)
+            prefix = self.prefix_embed(task).reshape(B, self.n_prefix, self.d_model)
+            x = torch.cat([prefix, x], dim=1)  # (B, n_prefix + S, d_model)
+
+        # Stage 3: transformer encoder
+        x = self.transformer_encoder(inputs_embeds=x)
+
+        # Strip prefix tokens, keep only node positions
+        if self.prefix_embed is not None:
+            x = x[:, self.n_prefix:, :]
 
         return self.fc(x)
