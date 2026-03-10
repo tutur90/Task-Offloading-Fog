@@ -15,24 +15,25 @@ import math
 # =============================================================================
 
 class GRUGating(nn.Module):
-    """GRU-style gated residual. Bias init ensures gate ≈ 0 at start
-    so the block behaves like an identity (residual dominates)."""
+    """GRU-style gated residual (GTrXL formulation).
+    Fused r/z projections: 3 matmuls instead of 6.
+    z-gate bias init ensures output ≈ residual at start.
+    ReLU applied to sublayer output before gating (Eq. 6, 8)."""
     def __init__(self, d_model, init_bias=-2.0):
         super().__init__()
-        self.W_r = nn.Linear(d_model, d_model, bias=False)
-        self.U_r = nn.Linear(d_model, d_model)
-        self.W_z = nn.Linear(d_model, d_model, bias=False)
-        self.U_z = nn.Linear(d_model, d_model)
-        self.W_h = nn.Linear(d_model, d_model, bias=False)
-        self.U_h = nn.Linear(d_model, d_model)
-        # Bias z-gate negative so it starts near 0 -> output ≈ residual
-        nn.init.constant_(self.U_z.bias, init_bias)
+        self.W_rz = nn.Linear(2 * d_model, 2 * d_model)
+        self.W_h  = nn.Linear(d_model, d_model, bias=False)
+        self.U_h  = nn.Linear(d_model, d_model)
+        nn.init.constant_(self.W_rz.bias[d_model:], init_bias)
 
     def forward(self, x, y):
-        """x: residual, y: sublayer output."""
-        r = torch.sigmoid(self.W_r(y) + self.U_r(x))
-        z = torch.sigmoid(self.W_z(y) + self.U_z(x))
-        h_tilde = torch.tanh(self.W_h(r * y) + self.U_h(x))
+        """x: residual (hidden state), y: sublayer output."""
+        y = F.relu(y)
+        rz = self.W_rz(torch.cat([y, x], dim=-1))
+        r, z = rz.chunk(2, dim=-1)
+        r = torch.sigmoid(r)
+        z = torch.sigmoid(z)
+        h_tilde = torch.tanh(self.W_h(y) + self.U_h(r * x))
         return (1 - z) * x + z * h_tilde
 
 
@@ -43,13 +44,15 @@ class PlainResidual(nn.Module):
 
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, d_model, n_heads, dropout=0.1,
-                 qk_norm=True, learnable_qk_norm=True):
+    def __init__(self, d_model, n_heads, dropout=0.0,
+                 qk_norm=True, learnable_qk_norm=True, softplus_attn=False):
         super().__init__()
         assert d_model % n_heads == 0, f"d_model ({d_model}) must be divisible by n_heads ({n_heads})"
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
         self.d_model = d_model
+
+        self.softplus_attn = softplus_attn
 
         self.qkv_proj = nn.Linear(d_model, 3 * d_model)
         self.out_proj = nn.Linear(d_model, d_model)
@@ -76,11 +79,20 @@ class MultiHeadSelfAttention(nn.Module):
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
-
-        out = F.scaled_dot_product_attention(
-            q, k, v,
-            dropout_p=self.attn_drop if self.training else 0.0,
-        )
+        
+        if self.softplus_attn:
+            # Softplus attention: A = softplus(QKᵀ/√d, β), row-normalized
+            scores = (q @ k.transpose(-2, -1)) * (self.d_head ** -0.5)
+            scores = F.softplus(scores, beta=self.softplus_attn)
+            scores = scores / scores.sum(dim=-1, keepdim=True) + 1e-6
+            if self.training and self.attn_drop > 0.0:
+                scores = F.dropout(scores, p=self.attn_drop)
+            out = scores @ v
+        else:
+            out = F.scaled_dot_product_attention(
+                q, k, v,
+                dropout_p=self.attn_drop if self.training else 0.0,
+            )
         out = out.transpose(1, 2).reshape(B, S, self.d_model)
         return self.out_proj(out)
 
@@ -100,7 +112,7 @@ class FeedForward(nn.Module):
 class TransformerEncoderBlock(nn.Module):
     """Single Transformer Encoder block: pre-RMSNorm, optional attention, FFN,
     and either GRU-gated or plain additive residuals."""
-    def __init__(self, d_model, n_heads, d_ff, dropout=0.1,
+    def __init__(self, d_model, n_heads, d_ff, dropout=0.0,
                  qk_norm=True, learnable_qk_norm=True,
                  use_attention=True, gated_residual=True):
         super().__init__()
