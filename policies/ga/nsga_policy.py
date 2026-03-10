@@ -147,7 +147,7 @@ class NSGA2Policy:
         weights = [self._init_weight(fi, fo) for fi, fo in dims]
         biases  = [np.zeros(fo)              for _, fo  in dims]
 
-        sigmas  = [(1.0, 1.0) for _ in dims] if self.mutation_mode == "self_adaptive" else None
+        sigmas  = [(self.config["training"].get("mutation_sigma", 0.1), self.config["training"].get("mutation_sigma", 0.1)) for _ in dims] if self.mutation_mode == "self_adaptive" else None
         return (weights, biases), sigmas
 
     def individuals(self):

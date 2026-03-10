@@ -152,6 +152,7 @@ class TNATE(NATE):
 
         super().__init__(
             d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model,
+            embed=embed,
             mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers,
             dropout=dropout, qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
             embed=embed, d_heads=d_heads,

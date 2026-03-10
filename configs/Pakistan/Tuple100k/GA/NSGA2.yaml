@@ -15,17 +15,14 @@ eval:
 
 
 training:
-  num_epochs: 400         # Number of generations for NPGA
-  pop_size: 190            # Population size for NPGA
-  mutation_sigma: null    # Gaussian noise std: null = auto (He std per layer = sqrt(2/fan_in))
-  early_stop_patience: 100 # Early stopping patience (generations without improvement)
-
-selection:
-  # Minimum acceptable quality per objective (acts as upper bound since all objectives are minimized).
-  # Individuals exceeding any threshold are disqualified during selection.
-  # Set to null to disable the constraint for that objective.
-  # Objectives order: [ttr, latency, energy]
-  min_scores: [0.37, 37., 375.]
+  num_epochs: 400          # Number of generations
+  pop_size: 190            # Population size
+  mutation_mode: "self_adaptive"   # "fixed" | "proportional" | "self_adaptive"
+  mutation_sigma: null     # fixed: He std if null; proportional: scale factor (default 0.1)
+  mutation_tau: 0.1      # self_adaptive only: meta learning rate for σ factors
+  early_stop_patience: 100 # Generations without improvement before stopping
+  # Max allowed value per objective [ttr, latency, energy] — null disables the constraint
+  min_scores: [0.37, 37.0, 375.0]
 
 
 model:
