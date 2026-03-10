@@ -4,7 +4,7 @@ import math
 import torch.nn.functional as F
 from policies.model.base_model import BaseModel
 from policies.model.modules.transformer import LearnedPositionalEncoding
-from policies.model.modules.gtrxl import GTrXLEncoder   
+from policies.model.modules.transformer_encoder import TransformerEncoder
 
 
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -62,7 +62,7 @@ class NATE(BaseModel):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1, qk_norm=True,
                  learnable_qk_norm=True, embed="regular", d_heads=None,
-                 use_attention=True, output_size=None, obs_type=None):
+                 use_attention=True, gated_residual=True, output_size=None, obs_type=None):
         super().__init__()
         if d_heads is not None:
             n_heads = d_model // d_heads
@@ -76,6 +76,7 @@ class NATE(BaseModel):
         self.qk_norm = qk_norm
         self.learnable_qk_norm = learnable_qk_norm
         self.use_attention = use_attention
+        self.gated_residual = gated_residual
 
         self.nodes_embed = self._build_embed(embed, d_in, d_model, mlp_ratio)
         self.pos_nodes_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
@@ -115,7 +116,7 @@ class NATE(BaseModel):
                 nn.init.zeros_(p)
 
     def _init_encoder(self):
-        self.transformer_encoder = GTrXLEncoder(
+        self.transformer_encoder = TransformerEncoder(
             d_model=self.d_model,
             n_heads=self.n_heads,
             d_ff=self.d_ff,
@@ -124,6 +125,7 @@ class NATE(BaseModel):
             qk_norm=self.qk_norm,
             learnable_qk_norm=self.learnable_qk_norm,
             use_attention=self.use_attention,
+            gated_residual=self.gated_residual,
         )
 
     def _forward(self, nodes, task=None):
@@ -142,7 +144,7 @@ class TNATE(NATE):
                  n_heads=4, n_layers=3, dropout=0.1,
                  pre_conditioning="add", qk_norm=True, learnable_qk_norm=True,
                  n_prefix=4, d_heads=None, embed="regular",
-                 use_attention=True, output_size=None, obs_type=None):
+                 use_attention=True, gated_residual=True, output_size=None, obs_type=None):
         # Store before super().__init__ because _init_encoder reads them
         self.pre_conditioning = pre_conditioning
         self.n_prefix = n_prefix
@@ -153,7 +155,7 @@ class TNATE(NATE):
             mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers,
             dropout=dropout, qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
             embed=embed, d_heads=d_heads,
-            use_attention=use_attention, output_size=output_size,
+            use_attention=use_attention, gated_residual=gated_residual, output_size=output_size,
         )
 
         # Pre-encoder conditioner (separate from transformer encoder)

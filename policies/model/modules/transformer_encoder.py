@@ -1,20 +1,21 @@
-import torch 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
 
 # =============================================================================
-# GTrXL-style Transformer Encoder
+# Transformer Encoder
 #
 # - Pre-norm with nn.RMSNorm
-# - GRU-style gated residual connections (gate biased near 0 at init)
+# - Optional GRU-style gated residual connections (gate biased near 0 at init)
+#   or plain additive residuals — controlled by `gated_residual`
 # - Optional QK normalization (learnable or fixed)
 # - Optional attention bypass (FFN-only blocks)
 # - GELU activations throughout
 # =============================================================================
 
 class GRUGating(nn.Module):
-    """GTrXL GRU-style gated residual. Bias init ensures gate ≈ 0 at start
+    """GRU-style gated residual. Bias init ensures gate ≈ 0 at start
     so the block behaves like an identity (residual dominates)."""
     def __init__(self, d_model, init_bias=-2.0):
         super().__init__()
@@ -33,6 +34,12 @@ class GRUGating(nn.Module):
         z = torch.sigmoid(self.W_z(y) + self.U_z(x))
         h_tilde = torch.tanh(self.W_h(r * y) + self.U_h(x))
         return (1 - z) * x + z * h_tilde
+
+
+class PlainResidual(nn.Module):
+    """Standard additive residual connection: output = x + y."""
+    def forward(self, x, y):
+        return x + y
 
 
 class MultiHeadSelfAttention(nn.Module):
@@ -79,7 +86,7 @@ class MultiHeadSelfAttention(nn.Module):
 
 
 class FeedForward(nn.Module):
-    """SwiGLU-style or plain GELU FFN. Using GELU as requested."""
+    """GELU FFN."""
     def __init__(self, d_model, d_ff, dropout=0.1):
         super().__init__()
         self.up = nn.Linear(d_model, d_ff)
@@ -90,11 +97,12 @@ class FeedForward(nn.Module):
         return self.down(self.drop(F.gelu(self.up(x))))
 
 
-class GTrXLBlock(nn.Module):
-    """Single GTrXL block: pre-RMSNorm, optional attention, FFN, GRU-gated residuals."""
+class TransformerEncoderBlock(nn.Module):
+    """Single Transformer Encoder block: pre-RMSNorm, optional attention, FFN,
+    and either GRU-gated or plain additive residuals."""
     def __init__(self, d_model, n_heads, d_ff, dropout=0.1,
                  qk_norm=True, learnable_qk_norm=True,
-                 use_attention=True):
+                 use_attention=True, gated_residual=True):
         super().__init__()
         self.use_attention = use_attention
 
@@ -104,11 +112,11 @@ class GTrXLBlock(nn.Module):
                 d_model, n_heads, dropout,
                 qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
             )
-            self.attn_gate = GRUGating(d_model)
+            self.attn_gate = GRUGating(d_model) if gated_residual else PlainResidual()
 
         self.ff_norm = nn.RMSNorm(d_model)
         self.ff = FeedForward(d_model, d_ff, dropout)
-        self.ff_gate = GRUGating(d_model)
+        self.ff_gate = GRUGating(d_model) if gated_residual else PlainResidual()
 
     def forward(self, x):
         if self.use_attention:
@@ -120,17 +128,17 @@ class GTrXLBlock(nn.Module):
         return x
 
 
-class GTrXLEncoder(nn.Module):
-    """Stack of GTrXL blocks with final RMSNorm."""
+class TransformerEncoder(nn.Module):
+    """Stack of Transformer Encoder blocks with final RMSNorm."""
     def __init__(self, d_model, n_heads, d_ff, n_layers, dropout=0.1,
                  qk_norm=True, learnable_qk_norm=True,
-                 use_attention=True):
+                 use_attention=True, gated_residual=True):
         super().__init__()
         self.layers = nn.ModuleList([
-            GTrXLBlock(
+            TransformerEncoderBlock(
                 d_model, n_heads, d_ff, dropout,
                 qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
-                use_attention=use_attention,
+                use_attention=use_attention, gated_residual=gated_residual,
             )
             for _ in range(n_layers)
         ])
@@ -141,4 +149,3 @@ class GTrXLEncoder(nn.Module):
         for layer in self.layers:
             x = layer(x)
         return self.final_norm(x)
-
