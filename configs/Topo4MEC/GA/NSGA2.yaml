@@ -8,7 +8,7 @@ env:
 training:
   num_epochs: 30        # Number of generations for NPGA
   pop_size: 30          # Population size for NPGA
-  mutation_rate: 0.1    # Mutation rate for Gaussian mutation
+  mutation_sigma: null  # Gaussian noise std: null = auto (He std per layer = sqrt(2/fan_in))
 
 selection:
   # Minimum acceptable quality per objective (acts as upper bound since all objectives are minimized).

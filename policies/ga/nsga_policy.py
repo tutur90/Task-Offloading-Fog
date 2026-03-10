@@ -136,6 +136,17 @@ class NSGA2Policy:
 
         return obs
 
+    def _init_weight(self, fan_in, fan_out):
+        if self.activation == 'relu':
+            std = np.sqrt(2.0 / fan_in)
+            return np.random.randn(fan_in, fan_out) * std
+        else:
+            limit = np.sqrt(6.0 / (fan_in + fan_out))
+            return np.random.uniform(-limit, limit, (fan_in, fan_out))
+
+    def _init_bias(self, size):
+        return np.zeros(size)
+
     def genenerate_individual(self):
         """
         Generate a new individual with random weight matrices and bias vectors.
@@ -144,21 +155,21 @@ class NSGA2Policy:
         if self.n_layers < 1:
             raise ValueError("The number of layers must be at least 1.")
         elif self.n_layers == 1:
-            weights = [np.random.rand(self.n_observations, self.num_actions)]
-            biases = [np.random.rand(self.num_actions)]
+            weights = [self._init_weight(self.n_observations, self.num_actions)]
+            biases = [self._init_bias(self.num_actions)]
         elif self.n_layers == 2:
-            weights = [np.random.rand(self.n_observations, self.d_model),
-                       np.random.rand(self.d_model, self.num_actions)]
-            biases = [np.random.rand(self.d_model),
-                      np.random.rand(self.num_actions)]
+            weights = [self._init_weight(self.n_observations, self.d_model),
+                       self._init_weight(self.d_model, self.num_actions)]
+            biases = [self._init_bias(self.d_model),
+                      self._init_bias(self.num_actions)]
         else:
-            weights = [np.random.rand(self.n_observations, self.d_model)]
-            biases = [np.random.rand(self.d_model)]
+            weights = [self._init_weight(self.n_observations, self.d_model)]
+            biases = [self._init_bias(self.d_model)]
             for _ in range(self.n_layers - 2):
-                weights.append(np.random.rand(self.d_model, self.d_model))
-                biases.append(np.random.rand(self.d_model))
-            weights.append(np.random.rand(self.d_model, self.num_actions))
-            biases.append(np.random.rand(self.num_actions))
+                weights.append(self._init_weight(self.d_model, self.d_model))
+                biases.append(self._init_bias(self.d_model))
+            weights.append(self._init_weight(self.d_model, self.num_actions))
+            biases.append(self._init_bias(self.num_actions))
         return (weights, biases)
 
     def individuals(self):
@@ -258,31 +269,34 @@ class NSGA2Policy:
                 break
         return new_population, new_fitness
 
-    def mutate_matrix(self, matrix, mutation_rate=None, sigma=0.1):
+    def _mutation_sigma(self, fan_in):
         """
-        Apply Gaussian mutation to each element of the matrix.
+        Return the mutation sigma: config value if set, else He std (sqrt(2/fan_in)).
+        Biases use fan_in=1 so their default sigma equals the config sigma or 1.0.
         """
-        if mutation_rate is None:
-            mutation_rate = self.config["training"].get("mutation_rate", 0.1)
-        new_matrix = np.copy(matrix)
-        rows, cols = new_matrix.shape
-        for i in range(rows):
-            for j in range(cols):
-                if random.random() < mutation_rate:
-                    new_matrix[i, j] += np.random.normal(0, sigma)
-        return new_matrix
+        cfg_sigma = self.config["training"].get("mutation_sigma", None)
+        if cfg_sigma is not None:
+            return cfg_sigma
+        return np.sqrt(2.0 / fan_in)
 
-    def mutate_vector(self, vector, mutation_rate=None, sigma=0.1):
+    def mutate_matrix(self, matrix, sigma=None):
         """
-        Apply Gaussian mutation to each element of the bias vector.
+        Apply additive Gaussian noise to every weight: θ' = θ + σ·N(0,I).
+        sigma defaults to He std (sqrt(2/fan_in)) if not set in config.
         """
-        if mutation_rate is None:
-            mutation_rate = self.config["training"].get("mutation_rate", 0.1)
-        new_vector = np.copy(vector)
-        for i in range(len(new_vector)):
-            if random.random() < mutation_rate:
-                new_vector[i] += np.random.normal(0, sigma)
-        return new_vector
+        fan_in = matrix.shape[0]
+        if sigma is None:
+            sigma = self._mutation_sigma(fan_in)
+        return matrix + np.random.randn(*matrix.shape) * sigma
+
+    def mutate_vector(self, vector, fan_in=None, sigma=None):
+        """
+        Apply additive Gaussian noise to every bias: b' = b + σ·N(0,I).
+        sigma defaults to _mutation_sigma(fan_in) of the corresponding weight matrix.
+        """
+        if sigma is None:
+            sigma = self._mutation_sigma(fan_in if fan_in is not None else 1)
+        return vector + np.random.randn(*vector.shape) * sigma
 
     # -------------------------------
     # NSGA-II Update Routine
@@ -432,10 +446,10 @@ class NSGA2Policy:
 
             # Apply mutation
             mutated_child1_weights = [self.mutate_matrix(w) for w in child1[0]]
-            mutated_child1_biases = [self.mutate_vector(b) for b in child1[1]]
+            mutated_child1_biases = [self.mutate_vector(b, fan_in=w.shape[0]) for w, b in zip(child1[0], child1[1])]
 
             mutated_child2_weights = [self.mutate_matrix(w) for w in child2[0]]
-            mutated_child2_biases = [self.mutate_vector(b) for b in child2[1]]
+            mutated_child2_biases = [self.mutate_vector(b, fan_in=w.shape[0]) for w, b in zip(child2[0], child2[1])]
 
             offspring.append((mutated_child1_weights, mutated_child1_biases))
             if len(offspring) < pop_size:
