@@ -129,7 +129,9 @@ class DQNPolicy:
         self.update_freq = tr.get("update_freq", 1)
         self.learning_starts = tr.get("learning_starts", 0)
         self.warmup_ratio = tr.get("warmup", 0)
+        self.cooldown_ratio = tr.get("cooldown", 0)
         self.warmup_steps = 0       # computed in set_training_steps()
+        self.cooldown_steps = 0     # computed in set_training_steps()
         self.total_training_steps = None  # set by set_training_steps()
         self.double_dqn = tr.get("double_dqn", False)
         # Prioritized Experience Replay
@@ -342,9 +344,10 @@ class DQNPolicy:
         return obs, task_obs
 
     def set_training_steps(self, total_steps):
-        """Set total training steps for exploration schedule."""
+        """Set total training steps for exploration and LR schedules."""
         self.total_training_steps = total_steps
         self.warmup_steps = int(total_steps * self.warmup_ratio)
+        self.cooldown_steps = int(total_steps * self.cooldown_ratio)
         if self.exploration_strategy not in ("thompson", "noisy_net") and self.explore_decay_type == "exp" and self.explore_min < self.explore_start:
             decay_steps = max(1, int(total_steps * self.explore_decay))
             # EMA alpha s.t. explore_start * alpha^decay_steps = explore_min
@@ -367,18 +370,33 @@ class DQNPolicy:
                 self.explore_value = self.explore_start - (self.explore_start - self.explore_min) * (steps_since_learn / decay_steps)
 
     def _update_lr(self):
-        """Linear LR warmup from 0 to base lr over warmup_steps steps after learning starts."""
-        if self.warmup_steps == 0:
+        """Linear LR warmup (start) and cooldown (end) schedule.
+
+        Warmup : 0 → lr over the first `warmup_steps` steps after learning starts.
+        Cooldown: lr → 0 over the last `cooldown_steps` steps of training.
+        Both phases are configured as a ratio of total training steps via
+        `warmup` and `cooldown` in the training config.
+        """
+        if self.warmup_steps == 0 and self.cooldown_steps == 0:
             return
+
         steps_since_learn = self.total_steps - self.learning_starts
-        if steps_since_learn <= 0:
-            lr = 0.0
-        elif steps_since_learn < self.warmup_steps:
-            lr = self.lr * steps_since_learn / self.warmup_steps
-        else:
-            return  # warmup complete
-        for param_group in self.optimizer.param_groups:
-            param_group['lr'] = lr
+
+        # Warmup takes priority (it is at the beginning)
+        if self.warmup_steps > 0 and steps_since_learn <= self.warmup_steps:
+            lr = 0.0 if steps_since_learn <= 0 else self.lr * steps_since_learn / self.warmup_steps
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lr
+            return
+
+        # Cooldown (last cooldown_steps of the full training run)
+        if self.cooldown_steps > 0 and self.total_training_steps is not None:
+            cooldown_start = self.total_training_steps - self.cooldown_steps
+            if self.total_steps >= cooldown_start:
+                steps_into_cooldown = self.total_steps - cooldown_start
+                lr = self.lr * max(0.0, 1.0 - steps_into_cooldown / self.cooldown_steps)
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = lr
 
     def act(self, env, task, train=True):
         """

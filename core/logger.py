@@ -181,7 +181,7 @@ class Logger:
                 writer.writeheader()
             writer.writerow(row)
 
-    def plot(self, display=False, excluded_modes=[], excluded_metrics=[], log_scale=True, metric_groups = [
+    def plot(self, display=False, excluded_modes=[], excluded_metrics=[], log_scale=False, metric_groups = [
                 ['TaskDropRate', 'AvgLatency', 'AvgPower'],
                 ['AvgLoss', 'AvgGradNorm', 'AvgReward'],
             ]):
