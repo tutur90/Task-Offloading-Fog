@@ -143,11 +143,15 @@ class NSGA2Policy:
             dims = ([(self.n_observations, self.d_model)]
                     + [(self.d_model, self.d_model)] * (self.n_layers - 2)
                     + [(self.d_model, self.num_actions)])
+            
 
         weights = [self._init_weight(fi, fo) for fi, fo in dims]
         biases  = [np.zeros(fo)              for _, fo  in dims]
+        std = [np.std(w) for w in weights]
+        
+        mutation_sigma = self.config["training"].get("mutation_sigma", None)
 
-        sigmas  = [(self.config["training"].get("mutation_sigma", 0.1), self.config["training"].get("mutation_sigma", 0.1)) for _ in dims] if self.mutation_mode == "self_adaptive" else None
+        sigmas  = [(mutation_sigma*std[i], mutation_sigma*std[i]) for i in range(len(dims))] if self.mutation_mode == "self_adaptive" else None
         return (weights, biases), sigmas
 
     def individuals(self):
@@ -187,10 +191,9 @@ class NSGA2Policy:
             # Log-normal mutation of step-size factors (ES-style)
             fw_new = max(fw * np.exp(tau * np.random.randn()), 1e-4)
             fb_new = max(fb * np.exp(tau * np.random.randn()), 1e-4)
-            sigma_w = fw_new * max(np.std(weight), 1e-4)
-            sigma_b = fb_new * max(np.std(weight), 1e-4)
-            return (weight + np.random.randn(*weight.shape) * sigma_w,
-                    bias   + np.random.randn(*bias.shape)   * sigma_b,
+            
+            return (weight + np.random.randn(*weight.shape) * fw_new,
+                    bias   + np.random.randn(*bias.shape)   * fw_new,
                     (fw_new, fb_new))
 
     # =========================================================================
