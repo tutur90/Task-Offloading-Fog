@@ -64,7 +64,6 @@ model:
     qk_norm: True
     embed: regular  
     pre_conditioning: add  # 'add' or 'concat'
-    n_prefix: 1
-    gated_residual: False
+    n_prefix: 2
 
 
