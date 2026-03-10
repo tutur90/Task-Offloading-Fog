@@ -4,6 +4,7 @@ import math
 import torch.nn.functional as F
 from policies.model.base_model import BaseModel
 from policies.model.modules.transformer import LearnedPositionalEncoding
+from policies.model.modules.gtrxl import GTrXLEncoder   
 
 
 torch.backends.cuda.matmul.allow_tf32 = True
