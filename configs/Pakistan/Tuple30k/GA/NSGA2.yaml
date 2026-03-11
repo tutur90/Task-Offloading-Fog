@@ -1,7 +1,7 @@
 policy: "NSGA2"
 algo: "NSGA2" 
 
-seed: 42
+seed: 43
 
 env:
   dataset: "Pakistan"
