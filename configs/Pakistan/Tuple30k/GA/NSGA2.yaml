@@ -16,7 +16,7 @@ eval:
 
 training:
   num_epochs: 400          # Number of generations
-  pop_size: 190            # Population size
+  pop_size: 4            # Population size
   mutation_mode: "fixed"   # "fixed" | "proportional" | "self_adaptive"
   mutation_sigma: null     # fixed: He std if null; proportional: scale factor (default 0.1)
   # mutation_tau: 0.1      # self_adaptive only: meta learning rate for σ factors

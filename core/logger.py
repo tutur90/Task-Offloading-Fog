@@ -1,10 +1,24 @@
 import logging
 import os
+from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import csv
 import multiprocessing
+
+
+class _RunFormatter(logging.Formatter):
+    """Plain format for this run's structured logger; rich format for all other sources."""
+    def __init__(self, run_logger_name: str):
+        super().__init__()
+        self._run_name = run_logger_name
+        self._rich = logging.Formatter("%(levelname)s | %(name)s | %(message)s")
+
+    def format(self, record):
+        if record.name == self._run_name:
+            return record.getMessage()
+        return self._rich.format(record)
 
 
 class Logger:
@@ -38,20 +52,27 @@ class Logger:
         self.log_file_path = os.path.join(self.log_dir, "log.txt")
         self.csv_file_path = os.path.join(self.log_dir, "result.csv")
 
-        # Named logger for structured output (does not propagate to root).
+        # Single file + stream handler shared by all loggers for this run.
+        # _RunFormatter uses plain format for structured output, rich format for policy logs.
+        fmt = _RunFormatter(self.log_dir)
+        self._file_handler = logging.FileHandler(self.log_file_path, mode="w")
+        self._file_handler.setFormatter(fmt)
+        self._stream_handler = logging.StreamHandler()
+        self._stream_handler.setFormatter(fmt)
+
+        # Named logger for structured (epoch/mode/metric) output — does not propagate.
         self._logger = logging.getLogger(self.log_dir)
         self._logger.setLevel(logging.INFO)
         self._logger.propagate = False
-        _file_handler = logging.FileHandler(self.log_file_path, mode="w")
-        _file_handler.setFormatter(logging.Formatter("%(message)s"))
-        self._logger.addHandler(_file_handler)
-        self._logger.addHandler(logging.StreamHandler())
+        self._logger.addHandler(self._file_handler)
+        self._logger.addHandler(self._stream_handler)
 
-        # Route all logging.getLogger() calls (e.g. from policies) to log.txt.
-        self._ext_handler = logging.FileHandler(self.log_file_path, mode="a")
-        self._ext_handler.setFormatter(logging.Formatter("%(levelname)s | %(name)s | %(message)s"))
-        logging.getLogger().addHandler(self._ext_handler)
-        logging.getLogger().setLevel(logging.INFO)
+        # Route 'policies' namespace to the same handlers (rich format via _RunFormatter).
+        _policies_logger = logging.getLogger("policies")
+        _policies_logger.setLevel(logging.INFO)
+        _policies_logger.propagate = False
+        _policies_logger.addHandler(self._file_handler)
+        _policies_logger.addHandler(self._stream_handler)
 
         self._write_header()
         
@@ -83,7 +104,6 @@ class Logger:
         if not os.path.exists(base_dir):
             os.makedirs(base_dir)
 
-        from datetime import datetime
         timestamp = datetime.now().strftime("%m%d_%H%M%S")
 
         # Build tag from only the tuned params: first 2 letters + value
@@ -102,22 +122,24 @@ class Logger:
         os.makedirs(log_dir)
         return log_dir
 
+    @staticmethod
+    def _now() -> str:
+        return datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+
     def _write_header(self):
         """
         Writes header information (configuration details) to the log file.
         """
-        header = "====================\n"
-        
+        header = f"{self._now()}\n"
+
         for key, value in self.config.items():
             if isinstance(value, dict):
                 header += f"{key}:\n"
                 for k, v in value.items():
                     header += f"    {k}: {v}\n"
-            else:   
+            else:
                 header += f"{key}: {value}\n"
-        header += "\n"
 
-        header += "====================\n"
         self._logger.info(header)
 
     def update_epoch(self, epoch):
@@ -128,7 +150,7 @@ class Logger:
             epoch (int): The current epoch (0-indexed; will be logged as 1-indexed).
         """
         self.current_epoch = epoch + 1
-        self._logger.info(f"\n====================\nEpoch {self.current_epoch}/{self.training_config['num_epochs']}")
+        self._logger.info(f"\n{self._now()} Epoch {self.current_epoch}/{self.training_config['num_epochs']}")
 
     def update_mode(self, mode):
         """
@@ -291,9 +313,10 @@ class Logger:
         Closes the log file.
         """
         
-        self._logger.info(f"\n====================\nBest Epoch: {self.best_epoch+1}, Best Value: {self.best_score:.4f}\n====================")
+        self._logger.info(f"\n{self._now()} Best Epoch: {self.best_epoch+1}, Best Value: {self.best_score:.4f}")
+        _policies_logger = logging.getLogger("policies")
+        _policies_logger.removeHandler(self._file_handler)
+        _policies_logger.removeHandler(self._stream_handler)
         for handler in self._logger.handlers[:]:
             handler.close()
             self._logger.removeHandler(handler)
-        logging.getLogger().removeHandler(self._ext_handler)
-        self._ext_handler.close()
