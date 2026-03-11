@@ -19,8 +19,8 @@ training:
   learning_starts: 5000    # random steps before learning begins
   warmup: 0.1               # LR warmup as ratio of total training steps
   cooldown: 0.2               # LR cooldown as ratio of total training steps
-  buffer_size: 100000      # max replay buffer size
-  batch_size: 256          # samples per update
+  buffer_size: 20000      # max replay buffer size
+  batch_size: 32          # samples per update
   target_update_freq: 10000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 8          # steps between policy updates
   lr: 5.0e-5
@@ -28,7 +28,7 @@ training:
   # ref_n_layers: 2
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration: {'strategy': 'ucb', explore_value: 1.0 }
+  exploration: {'strategy': 'ucb', 'explore_value': 1.0 }
   double_dqn: true
   # per: 
   #   enabled: true
@@ -65,5 +65,6 @@ model:
     embed: regular  
     pre_conditioning: add  # 'add' or 'concat'
     n_prefix: 2
+    softplus_attn: 5.0
 
 

@@ -61,7 +61,7 @@ PRE_CONDITIONER_REGISTRY = {
 class NATE(BaseModel):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1, qk_norm=True,
-                 learnable_qk_norm=True, embed="regular", d_heads=None,
+                 learnable_qk_norm=True, embed="regular", d_heads=None, softplus_attn=None,
                  use_attention=True, gated_residual=True, output_size=None, obs_type=None):
         super().__init__()
         if d_heads is not None:
@@ -77,6 +77,7 @@ class NATE(BaseModel):
         self.learnable_qk_norm = learnable_qk_norm
         self.use_attention = use_attention
         self.gated_residual = gated_residual
+        self.softplus_attn = softplus_attn
 
         self.nodes_embed = self._build_embed(embed, d_in, d_model, mlp_ratio)
         self.pos_nodes_embed = LearnedPositionalEncoding(max_seq_len=d_pos, d_model=d_model)
@@ -126,6 +127,7 @@ class NATE(BaseModel):
             learnable_qk_norm=self.learnable_qk_norm,
             use_attention=self.use_attention,
             gated_residual=self.gated_residual,
+            softplus_attn=self.softplus_attn,
         )
 
     def _forward(self, nodes, task=None):
@@ -143,7 +145,7 @@ class TNATE(NATE):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1,
                  pre_conditioning="add", qk_norm=True, learnable_qk_norm=True,
-                 n_prefix=4, d_heads=None, embed="regular",
+                 n_prefix=4, d_heads=None, embed="regular", softplus_attn=None,
                  use_attention=True, gated_residual=True, output_size=None, obs_type=None):
         # Store before super().__init__ because _init_encoder reads them
         self.pre_conditioning = pre_conditioning
@@ -155,7 +157,7 @@ class TNATE(NATE):
             embed=embed,
             mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers,
             dropout=dropout, qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
-            d_heads=d_heads,
+            d_heads=d_heads, softplus_attn=softplus_attn,
             use_attention=use_attention, gated_residual=gated_residual, output_size=output_size,
         )
 

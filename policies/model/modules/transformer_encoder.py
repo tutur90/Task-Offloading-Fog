@@ -45,7 +45,7 @@ class PlainResidual(nn.Module):
 
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, d_model, n_heads, dropout=0.0,
-                 qk_norm=True, learnable_qk_norm=True, softplus_attn=False):
+                 qk_norm=True, learnable_qk_norm=True, softplus_attn=None):
         super().__init__()
         assert d_model % n_heads == 0, f"d_model ({d_model}) must be divisible by n_heads ({n_heads})"
         self.n_heads = n_heads
@@ -114,7 +114,7 @@ class TransformerEncoderBlock(nn.Module):
     and either GRU-gated or plain additive residuals."""
     def __init__(self, d_model, n_heads, d_ff, dropout=0.0,
                  qk_norm=True, learnable_qk_norm=True,
-                 use_attention=True, gated_residual=True):
+                 use_attention=True, gated_residual=True, softplus_attn=None):
         super().__init__()
         self.use_attention = use_attention
 
@@ -123,6 +123,7 @@ class TransformerEncoderBlock(nn.Module):
             self.attn = MultiHeadSelfAttention(
                 d_model, n_heads, dropout,
                 qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
+                softplus_attn=softplus_attn
             )
             self.attn_gate = GRUGating(d_model) if gated_residual else PlainResidual()
 
@@ -144,13 +145,13 @@ class TransformerEncoder(nn.Module):
     """Stack of Transformer Encoder blocks with final RMSNorm."""
     def __init__(self, d_model, n_heads, d_ff, n_layers, dropout=0.1,
                  qk_norm=True, learnable_qk_norm=True,
-                 use_attention=True, gated_residual=True):
+                 use_attention=True, gated_residual=True, softplus_attn=None):
         super().__init__()
         self.layers = nn.ModuleList([
             TransformerEncoderBlock(
                 d_model, n_heads, d_ff, dropout,
                 qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
-                use_attention=use_attention, gated_residual=gated_residual,
+                use_attention=use_attention, gated_residual=gated_residual, softplus_attn=softplus_attn,
             )
             for _ in range(n_layers)
         ])

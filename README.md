@@ -41,6 +41,7 @@ The framework supports various task offloading policies, including:
 - **NOTE**: Node Offloading Transformer-based Encoder policy using the DQL algorithm.
 - **T-NOTE**: Task-aware Node Offloading Transformer-based Encoder policy using the DQL algorithm.
 
+ python main.py configs/Pakistan/Tuple100k/DQL/T-NATE.yaml --search training.lr=1e-4,5e-5,2e-5 training.batch_size=16,32,64,128 training.update_freq=4,16,32 training.buffer_size=2000,5000,10000 training.exploration.explore_value=2.0,1.0,0.5 --num_workers 4 --n_samples 32
 
 ## Informations
 
