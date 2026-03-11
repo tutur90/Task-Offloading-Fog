@@ -16,10 +16,10 @@ eval:
 
 training:
   num_epochs: 400          # Number of generations
-  pop_size: 4            # Population size
-  mutation_mode: "fixed"   # "fixed" | "proportional" | "self_adaptive"
+  pop_size: 190            # Population size
+  mutation_mode: "self_adaptive"   # "fixed" | "proportional" | "self_adaptive"
   mutation_sigma: null     # fixed: He std if null; proportional: scale factor (default 0.1)
-  # mutation_tau: 0.1      # self_adaptive only: meta learning rate for σ factors
+  mutation_tau: 0.05      # self_adaptive only: meta learning rate for σ factors
   early_stop_patience: 100 # Generations without improvement before stopping
   # Max allowed value per objective [ttr, latency, energy] — null disables the constraint
   min_scores: [0.17, 25., 375.]
@@ -30,3 +30,6 @@ model:
   n_layers: 2
   # obs_type: ["cpu"]
   obs_type: ["cpu", "bw", "buffer"]
+  activation: "relu"
+
+
