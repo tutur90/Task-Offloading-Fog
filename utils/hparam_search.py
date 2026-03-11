@@ -431,6 +431,7 @@ class HparamSearch:
             # spawning workers — this is the core of centralized sampling.
             print(f"[HparamSearch] Enqueueing {n_remaining} trials...")
             for params in remaining:
+                params = {k: (v.item() if hasattr(v, "item") else v) for k, v in params.items()}
                 study.enqueue_trial(params)
 
             if self.num_workers == 1:
