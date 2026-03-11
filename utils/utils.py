@@ -98,8 +98,7 @@ class Logger(BaseLogger):
         if score < self.best_score:
             self.best_score = score
             self.best_epoch = epoch
-            self.log_file.write(f"New best score: {score} at epoch {epoch+1}\n")
-            print(f"New best score: {score} at epoch {epoch+1}")
+            self._logger.info(f"New best score: {score} at epoch {epoch+1}")
             return True
         return False
         
