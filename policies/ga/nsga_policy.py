@@ -1,7 +1,10 @@
+import logging
 import random
 import numpy as np
 from core.env import Env
 from core.task import Task
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -373,8 +376,8 @@ class NSGA2Policy:
         infeasible_idx = [i for i, f in enumerate(combined_fitness) if not self._is_feasible(f)]
 
         if infeasible_idx:
-            print(f"[NSGA-II] {len(infeasible_idx)}/{len(combined_pop)} individuals "
-                  f"disqualified by min_scores.")
+            logger.info(f"[NSGA-II] {len(infeasible_idx)}/{len(combined_pop)} individuals "
+                        f"disqualified by min_scores.")
 
         # -- NSGA-II selection on feasible pool (track combined indices) -------
         selected_combined = []
@@ -408,6 +411,13 @@ class NSGA2Policy:
         self.population      = [combined_pop[i]    for i in selected_combined]
         self._sigma_factors  = [combined_sigmas[i] for i in selected_combined]
         self._cached_fitness = [combined_fitness[i] for i in selected_combined]
+
+        n_obj = len(self._cached_fitness[0]) if self._cached_fitness else 0
+        avg = [np.mean([f[i] for f in self._cached_fitness]) for i in range(n_obj)]
+        n_feasible = sum(1 for f in self._cached_fitness if self._is_feasible(f))
+        avg_str = "  ".join(f"obj{i}: {avg[i]:.4f}" for i in range(n_obj))
+        logger.info(f"[NSGA-II] Pop avg: {avg_str} | feasible: {n_feasible}/{len(self._cached_fitness)}")
+
         return self._cached_fitness
 
     # =========================================================================
@@ -428,7 +438,18 @@ class NSGA2Policy:
             population = [self.population[i]     for i in pareto_idx]
             sigmas     = [self._sigma_factors[i] for i in pareto_idx]
             cached     = [cached[i]              for i in pareto_idx]
-            print(f"[Checkpoint] Saving {len(population)}/{len(self.population)} individuals (Pareto front only)")
+            logger.info(f"[Checkpoint] Saving {len(population)}/{len(self.population)} individuals (Pareto front only)")
+
+        if self.mutation_mode == "self_adaptive":
+            all_fw = [fw for s in sigmas if s is not None for fw, _ in s]
+            all_fb = [fb for s in sigmas if s is not None for _, fb in s]
+            if all_fw:
+                logger.info(
+                    f"[Checkpoint] sigma_fw: mean={np.mean(all_fw):.3e}  "
+                    f"min={np.min(all_fw):.3e}  max={np.max(all_fw):.3e}  |  "
+                    f"sigma_fb: mean={np.mean(all_fb):.3e}  "
+                    f"min={np.min(all_fb):.3e}  max={np.max(all_fb):.3e}"
+                )
 
         save_dict = {
             'norm': self.norm, 'n_individuals': len(population), 'n_layers': self.n_layers,

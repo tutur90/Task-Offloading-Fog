@@ -1,3 +1,4 @@
+import logging
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -36,9 +37,22 @@ class Logger:
         )
         self.log_file_path = os.path.join(self.log_dir, "log.txt")
         self.csv_file_path = os.path.join(self.log_dir, "result.csv")
-        
-        # Open the log file for writing.
-        self.log_file = open(self.log_file_path, "w")
+
+        # Named logger for structured output (does not propagate to root).
+        self._logger = logging.getLogger(self.log_dir)
+        self._logger.setLevel(logging.INFO)
+        self._logger.propagate = False
+        _file_handler = logging.FileHandler(self.log_file_path, mode="w")
+        _file_handler.setFormatter(logging.Formatter("%(message)s"))
+        self._logger.addHandler(_file_handler)
+        self._logger.addHandler(logging.StreamHandler())
+
+        # Route all logging.getLogger() calls (e.g. from policies) to log.txt.
+        self._ext_handler = logging.FileHandler(self.log_file_path, mode="a")
+        self._ext_handler.setFormatter(logging.Formatter("%(levelname)s | %(name)s | %(message)s"))
+        logging.getLogger().addHandler(self._ext_handler)
+        logging.getLogger().setLevel(logging.INFO)
+
         self._write_header()
         
         # Use rows as the sole storage for logged data.
@@ -93,23 +107,18 @@ class Logger:
         Writes header information (configuration details) to the log file.
         """
         header = "====================\n"
-        header += f"Policy: {self.policy}\n\n"
-        header += f"Dataset: {self.dataset}\nFlag: {self.flag}\n\n"
         
         for key, value in self.config.items():
-            if key not in ["env", "policy"]:
-                if isinstance(value, dict):
-                    header += f"{key}:\n"
-                    for k, v in value.items():
-                        header += f"    {k}: {v}\n"
-                else:   
-                    header += f"{key}: {value}\n"
+            if isinstance(value, dict):
+                header += f"{key}:\n"
+                for k, v in value.items():
+                    header += f"    {k}: {v}\n"
+            else:   
+                header += f"{key}: {value}\n"
         header += "\n"
 
-        header += "====================\n\n"
-        self.log_file.write(header)
-        self.log_file.flush()
-        print(header)
+        header += "====================\n"
+        self._logger.info(header)
 
     def update_epoch(self, epoch):
         """
@@ -119,10 +128,7 @@ class Logger:
             epoch (int): The current epoch (0-indexed; will be logged as 1-indexed).
         """
         self.current_epoch = epoch + 1
-        line = f"\n====================\nEpoch {self.current_epoch}/{self.training_config['num_epochs']}\n"
-        print(line, end="")
-        self.log_file.write(line)
-        self.log_file.flush()
+        self._logger.info(f"\n====================\nEpoch {self.current_epoch}/{self.training_config['num_epochs']}")
 
     def update_mode(self, mode):
         """
@@ -132,10 +138,7 @@ class Logger:
             mode (str): The current mode.
         """
         self.current_mode = mode
-        line = f"   Mode: {mode}\n"
-        print(line, end="")
-        self.log_file.write(line)
-        self.log_file.flush()
+        self._logger.info(f"   Mode: {mode}")
 
     def update_metric(self, metric, value):
         """
@@ -162,10 +165,7 @@ class Logger:
             "Value": value
         }
         self.rows.append(row)
-        line = f"       {metric}: {value:.3e}\n"
-        print(line, end="")
-        self.log_file.write(line) 
-        self.log_file.flush()
+        self._logger.info(f"       {metric}: {value:.3e}")
         # Write this row immediately to CSV.
         self._append_to_csv(row)
 
@@ -181,7 +181,12 @@ class Logger:
                 writer.writeheader()
             writer.writerow(row)
 
-    def plot(self, display=False, excluded_modes=[], excluded_metrics=[], log_scale=False, metric_groups = [
+    def plot(self, display=False, excluded_modes=[], excluded_metrics=[], dpi=400,
+            log_eps: float | dict | None = {'TaskDropRate': 1e-4,
+                                            'AvgLatency': 1e-4, 
+                                            'AvgPower': 1e-4,
+                                            'Score': 1e-4}, 
+            metric_groups = [
                 ['TaskDropRate', 'AvgLatency', 'AvgPower'],
                 ['AvgLoss', 'AvgGradNorm', 'AvgReward'],
             ]):
@@ -195,6 +200,12 @@ class Logger:
             display (bool): Whether to call plt.show().
             excluded_modes (list): Modes to skip entirely.
             excluded_metrics (list): Metrics to skip entirely.
+            log_eps (float | dict[str, float] | None): log(x + eps) scale configuration.
+                - None: linear for all metrics (default).
+                - float: apply log(x + eps) with that eps to all metrics.
+                - dict[str, float]: per-metric eps, e.g.
+                    {'AvgLoss': 1e-8, 'AvgLatency': 1e-4}
+                  Metrics not listed stay linear.
             metric_groups (list[list[str]]): Ordered groups of metric names.
                 Metrics present in the data but not in any group are collected into
                 an extra group appended at the end.
@@ -255,13 +266,14 @@ class Logger:
                 ax.set_title(metric)
                 ax.set_xlabel("Epoch")
                 ax.set_ylabel(metric)
-                if log_scale:
-                    ax.set_yscale('log')
+                eps = log_eps.get(metric) if isinstance(log_eps, dict) else log_eps
+                if eps is not None:
+                    ax.set_yscale('function', functions=(lambda x: np.log(x + eps), lambda y: np.exp(y) - eps))
                 ax.legend()
 
             plt.tight_layout()
             plot_path = os.path.join(self.log_dir, f"score_plot_{gi}.png")
-            plt.savefig(plot_path)
+            plt.savefig(plot_path, dpi=dpi)
             if display:
                 plt.show()
             plt.close(fig)
@@ -279,11 +291,9 @@ class Logger:
         Closes the log file.
         """
         
-        self.log_file.write("\n====================\n")
-        self.log_file.write(f"Best Epoch: {self.best_epoch+1}, Best Value: {self.best_score:.4f}\n")
-        self.log_file.write("====================\n")
-        self.log_file.flush()
-        print(f"\nBest Epoch: {self.best_epoch+1}, Best Value: {self.best_score:.4f}\n")
-            
-        if self.log_file:
-            self.log_file.close()
+        self._logger.info(f"\n====================\nBest Epoch: {self.best_epoch+1}, Best Value: {self.best_score:.4f}\n====================")
+        for handler in self._logger.handlers[:]:
+            handler.close()
+            self._logger.removeHandler(handler)
+        logging.getLogger().removeHandler(self._ext_handler)
+        self._ext_handler.close()

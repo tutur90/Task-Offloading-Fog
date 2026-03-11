@@ -1,6 +1,9 @@
+import logging
 import math
 
 import torch
+
+logger = logging.getLogger(__name__)
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -87,6 +90,9 @@ class DQNPolicy:
 
         self._init_optimizer(config)
 
+        n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        logger.info(f"Model parameters: {n_params:,}")
+
     # ------------------------------------------------------------------
     # Init helpers
     # ------------------------------------------------------------------
@@ -105,7 +111,7 @@ class DQNPolicy:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             self.device = torch.device(config["device"])
-        print(f"Using device: {self.device}")
+        logger.info(f"Using device: {self.device}")
         self.dtype = torch.float32
 
     def _init_training_params(self, config):
