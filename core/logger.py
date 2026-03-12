@@ -290,6 +290,9 @@ class Logger:
                 ax.set_ylabel(metric)
                 eps = log_eps.get(metric) if isinstance(log_eps, dict) else log_eps
                 if eps is not None:
+                    mmin = subset['Value'].min()
+                    if mmin <= 0:
+                        print(f"Warning: Minimum value for metric '{metric}' is {mmin:.3e}, which is <= 0. ")
                     ax.set_yscale('function', functions=(lambda x: np.log(x + eps), lambda y: np.exp(y) - eps))
                 ax.legend()
 

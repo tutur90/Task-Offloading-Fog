@@ -19,18 +19,19 @@ training:
     learning_starts: 5000
     warmup: 0.1
     buffer_size: 100000
-    batch_size: 64
+    batch_size: 512
     target_update_freq: 10000
-    update_freq: 8
+    update_freq: 4
     lr: 5.0e-06
-    ref_d_model: 64
+    ref_d_model: 256
     ref_n_layers: 1
     lr_decay: 1
     gamma: 0.99
-    exploration: {'strategy': 'ucb', 'explore_value': 0.5}
-    reward: {'momentum': 0.999, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True, log1p: True}
+    # exploration: {'strategy': 'ucb', 'explore_value': 0.5}
+    exploration: {'strategy': 'epsilon_greedy', 'explore_value': 0.5, 'explore_min': 0.01, 'explore_decay': 0.8}
+    reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True, log1p: True}
     optimizer: {'type': 'Adam', 'weight_decay': 0.0}
-    lambda: [0.350, 0.35, 0.3]
+    lambda: [0.5, 0.3, 0.2]
     early_stop_patience: 20
     log_freq: 0
     # clip_grad_norm: 0.5

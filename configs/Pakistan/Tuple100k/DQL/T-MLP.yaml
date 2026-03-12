@@ -25,7 +25,8 @@ training:
     lr: 2.e-04
     lr_decay: 1
     gamma: 0.99
-    exploration: {'strategy': 'ucb', 'explore_value': 1.0}
+    # exploration: {'strategy': 'ucb', 'explore_value': 1.0}
+    exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.5}
     reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True, log1p: True}
     optimizer: {'type': 'Adam', 'weight_decay': 0}
     lambda: [0.3, 0.4, 0.3]

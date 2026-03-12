@@ -378,9 +378,7 @@ class NSGA2Policy:
         feasible_idx   = [i for i, f in enumerate(combined_fitness) if     self._is_feasible(f)]
         infeasible_idx = [i for i, f in enumerate(combined_fitness) if not self._is_feasible(f)]
 
-        if infeasible_idx:
-            logger.info(f"[NSGA-II] {len(infeasible_idx)}/{len(combined_pop)} individuals "
-                        f"disqualified by min_scores.")
+
 
         # -- NSGA-II selection on feasible pool (track combined indices) -------
         selected_combined = []
