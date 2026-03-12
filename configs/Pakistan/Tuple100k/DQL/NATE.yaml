@@ -27,8 +27,8 @@ training:
     lr_decay: 1
     gamma: 0.99
     exploration: {'strategy': 'ucb', 'explore_value': 1.0}
-    reward: {'momentum': 0.999, 'norm': 'log1p_standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
-    optimizer: {'type': 'RMSprop', weight_decay: 0.00}
+    reward: {'momentum': 0.999, 'norm': 'standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
+    optimizer: {'type': 'Adam', 'weight_decay': 0.00}
     lambda: [0.35, 0.35, 0.3]
     early_stop_patience: 20
     log_freq: 0

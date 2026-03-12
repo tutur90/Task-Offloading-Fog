@@ -204,10 +204,10 @@ class Logger:
             writer.writerow(row)
 
     def plot(self, display=False, excluded_modes=[], excluded_metrics=[], dpi=400,
-            log_eps: float | dict | None = {'TaskDropRate': 1e-4,
-                                            'AvgLatency': 1e-4, 
-                                            'AvgPower': 1e-4,
-                                            'Score': 1e-4}, 
+            log_eps: float | dict | None = {'TaskDropRate': 1.,
+                                            'AvgLatency': 1., 
+                                            'AvgPower': 1.,
+                                            'Score': 1.}, 
             metric_groups = [
                 ['TaskDropRate', 'AvgLatency', 'AvgPower'],
                 ['AvgLoss', 'AvgGradNorm', 'AvgReward'],

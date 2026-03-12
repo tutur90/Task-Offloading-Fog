@@ -18,16 +18,17 @@ training:
   learning_starts: 5000    # random steps before learning begins
   warmup: 0.1                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
-  batch_size: 32          # samples per update
+  batch_size: 256          # samples per update
   target_update_freq: 10000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
   update_freq: 4          # steps between policy updates
-  lr: 5.0e-5
+  lr: 1.0e-4
   ref_d_model: 128
   # ref_n_layers: 2
   lr_decay: 1
   gamma: 0.99
   # Exploration strategy: "epsilon_greedy" (default), "boltzmann", or "ucb"
-  exploration: {'strategy': 'ucb', explore_value: 2.0 }
+  # exploration: {'strategy': 'ucb', explore_value: 2.0 }
+  exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.6} 
 
   reward:
     momentum: 0.9995
