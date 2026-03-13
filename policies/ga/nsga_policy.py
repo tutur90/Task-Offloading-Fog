@@ -77,9 +77,10 @@ class NSGA2Policy:
 
     MUTATION_MODES = ("fixed", "proportional", "self_adaptive")
 
-    def __init__(self, env, config, dataset=None):
+    def __init__(self, env, config, dataset=None, logger=None):
         self.config = config
         self.env    = env
+        self._train_logger = logger
 
         self.obs_type   = config["model"]["obs_type"]
         self.d_model    = config["model"]["d_model"]
@@ -419,16 +420,17 @@ class NSGA2Policy:
         logger.info(f"[NSGA-II] feasible: {n_feasible}/{len(self._cached_fitness)}")
 
         _metric_names = ['PopAvgDropRate', 'PopAvgLatency', 'PopAvgPower', 'PopAvgScore']
-        for i, val in enumerate(avg):
-            name = _metric_names[i] if i < len(_metric_names) else f'PopAvgObj{i}'
-            self.env.logger.update_metric(name, val)
+        if self._train_logger is not None:
+            for i, val in enumerate(avg):
+                name = _metric_names[i] if i < len(_metric_names) else f'PopAvgObj{i}'
+                self._train_logger.update_metric(name, val)
 
-        if self.mutation_mode == "self_adaptive":
-            all_fw = [fw for s in self._sigma_factors if s is not None for fw, _ in s]
-            all_fb = [fb for s in self._sigma_factors if s is not None for _, fb in s]
-            if all_fw:
-                self.env.logger.update_metric('AvgFw', float(np.mean(all_fw)))
-                self.env.logger.update_metric('AvgFb', float(np.mean(all_fb)))
+            if self.mutation_mode == "self_adaptive":
+                all_fw = [fw for s in self._sigma_factors if s is not None for fw, _ in s]
+                all_fb = [fb for s in self._sigma_factors if s is not None for _, fb in s]
+                if all_fw:
+                    self._train_logger.update_metric('AvgFw', float(np.mean(all_fw)))
+                    self._train_logger.update_metric('AvgFb', float(np.mean(all_fb)))
 
         return self._cached_fitness
 
