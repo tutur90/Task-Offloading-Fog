@@ -20,9 +20,9 @@ training:
     warmup: 0.1
     cooldown: 0.1
     buffer_size: 100000
-    batch_size: 512
+    batch_size: 64
     target_update_freq: 10000
-    update_freq: 4
+    update_freq: 16
     lr: 2.0e-05
     ref_d_model: 256
     lr_decay: 1

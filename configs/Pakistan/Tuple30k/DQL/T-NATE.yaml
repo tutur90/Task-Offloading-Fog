@@ -18,10 +18,10 @@ training:
   learning_starts: 5000    # random steps before learning begins
   warmup: 0.1                # LR warmup as ratio of total training steps
   buffer_size: 50000      # max replay buffer size
-  batch_size: 256          # samples per update
+  batch_size: 64          # samples per update
   target_update_freq: 10000  # >= 1 → hard copy every N grad steps | < 1 → soft update with τ = value
-  update_freq: 4          # steps between policy updates
-  lr: 1.0e-4
+  update_freq: 16          # steps between policy updates
+  lr: 5.0e-5
   ref_d_model: 128
   # ref_n_layers: 2
   lr_decay: 1
