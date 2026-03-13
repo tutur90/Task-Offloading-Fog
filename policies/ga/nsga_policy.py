@@ -416,8 +416,19 @@ class NSGA2Policy:
         n_obj = len(self._cached_fitness[0]) if self._cached_fitness else 0
         avg = [np.mean([f[i] for f in self._cached_fitness]) for i in range(n_obj)]
         n_feasible = sum(1 for f in self._cached_fitness if self._is_feasible(f))
-        avg_str = "  ".join(f"obj{i}: {avg[i]:.4f}" for i in range(n_obj))
-        logger.info(f"[NSGA-II] Pop avg: {avg_str} | feasible: {n_feasible}/{len(self._cached_fitness)}")
+        logger.info(f"[NSGA-II] feasible: {n_feasible}/{len(self._cached_fitness)}")
+
+        _metric_names = ['PopAvgDropRate', 'PopAvgLatency', 'PopAvgPower', 'PopAvgScore']
+        for i, val in enumerate(avg):
+            name = _metric_names[i] if i < len(_metric_names) else f'PopAvgObj{i}'
+            self.env.logger.update_metric(name, val)
+
+        if self.mutation_mode == "self_adaptive":
+            all_fw = [fw for s in self._sigma_factors if s is not None for fw, _ in s]
+            all_fb = [fb for s in self._sigma_factors if s is not None for _, fb in s]
+            if all_fw:
+                self.env.logger.update_metric('AvgFw', float(np.mean(all_fw)))
+                self.env.logger.update_metric('AvgFb', float(np.mean(all_fb)))
 
         return self._cached_fitness
 
@@ -440,17 +451,6 @@ class NSGA2Policy:
             sigmas     = [self._sigma_factors[i] for i in pareto_idx]
             cached     = [cached[i]              for i in pareto_idx]
             logger.info(f"[Checkpoint] Saving {len(population)}/{len(self.population)} individuals (Pareto front only)")
-
-        if self.mutation_mode == "self_adaptive":
-            all_fw = [fw for s in sigmas if s is not None for fw, _ in s]
-            all_fb = [fb for s in sigmas if s is not None for _, fb in s]
-            if all_fw:
-                logger.info(
-                    f"[Checkpoint] sigma_fw: mean={np.mean(all_fw):.3e}  "
-                    f"min={np.min(all_fw):.3e}  max={np.max(all_fw):.3e}  |  "
-                    f"sigma_fb: mean={np.mean(all_fb):.3e}  "
-                    f"min={np.min(all_fb):.3e}  max={np.max(all_fb):.3e}"
-                )
 
         save_dict = {
             'norm': self.norm, 'n_individuals': len(population), 'n_layers': self.n_layers,
