@@ -1,4 +1,5 @@
 import os
+import re
 from core.env import Env
 import numpy as np
 import pandas as pd
@@ -6,6 +7,28 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 SUCCESS = 0
+
+_PREFIX_ORDER = {'c': 0, 'f': 1, 'e': 2}
+
+def _node_rank(name: str) -> int:
+    """Scalar sort rank for a node name (c < f < e, then numeric index)."""
+    m = re.match(r'([a-zA-Z]+)(\d+)', str(name))
+    if m:
+        return _PREFIX_ORDER.get(m.group(1), 99) * 100000 + int(m.group(2))
+    return 99 * 100000
+
+def _node_sort_key(series: pd.Series) -> pd.Series:
+    """key= for sort_values on a Series of node names."""
+    return series.map(_node_rank)
+
+def _link_sort_key(series: pd.Series) -> pd.Series:
+    """key= for sort_values on a Series of 'src-->dst' link strings."""
+    def link_rank(link: str) -> int:
+        parts = str(link).split('-->')
+        src = _node_rank(parts[0].strip()) if len(parts) > 0 else 99 * 100000
+        dst = _node_rank(parts[1].strip()) if len(parts) > 1 else 99 * 100000
+        return src * 10 ** 7 + dst
+    return series.map(link_rank)
 
 class VisStats:
     def __init__(self, save_path: str, display_numbers: bool = False, log_eps: float | None = None):
@@ -72,7 +95,7 @@ class VisStats:
             node_list.append([node_name, clock, energy, cpu_freq, max_cpu_freq])
         self.node_info = pd.DataFrame(node_list,
                                       columns=['Node Name', 'Clock', 'Energy', 'CPU Freq', 'Max CPU Freq'])\
-                                     .sort_values(by='Node Name').reset_index(drop=True)
+                                     .sort_values(by='Node Name', key=_node_sort_key).reset_index(drop=True)
 
     def _apply_log_scale(self, ax):
         """Apply log(x + eps) y-axis scale if log_eps is set."""
@@ -96,7 +119,7 @@ class VisStats:
         task_counts = self.task_info.groupby('Link')['Status'].agg(
             Total='size',
             Success=lambda x: (x == 'SUCCESS').sum()
-        ).reset_index().sort_values(by='Link').reset_index(drop=True)
+        ).reset_index().sort_values(by='Link', key=_link_sort_key).reset_index(drop=True)
         f, ax = plt.subplots(figsize=(10, 6))
         plt.xticks(rotation=45, fontsize=10)
         sns.barplot(x="Link", y="Total", data=task_counts, label="Total", color="lightgray", ax=ax)
@@ -124,7 +147,7 @@ class VisStats:
         # 3. Bar chart: Average latency per link (for successful tasks).
         latency = self.task_info[self.task_info['Status'] == 'SUCCESS']\
                       .groupby('Link')[['Trans Time', 'Wait Time', 'Exe Time', 'Time']].mean()\
-                      .reset_index().sort_values(by='Link').reset_index(drop=True)
+                      .reset_index().sort_values(by='Link', key=_link_sort_key).reset_index(drop=True)
         latency_melt = latency.melt(id_vars='Link', var_name='Latency Type', value_name='Average')
         f, ax = plt.subplots(figsize=(10, 6))
         sns.barplot(data=latency_melt, x='Link', y='Average', hue='Latency Type', ax=ax)
@@ -139,7 +162,7 @@ class VisStats:
 
         # 4. Bar chart: Energy consumption per node.
         energy = self.task_info.groupby('Destination')[['Trans Energy', 'Exe Energy']].sum()\
-                     .reset_index().sort_values(by='Destination').reset_index(drop=True)
+                     .reset_index().sort_values(by='Destination', key=_node_sort_key).reset_index(drop=True)
 
         energy = energy.merge(self.node_info, left_on='Destination', right_on='Node Name', suffixes=('_task', '_node'))
         energy['Idle Energy'] = energy['Energy'] - energy["Trans Energy"] - energy["Exe Energy"]
