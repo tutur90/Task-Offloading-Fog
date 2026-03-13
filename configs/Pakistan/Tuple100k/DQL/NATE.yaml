@@ -20,24 +20,27 @@ training:
     learning_starts: 5000
     warmup: 0.1
     buffer_size: 50000
-    batch_size: 256
-    target_update_freq: 1000
-    update_freq: 8
-    lr: 5.e-05
+    batch_size: 64
+    target_update_freq: 10000
+    update_freq: 16
+    lr: 3.e-05
+    ref_d_model: 128
     lr_decay: 1
     gamma: 0.99
-    exploration: {'strategy': 'ucb', 'explore_value': 1.0}
-    reward: {'momentum': 0.999, 'norm': 'standard', 'scale': 1, 'eps': 0.01, 'clip': 5.0, 'storage_norm': True}
-    optimizer: {'type': 'Adam', 'weight_decay': 0.00}
-    lambda: [0.35, 0.35, 0.3]
+    exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.6}
+    reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True}
+    optimizer: {'type': 'Adam', 'weight_decay': 0}
+    lambda: [0.3, 0.4, 0.3]
     early_stop_patience: 20
     log_freq: 0
-    clip_grad_norm: 0.5
+    max_grad_norm: 5.0
+    keep_checkpoints: 1
+    save_pareto_only: True
 
 model:
-    d_model: 64
+    d_model: 256
     n_layers: 2
-    n_heads: 2
+    d_heads: 32
     mlp_ratio: 4
     dropout: 0.0
     obs_type: ['cpu', 'bw', 'buffer']

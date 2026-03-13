@@ -12,21 +12,19 @@ eval:
   lambda: [1.889e-03, 4.394e+00, 2.605e+02]
   expected_values: [0.2, 4.0, 300.0]
 
-
-
 training:
-    num_epochs: 20
+    num_epochs: 30
     learning_starts: 5000
     warmup: 0
     buffer_size: 50000
     batch_size: 256
     target_update_freq: 10000
-    update_freq: 4
+    update_freq: 1
     lr: 2.e-04
     lr_decay: 1
     gamma: 0.99
-    # exploration: {'strategy': 'ucb', 'explore_value': 1.0}
-    exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.5}
+    exploration: {'strategy': 'ucb', 'explore_value': 1.0}
+    # exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.5}
     reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True, log1p: True}
     optimizer: {'type': 'Adam', 'weight_decay': 0}
     lambda: [0.3, 0.4, 0.3]
