@@ -18,12 +18,12 @@ training:
     warmup: 0
     buffer_size: 50000
     batch_size: 256
-    target_update_freq: 10000
+    target_update_freq: 5000
     update_freq: 1
-    lr: 2.e-04
+    lr: 5.e-05
     lr_decay: 1
     gamma: 0.99
-    exploration: {'strategy': 'ucb', 'explore_value': 1.0}
+    exploration: {'strategy': 'ucb', 'explore_value': 2.0}
     # exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.5}
     reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True, log1p: True}
     optimizer: {'type': 'Adam', 'weight_decay': 0}
@@ -32,8 +32,8 @@ training:
     log_freq: 0
 
 model:
-    d_model: 512
-    n_layers: 3
+    d_model: 256
+    n_layers: 2
     obs_type: ['cpu', 'bw', 'buffer', 'task']
 
     bias: True

@@ -41,7 +41,7 @@ training:
     type: "Adam"
     # weight_decay: 0
     
-  lambda: [0.50000,0.300000,0.200000]
+  lambda: [0.50000,0.400000,0.100000]
   early_stop_patience: 30 # Early stopping patience (generations without improvement)
   log_freq: 0      # Steps between logging training metrics
 

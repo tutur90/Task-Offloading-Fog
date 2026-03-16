@@ -20,7 +20,7 @@ training:
     learning_starts: 5000
     warmup: 0.1
     buffer_size: 50000
-    batch_size: 64
+    batch_size: 32
     target_update_freq: 10000
     update_freq: 16
     lr: 3.e-05
@@ -28,6 +28,7 @@ training:
     lr_decay: 1
     gamma: 0.99
     exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.6}
+    # exploration: {'strategy': 'ucb', 'explore_value': 1.}
     reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True}
     optimizer: {'type': 'Adam', 'weight_decay': 0}
     lambda: [0.3, 0.4, 0.3]
@@ -38,7 +39,7 @@ training:
     save_pareto_only: True
 
 model:
-    d_model: 256
+    d_model: 128
     n_layers: 2
     d_heads: 32
     mlp_ratio: 4
