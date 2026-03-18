@@ -45,14 +45,14 @@ class PlainResidual(nn.Module):
         return x + y
 
 class SigmoidGating(nn.Module):
-    """Simple sigmoid gating: output = σ(Wy) * x + (1 - σ(Wy)) * y."""
-    def __init__(self, d_model):
+    def __init__(self, d_model, bg=2.0):
         super().__init__()
-        self.W = nn.Linear(2 * d_model, d_model)
+        self.gate = nn.Linear(2 * d_model, d_model)
+        nn.init.constant_(self.gate.bias, -bg)
 
     def forward(self, x, y):
-        gate = torch.sigmoid(self.W(torch.cat([y, x], dim=-1)))
-        return gate * x + (1 - gate) * y
+        z = torch.sigmoid(self.gate(torch.cat([y, x], dim=-1)))
+        return (1 - z) * x + z * y
 
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, d_model, n_heads, dropout=0.0,

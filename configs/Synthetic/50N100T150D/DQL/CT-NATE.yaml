@@ -1,5 +1,5 @@
 
-policy: "T-NATE"
+policy: "CT-NATE"
 algo: "DQL"
 
 seed: 0
@@ -24,7 +24,7 @@ training:
     batch_size: 32
     target_update_freq: 10000
     update_freq: 32
-    lr: 5.0e-06
+    lr: 1.0e-05
     ref_d_model: 256
     lr_decay: 1
     gamma: 0.99
@@ -46,6 +46,6 @@ model:
     obs_type: ['cpu', 'bw', 'buffer', 'task']
     qk_norm: True
     embed: regular
-    pre_conditioning: add
-    n_prefix: 2
+    # pre_conditioning: add
+    # n_prefix: 0
     residual_type: plain

@@ -50,7 +50,7 @@ training:
   log_freq: 0      # Steps between logging training metrics
 
 model:
-  d_model: 512
+  d_model: 1024
   n_layers: 2
   # n_layers: 3
   # obs_type: ["cpu"]

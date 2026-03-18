@@ -49,3 +49,4 @@ model:
     embed: regular
     pre_conditioning: add
     n_prefix: 1
+    residual_type: plain

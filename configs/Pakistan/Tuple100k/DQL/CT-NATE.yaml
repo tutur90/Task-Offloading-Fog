@@ -2,7 +2,7 @@
 policy: "CT-NATE"
 algo: "DQL"
 
-seed: 0
+seed: 5
 
 env:
   dataset: "Pakistan"
@@ -15,44 +15,38 @@ eval:
     lambda: [0.001889, 4.394, 260.5]
 
 training:
-  num_epochs: 20
-  learning_starts: 5000
-  warmup: 0.1
-  cooldown: 0.2
-  buffer_size: 20000
-  batch_size: 32
-  target_update_freq: 10000
-  update_freq: 8
-  lr: 5.0e-5
-  ref_d_model: 128
-  gamma: 0.99
-  exploration: {'strategy': 'ucb', 'explore_value': 1.0}
-  double_dqn: true
-
-  reward:
-    momentum: 0.9995
-    norm: "standard"
-    scale: 1
-    eps: 1.e-1
-    clip: 5.0
-    storage_norm: true
-
-  optimizer:
-    type: "Adam"
-    weight_decay: 0
-
-  lambda: [0.3, 0.400, 0.300]
-  early_stop_patience: 20
-  log_freq: 0
-  max_grad_norm: 10.0
-
+    num_epochs: 30
+    learning_starts: 5000
+    warmup: 0.1
+    buffer_size: 50000
+    batch_size: 32
+    target_update_freq: 10000
+    update_freq: 16
+    lr: 3.e-05
+    ref_d_model: 128
+    lr_decay: 1
+    gamma: 0.99
+    exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.6}
+    # exploration: {'strategy': 'ucb', 'explore_value': 1.0, 'count_decay': 0.9999}
+    # exploration: {'strategy': 'ucb', 'explore_value': 0.1 }
+    reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True}
+    optimizer: {'type': 'Adam', 'weight_decay': 0}
+    lambda: [0.3, 0.4, 0.3]
+    early_stop_patience: 20
+    log_freq: 0
+    max_grad_norm: 5.0
+    keep_checkpoints: 1
+    save_pareto_only: True
+    
 model:
     d_model: 256
-    n_layers: 1
-    d_heads: 64
+    n_layers: 2 
+    d_heads: 32
     mlp_ratio: 4
     dropout: 0.0
     obs_type: ['cpu', 'bw', 'buffer', 'task']
     qk_norm: True
     embed: regular
-    softplus_attn: 5.0
+    # pre_conditioning: add
+    # n_prefix: 1
+    residual_type: plain
