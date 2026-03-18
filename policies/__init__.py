@@ -3,6 +3,7 @@ from policies.dql.mlp_policy import MLPPolicy, DuelingMLPPolicy
 from policies.dql.base_policy import DQNPolicy
 from policies.dql.opo_policy import OPOPolicy
 from policies.dql.nate_policy import NATEPolicy
+from policies.dql.ctnate_policy import CTNATEPolicy
 
 
 from policies.ga.nsga_policy import NSGA2Policy
@@ -27,6 +28,7 @@ policies = {
     
     "NATE": NATEPolicy,
     "T-NATE": NATEPolicy,
+    "CT-NATE": CTNATEPolicy,
     
     "OPO": OPOPolicy,
     "NPGA": NPGAPolicy,

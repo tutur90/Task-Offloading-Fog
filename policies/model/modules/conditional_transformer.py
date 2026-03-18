@@ -6,7 +6,7 @@ import math
 # =============================================================================
 # Transformer Encoder
 #
-# - Pre-norm with nn.RMSNorm
+# - Pre-norm with nn.RMSNorm, or AdaRMSNorm when d_cond is provided
 # - Residual connection type controlled by `residual_type`:
 #     "gru"     — GRU-style gated residual (GTrXL), gate biased near 0 at init
 #     "sigmoid" — simple sigmoid gating
@@ -53,6 +53,25 @@ class SigmoidGating(nn.Module):
     def forward(self, x, y):
         gate = torch.sigmoid(self.W(torch.cat([y, x], dim=-1)))
         return gate * x + (1 - gate) * y
+
+class AdaRMSNorm(nn.Module):
+    """Adaptive RMSNorm: scale and shift predicted from a condition vector.
+    Zero-init on the projection ensures identity behaviour at the start of training."""
+    def __init__(self, d_model: int, d_cond: int):
+        super().__init__()
+        self.norm = nn.RMSNorm(d_model, elementwise_affine=False)
+        self.proj = nn.Linear(d_cond, 2 * d_model)
+        nn.init.zeros_(self.proj.weight)
+        nn.init.zeros_(self.proj.bias)
+
+    def forward(self, x: torch.Tensor, condition: torch.Tensor) -> torch.Tensor:
+        """x: (B, S, d_model)  condition: (B, d_cond) or (B, 1, d_cond)"""
+        scale, shift = self.proj(condition).chunk(2, dim=-1)
+        if scale.dim() == 2:
+            scale = scale.unsqueeze(1)
+            shift = shift.unsqueeze(1)
+        return self.norm(x) * (1 + scale) + shift
+
 
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, d_model, n_heads, dropout=0.0,
@@ -132,16 +151,22 @@ def _build_gate(residual_type: str, d_model: int) -> nn.Module:
 
 
 class TransformerEncoderBlock(nn.Module):
-    """Single Transformer Encoder block: pre-RMSNorm, optional attention, FFN,
-    and configurable residual connections (gru / sigmoid / plain)."""
+    """Single Transformer Encoder block: pre-norm (RMSNorm or AdaRMSNorm),
+    optional attention, FFN, and configurable residual connections (gru / sigmoid / plain).
+    When d_cond is provided the norm layers become AdaRMSNorm conditioned on the input."""
     def __init__(self, d_model, n_heads, d_ff, dropout=0.0,
                  qk_norm=True, learnable_qk_norm=True,
-                 use_attention=True, residual_type="gru", softplus_attn=None):
+                 use_attention=True, residual_type="gru", softplus_attn=None,
+                 d_cond=None):
         super().__init__()
         self.use_attention = use_attention
+        self.d_cond = d_cond
+
+        def _make_norm():
+            return AdaRMSNorm(d_model, d_cond) if d_cond else nn.RMSNorm(d_model)
 
         if use_attention:
-            self.attn_norm = nn.RMSNorm(d_model)
+            self.attn_norm = _make_norm()
             self.attn = MultiHeadSelfAttention(
                 d_model, n_heads, dropout,
                 qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
@@ -149,38 +174,45 @@ class TransformerEncoderBlock(nn.Module):
             )
             self.attn_gate = _build_gate(residual_type, d_model)
 
-        self.ff_norm = nn.RMSNorm(d_model)
+        self.ff_norm = _make_norm()
         self.ff = FeedForward(d_model, d_ff, dropout)
         self.ff_gate = _build_gate(residual_type, d_model)
 
-    def forward(self, x):
+    def forward(self, x, condition=None):
+        def _norm(layer, t):
+            return layer(t, condition) if self.d_cond else layer(t)
+
         if self.use_attention:
-            y = self.attn(self.attn_norm(x))
+            y = self.attn(_norm(self.attn_norm, x))
             x = self.attn_gate(x, y)
 
-        y = self.ff(self.ff_norm(x))
+        y = self.ff(_norm(self.ff_norm, x))
         x = self.ff_gate(x, y)
         return x
 
 
 class TransformerEncoder(nn.Module):
-    """Stack of Transformer Encoder blocks with final RMSNorm."""
+    """Stack of Transformer Encoder blocks with final RMSNorm (or AdaRMSNorm).
+    Pass d_cond to enable AdaRMSNorm conditioning; supply condition to forward()."""
     def __init__(self, d_model, n_heads, d_ff, n_layers, dropout=0.1,
                  qk_norm=True, learnable_qk_norm=True,
-                 use_attention=True, residual_type="gru", softplus_attn=None):
+                 use_attention=True, residual_type="gru", softplus_attn=None,
+                 d_cond=None):
         super().__init__()
+        self.d_cond = d_cond
         self.layers = nn.ModuleList([
             TransformerEncoderBlock(
                 d_model, n_heads, d_ff, dropout,
                 qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
                 use_attention=use_attention, residual_type=residual_type, softplus_attn=softplus_attn,
+                d_cond=d_cond,
             )
             for _ in range(n_layers)
         ])
-        self.final_norm = nn.RMSNorm(d_model)
+        self.final_norm = AdaRMSNorm(d_model, d_cond) if d_cond else nn.RMSNorm(d_model)
 
-    def forward(self, inputs_embeds):
+    def forward(self, inputs_embeds, condition=None):
         x = inputs_embeds
         for layer in self.layers:
-            x = layer(x)
-        return self.final_norm(x)
+            x = layer(x, condition)
+        return self.final_norm(x, condition) if self.d_cond else self.final_norm(x)

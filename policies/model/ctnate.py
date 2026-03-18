@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from policies.model.base_model import BaseModel
 from policies.model.modules.transformer import LearnedPositionalEncoding
 from policies.model.modules.transformer_encoder import TransformerEncoder
+from policies.model.modules.conditional_transformer import TransformerEncoder as ConditionalTransformerEncoder
 
 
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -202,4 +203,45 @@ class TNATE(NATE):
         if self.prefix_embed is not None:
             x = x[:, self.n_prefix:, :]
 
+        return self.fc(x)
+
+
+# =============================================================================
+# CT-NATE (condition injected via AdaRMSNorm at every layer norm)
+# =============================================================================
+
+class CTNATE(NATE):
+    """CT-NATE: task condition injected into every norm via AdaRMSNorm.
+    No prefix tokens; conditioning is purely through the norm layers."""
+    def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
+                 n_heads=4, n_layers=3, dropout=0.1, qk_norm=True,
+                 learnable_qk_norm=True, embed="regular", d_heads=None, softplus_attn=None,
+                 use_attention=True, residual_type="gru", output_size=None, obs_type=None):
+        self._d_task = d_task
+        super().__init__(
+            d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model,
+            mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers,
+            dropout=dropout, qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
+            embed=embed, d_heads=d_heads, softplus_attn=softplus_attn,
+            use_attention=use_attention, residual_type=residual_type, output_size=output_size,
+        )
+
+    def _init_encoder(self):
+        self.transformer_encoder = ConditionalTransformerEncoder(
+            d_model=self.d_model,
+            n_heads=self.n_heads,
+            d_ff=self.d_ff,
+            n_layers=self.n_layers,
+            dropout=self.dropout,
+            qk_norm=self.qk_norm,
+            learnable_qk_norm=self.learnable_qk_norm,
+            use_attention=self.use_attention,
+            residual_type=self.residual_type,
+            softplus_attn=self.softplus_attn,
+            d_cond=self._d_task,
+        )
+
+    def _forward(self, nodes, task):
+        x = self.pos_nodes_embed(self.nodes_embed(nodes))
+        x = self.transformer_encoder(inputs_embeds=x, condition=task)
         return self.fc(x)

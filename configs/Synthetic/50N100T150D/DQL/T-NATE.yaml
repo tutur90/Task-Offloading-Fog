@@ -16,14 +16,15 @@ eval:
 
 training:
     num_epochs: 50
+    num_epochs: 50
     learning_starts: 5000
     warmup: 0.1
     cooldown: 0.0
     buffer_size: 100000
-    batch_size: 64
+    batch_size: 32
     target_update_freq: 10000
     update_freq: 32
-    lr: 5.0e-06
+    lr: 1.0e-05
     ref_d_model: 256
     lr_decay: 1
     gamma: 0.99
