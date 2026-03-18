@@ -55,22 +55,34 @@ class SigmoidGating(nn.Module):
         return gate * x + (1 - gate) * y
 
 class AdaRMSNorm(nn.Module):
-    """Adaptive RMSNorm: scale and shift predicted from a condition vector.
-    Zero-init on the projection ensures identity behaviour at the start of training."""
-    def __init__(self, d_model: int, d_cond: int):
+    """Adaptive RMSNorm conditioned on an external vector.
+
+    modulation=True  (default): projects condition → (scale, shift)
+                                output = norm(x) * (1 + scale) + shift
+    modulation=False (bias only): projects condition → shift only
+                                output = norm(x) + shift
+
+    Zero-init on the projection ensures identity behaviour at the start of training.
+    """
+    def __init__(self, d_model: int, d_cond: int, modulation: bool = True):
         super().__init__()
+        self.modulation = modulation
         self.norm = nn.RMSNorm(d_model, elementwise_affine=False)
-        self.proj = nn.Linear(d_cond, 2 * d_model)
+        out_dim = 2 * d_model if modulation else d_model
+        self.proj = nn.Linear(d_cond, out_dim)
         nn.init.zeros_(self.proj.weight)
         nn.init.zeros_(self.proj.bias)
 
     def forward(self, x: torch.Tensor, condition: torch.Tensor) -> torch.Tensor:
         """x: (B, S, d_model)  condition: (B, d_cond) or (B, 1, d_cond)"""
-        scale, shift = self.proj(condition).chunk(2, dim=-1)
-        if scale.dim() == 2:
-            scale = scale.unsqueeze(1)
-            shift = shift.unsqueeze(1)
-        return self.norm(x) * (1 + scale) + shift
+        out = self.proj(condition)
+        if out.dim() == 2:
+            out = out.unsqueeze(1)
+        if self.modulation:
+            scale, shift = out.chunk(2, dim=-1)
+            return self.norm(x) * (1 + scale) + shift
+        else:
+            return self.norm(x) + out
 
 
 class MultiHeadSelfAttention(nn.Module):
@@ -157,13 +169,13 @@ class TransformerEncoderBlock(nn.Module):
     def __init__(self, d_model, n_heads, d_ff, dropout=0.0,
                  qk_norm=True, learnable_qk_norm=True,
                  use_attention=True, residual_type="gru", softplus_attn=None,
-                 d_cond=None):
+                 d_cond=None, modulation=True):
         super().__init__()
         self.use_attention = use_attention
         self.d_cond = d_cond
 
         def _make_norm():
-            return AdaRMSNorm(d_model, d_cond) if d_cond else nn.RMSNorm(d_model)
+            return AdaRMSNorm(d_model, d_cond, modulation=modulation) if d_cond else nn.RMSNorm(d_model)
 
         if use_attention:
             self.attn_norm = _make_norm()
@@ -197,7 +209,7 @@ class TransformerEncoder(nn.Module):
     def __init__(self, d_model, n_heads, d_ff, n_layers, dropout=0.1,
                  qk_norm=True, learnable_qk_norm=True,
                  use_attention=True, residual_type="gru", softplus_attn=None,
-                 d_cond=None):
+                 d_cond=None, modulation=True):
         super().__init__()
         self.d_cond = d_cond
         self.layers = nn.ModuleList([
@@ -205,11 +217,11 @@ class TransformerEncoder(nn.Module):
                 d_model, n_heads, d_ff, dropout,
                 qk_norm=qk_norm, learnable_qk_norm=learnable_qk_norm,
                 use_attention=use_attention, residual_type=residual_type, softplus_attn=softplus_attn,
-                d_cond=d_cond,
+                d_cond=d_cond, modulation=modulation,
             )
             for _ in range(n_layers)
         ])
-        self.final_norm = AdaRMSNorm(d_model, d_cond) if d_cond else nn.RMSNorm(d_model)
+        self.final_norm = AdaRMSNorm(d_model, d_cond, modulation=modulation) if d_cond else nn.RMSNorm(d_model)
 
     def forward(self, inputs_embeds, condition=None):
         x = inputs_embeds

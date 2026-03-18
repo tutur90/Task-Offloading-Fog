@@ -216,8 +216,10 @@ class CTNATE(NATE):
     def __init__(self, d_in, d_pos, d_task, d_model=64, mlp_ratio=4, d_ff=None,
                  n_heads=4, n_layers=3, dropout=0.1, qk_norm=True,
                  learnable_qk_norm=True, embed="regular", d_heads=None, softplus_attn=None,
-                 use_attention=True, residual_type="gru", output_size=None, obs_type=None):
+                 use_attention=True, residual_type="gru", modulation=True,
+                 output_size=None, obs_type=None):
         self._d_task = d_task
+        self._modulation = modulation
         super().__init__(
             d_in=d_in, d_pos=d_pos, d_task=d_task, d_model=d_model,
             mlp_ratio=mlp_ratio, d_ff=d_ff, n_heads=n_heads, n_layers=n_layers,
@@ -239,6 +241,7 @@ class CTNATE(NATE):
             residual_type=self.residual_type,
             softplus_attn=self.softplus_attn,
             d_cond=self._d_task,
+            modulation=self._modulation,
         )
 
     def _forward(self, nodes, task):
