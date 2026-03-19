@@ -306,24 +306,40 @@ def print_single(r: dict, config_path: str, args):
 
 
 def print_table(results: list[dict]):
-    """Print a compact comparison table for all benchmarked configs."""
-    col_w = 16
+    """Print a compact comparison table for all benchmarked configs, grouped by directory."""
+    dir_w  = max(len(os.path.dirname(r["config"])) for r in results)
+    dir_w  = max(dir_w, 7)
+    pol_w  = max(len(r["policy"]) for r in results)
+    pol_w  = max(pol_w, 6)
+
     header = (
-        f"{'Policy':<{col_w}} {'Median(ms)':>10} {'IQR(ms)':>9} "
+        f"{'Dir':<{dir_w}}  {'Policy':<{pol_w}} {'Median(ms)':>10} {'IQR(ms)':>9} "
         f"{'P95(ms)':>8} {'Obs(ms)':>8} {'Model(ms)':>10} {'Med/inter':>10}"
     )
     sep = "─" * len(header)
+
+    # Sort by directory then policy name
+    results_sorted = sorted(results, key=lambda r: (os.path.dirname(r["config"]), r["policy"]))
+
     print(f"\n{'='*len(header)}")
     print("COMPARISON TABLE")
     print(sep)
     print(header)
     print(sep)
-    for r in results:
-        obs_str   = f"{r['obs_median_ms']:.3f}"   if r["obs_median_ms"]   is not None else "   —"
+
+    prev_dir = None
+    for r in results_sorted:
+        cur_dir = os.path.dirname(r["config"])
+        if prev_dir is not None and cur_dir != prev_dir:
+            print(sep)
+        prev_dir = cur_dir
+
+        obs_str   = f"{r['obs_median_ms']:.3f}"   if r["obs_median_ms"]   is not None else "  —"
         model_str = f"{r['model_median_ms']:.3f}" if r["model_median_ms"] is not None else "    —"
         feasible  = "✓" if r["median_over_inter"] < 1 else "✗"
         print(
-            f"{r['policy']:<{col_w}} "
+            f"{cur_dir:<{dir_w}}  "
+            f"{r['policy']:<{pol_w}} "
             f"{r['median_ms']:>10.4f} "
             f"{r['iqr_ms']:>9.4f} "
             f"{r['p95_ms']:>8.4f} "
@@ -342,7 +358,7 @@ def main():
     )
     parser.add_argument(
         "--scan", default=None, metavar="DIR",
-        help="Directory to scan for all T-*.yaml configs (runs each and prints a comparison table).",
+        help="Root directory to scan recursively for all T-*.yaml configs (default: configs/).",
     )
     parser.add_argument(
         "--device", default="cpu",
@@ -375,7 +391,7 @@ def main():
     args = parser.parse_args()
 
     if args.config is None and args.scan is None:
-        parser.error("Provide a config path or --scan DIR.")
+        parser.error("Provide a config path or --scan [DIR] (default dir: configs/).")
 
     if args.single_core:
         import torch
@@ -384,13 +400,14 @@ def main():
         os.environ["MKL_NUM_THREADS"] = "1"
 
     # ── Scan mode ──────────────────────────────────────────────────
-    if args.scan:
-        pattern = os.path.join(args.scan, "T-*.yaml")
-        config_paths = sorted(glob.glob(pattern))
+    if args.scan is not None:
+        root = args.scan if args.scan else "configs"
+        pattern = os.path.join(root, "**", "T-*.yaml")
+        config_paths = sorted(glob.glob(pattern, recursive=True))
         if not config_paths:
-            print(f"No T-*.yaml configs found in {args.scan}")
+            print(f"No T-*.yaml configs found recursively in {root}")
             sys.exit(1)
-        print(f"Found {len(config_paths)} T-* configs in {args.scan}\n")
+        print(f"Found {len(config_paths)} T-* configs under {root}\n")
 
         results = []
         for cp in config_paths:
