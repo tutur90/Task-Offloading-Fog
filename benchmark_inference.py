@@ -391,7 +391,17 @@ def main():
         os.environ["OMP_NUM_THREADS"] = "1"
         os.environ["MKL_NUM_THREADS"] = "1"
 
-    config_paths = args.config
+    # Expand any glob patterns that the shell didn't expand (e.g. quoted globs)
+    config_paths = []
+    for pat in args.config:
+        if any(c in pat for c in ("*", "?", "[")):
+            expanded = sorted(glob.glob(pat, recursive=True))
+            if not expanded:
+                print(f"Warning: no files matched pattern '{pat}'")
+            config_paths.extend(expanded)
+        else:
+            config_paths.append(pat)
+
     results = []
     for cp in config_paths:
         print(f"── {cp}")
