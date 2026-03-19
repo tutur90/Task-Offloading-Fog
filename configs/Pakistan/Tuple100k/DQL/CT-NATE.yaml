@@ -15,7 +15,7 @@ eval:
     lambda: [0.001889, 4.394, 260.5]
 
 training:
-    num_epochs: 30
+    num_epochs: 35
     learning_starts: 5000
     warmup: 0.1
     buffer_size: 50000
@@ -26,7 +26,7 @@ training:
     ref_d_model: 128
     lr_decay: 1
     gamma: 0.99
-    exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.6}
+    exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.5}
     # exploration: {'strategy': 'ucb', 'explore_value': 1.0, 'count_decay': 0.9999}
     # exploration: {'strategy': 'ucb', 'explore_value': 0.1 }
     reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True}
@@ -40,7 +40,7 @@ training:
     
 model:
     d_model: 256
-    n_layers: 2 
+    n_layers: 2
     d_heads: 32
     mlp_ratio: 4
     dropout: 0.0
@@ -50,3 +50,4 @@ model:
     # pre_conditioning: add
     # n_prefix: 1
     residual_type: plain
+    modulation: False

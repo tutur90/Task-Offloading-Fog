@@ -47,3 +47,4 @@ model:
     obs_type: ['cpu', 'bw', 'buffer']
     qk_norm: True
     embed: regular
+    residual_type: plain

@@ -146,6 +146,10 @@ def main():
              "if none exists, runs with default (untrained) weights.",
     )
     parser.add_argument(
+        "--no_checkpoint", action="store_true",
+        help="Skip checkpoint loading entirely and use default (untrained) weights.",
+    )
+    parser.add_argument(
         "--single_core", action="store_true",
         help="Restrict execution to a single CPU core (torch threads=1, GA n_processes=1).",
     )
@@ -191,7 +195,7 @@ def main():
     set_seed(config.get("seed", 42))
     env = create_env(config)
 
-    needs_checkpoint = "training" in config
+    needs_checkpoint = "training" in config and not args.no_checkpoint
     if needs_checkpoint:
         ext  = ".npz" if algo in GA_ALGOS else ".pt"
         ckpt = args.checkpoint or find_latest_checkpoint(dataset, flag, policy_name, ext)
@@ -201,6 +205,9 @@ def main():
             policy.load(ckpt)
         else:
             print("No checkpoint found — using default (untrained) weights.")
+    elif "training" in config and args.no_checkpoint:
+        policy = policies[policy_name](env, config, dataset=test_data)
+        print("--no_checkpoint: using default (untrained) weights.")
     else:
         policy = policies[policy_name](env, config)
 

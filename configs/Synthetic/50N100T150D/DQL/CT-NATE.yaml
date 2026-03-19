@@ -2,7 +2,7 @@
 policy: "CT-NATE"
 algo: "DQL"
 
-seed: 0
+seed: 1
 
 env:
   dataset: "Synthetic"
@@ -39,7 +39,7 @@ training:
 
 model:
     d_model: 256
-    n_layers: 4
+    n_layers: 2
     d_heads: 32
     mlp_ratio: 4
     dropout: 0.0
@@ -49,3 +49,4 @@ model:
     # pre_conditioning: add
     # n_prefix: 0
     residual_type: plain
+    modulation: True

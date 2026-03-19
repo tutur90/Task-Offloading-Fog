@@ -2,7 +2,7 @@
 policy: "T-NATE"
 algo: "DQL"
 
-seed: 0
+seed: 2
 
 env:
   dataset: "Synthetic"
@@ -23,7 +23,7 @@ training:
     batch_size: 32
     target_update_freq: 10000
     update_freq: 32
-    lr: 5.0e-06
+    lr: 1.0e-05
     ref_d_model: 256
     lr_decay: 1
     gamma: 0.99
@@ -38,7 +38,7 @@ training:
 
 model:
     d_model: 256
-    n_layers: 4
+    n_layers: 2
     d_heads: 32
     mlp_ratio: 4
     dropout: 0.0
@@ -46,5 +46,5 @@ model:
     qk_norm: True
     embed: regular
     pre_conditioning: add
-    n_prefix: 2
+    n_prefix: 1
     residual_type: plain
