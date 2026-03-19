@@ -3,8 +3,9 @@ Benchmark inference time (policy.act() only) for a YAML config.
 
 Usage:
     python benchmark_inference.py configs/Pakistan/Tuple100k/DQL/NATE.yaml
-    python benchmark_inference.py configs/Pakistan/Tuple100k/DQL/NATE.yaml --n_runs 3
+    python benchmark_inference.py configs/Pakistan/Tuple100k/DQL/NATE.yaml --n_runs 3 --warmup 100
     python benchmark_inference.py configs/Pakistan/Tuple100k/DQL/NATE.yaml --device cpu --output results.csv
+    python benchmark_inference.py --scan configs/Pakistan/Tuple100k/DQL --single_core
 """
 
 import argparse
@@ -39,16 +40,12 @@ def find_latest_checkpoint(dataset: str, flag: str, policy_name: str, ext: str =
 
 
 def wrap_act_timer(policy):
-    """
-    Monkey-patch policy.act() to accumulate total decision time.
-    Attaches `_act_times` list to the policy.
-    """
     policy._act_times = []
     original_act = policy.act
 
     def timed_act(env, task, train=False):
         t0 = time.perf_counter()
-        result = original_act(env, task, train=False)  # always train=False
+        result = original_act(env, task, train=False)
         policy._act_times.append(time.perf_counter() - t0)
         return result
 
@@ -56,10 +53,6 @@ def wrap_act_timer(policy):
 
 
 def wrap_obs_timer(policy):
-    """
-    Monkey-patch policy._make_observation() to accumulate obs extraction time.
-    No-op if policy has no _make_observation.
-    """
     if not hasattr(policy, "_make_observation"):
         return
     policy._obs_times = []
@@ -75,10 +68,6 @@ def wrap_obs_timer(policy):
 
 
 def wrap_model_timer(policy):
-    """
-    Monkey-patch policy.model.forward() to accumulate pure forward-pass time.
-    Attaches `_model_times` list to the policy. No-op if policy has no model.
-    """
     if not hasattr(policy, "model"):
         return
     policy._model_times = []
@@ -96,12 +85,7 @@ def wrap_model_timer(policy):
 def run_inference(config: dict, policy, test_data: pd.DataFrame) -> tuple[list[float], bool]:
     """
     Run one inference epoch and return (act_times, is_ga).
-
-    For DQL/PPO/Heuristics: returns per-call policy.act() durations (obs extraction + model forward).
-      - SimPy env.run() is NOT included (pure decision time).
-    For GA: act() runs in subprocesses so per-call timing is not possible.
-      Returns total run_generation wall time spread uniformly across tasks as an approximation.
-      NOTE: GA total time includes simulation overhead and is not directly comparable to DQL/Heuristic times.
+    SimPy env.run() time is NOT included (pure decision time).
     """
     policy._act_times = []
 
@@ -113,7 +97,6 @@ def run_inference(config: dict, policy, test_data: pd.DataFrame) -> tuple[list[f
         result = run_generation(config, policy, test_data, train=False)
         total = time.perf_counter() - t0
         result.close()
-        # Spread total time uniformly — approximation only (includes simulation overhead)
         n = len(test_data)
         act_times = [total / n] * n
         return act_times, True
@@ -129,47 +112,54 @@ def run_inference(config: dict, policy, test_data: pd.DataFrame) -> tuple[list[f
     return list(policy._act_times), False
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Benchmark policy.act() inference time for a YAML config.")
-    parser.add_argument("config", type=str, help="Path to the YAML config file.")
-    parser.add_argument(
-        "--device", default="cpu",
-        help="Device: 'cpu', 'cuda', 'auto' (default: cpu).",
-    )
-    parser.add_argument(
-        "--n_runs", type=int, default=1,
-        help="Number of inference runs for averaging (default: 1).",
-    )
-    parser.add_argument(
-        "--checkpoint", default=None, metavar="PATH",
-        help="Path to a specific checkpoint file. If omitted, uses the latest found in logs/; "
-             "if none exists, runs with default (untrained) weights.",
-    )
-    parser.add_argument(
-        "--no_checkpoint", action="store_true",
-        help="Skip checkpoint loading entirely and use default (untrained) weights.",
-    )
-    parser.add_argument(
-        "--single_core", action="store_true",
-        help="Restrict execution to a single CPU core (torch threads=1, GA n_processes=1).",
-    )
-    parser.add_argument(
-        "--output", default=None, metavar="CSV",
-        help="Append results to a CSV file.",
-    )
-    args = parser.parse_args()
+def iqr(a: np.ndarray) -> float:
+    return float(np.percentile(a, 75) - np.percentile(a, 25))
 
-    if args.single_core:
-        import torch
-        torch.set_num_threads(1)
-        os.environ["OMP_NUM_THREADS"] = "1"
-        os.environ["MKL_NUM_THREADS"] = "1"
 
-    if not os.path.isfile(args.config):
-        print(f"Config not found: {args.config}")
-        sys.exit(1)
+def stats(a: np.ndarray) -> dict:
+    return {
+        "median": float(np.median(a)),
+        "iqr":    iqr(a),
+        "min":    float(a.min()),
+        "max":    float(a.max()),
+        "p95":    float(np.percentile(a, 95)),
+        "p99":    float(np.percentile(a, 99)),
+        "total":  float(a.sum()),
+    }
 
-    with open(args.config, "r") as f:
+
+def build_policy(args, config, env, test_data):
+    algo        = config.get("algo", config["policy"])
+    policy_name = config["policy"]
+    dataset     = config["env"]["dataset"]
+    flag        = config["env"]["flag"]
+
+    needs_checkpoint = "training" in config and not args.no_checkpoint
+    if needs_checkpoint:
+        ext  = ".npz" if algo in GA_ALGOS else ".pt"
+        ckpt = args.checkpoint or find_latest_checkpoint(dataset, flag, policy_name, ext)
+        policy = policies[policy_name](env, config, dataset=test_data)
+        if ckpt is not None:
+            print(f"  Checkpoint: {ckpt}")
+            policy.load(ckpt)
+        else:
+            print("  No checkpoint found — using default (untrained) weights.")
+    elif "training" in config and args.no_checkpoint:
+        policy = policies[policy_name](env, config, dataset=test_data)
+        print("  --no_checkpoint: using default (untrained) weights.")
+    else:
+        policy = policies[policy_name](env, config)
+
+    return policy
+
+
+def benchmark_one(config_path: str, args) -> dict | None:
+    """Run the full benchmark for one config. Returns a result dict."""
+    if not os.path.isfile(config_path):
+        print(f"Config not found: {config_path}")
+        return None
+
+    with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
     config["device"] = args.device
@@ -182,141 +172,262 @@ def main():
     if args.single_core and "training" in config:
         config["training"]["n_processes"] = 1
 
-    # Load test data
     test_csv = f"eval/benchmarks/{dataset}/data/{flag}/testset.csv"
     if not os.path.exists(test_csv):
         print(f"Testset not found: {test_csv}")
-        sys.exit(1)
+        return None
 
     test_data = pd.read_csv(test_csv)
     n_tasks   = len(test_data)
 
-    # Build policy
     set_seed(config.get("seed", 42))
-    env = create_env(config)
-
-    needs_checkpoint = "training" in config and not args.no_checkpoint
-    if needs_checkpoint:
-        ext  = ".npz" if algo in GA_ALGOS else ".pt"
-        ckpt = args.checkpoint or find_latest_checkpoint(dataset, flag, policy_name, ext)
-        policy = policies[policy_name](env, config, dataset=test_data)
-        if ckpt is not None:
-            print(f"Checkpoint: {ckpt}")
-            policy.load(ckpt)
-        else:
-            print("No checkpoint found — using default (untrained) weights.")
-    elif "training" in config and args.no_checkpoint:
-        policy = policies[policy_name](env, config, dataset=test_data)
-        print("--no_checkpoint: using default (untrained) weights.")
-    else:
-        policy = policies[policy_name](env, config)
+    env    = create_env(config)
+    policy = build_policy(args, config, env, test_data)
 
     wrap_act_timer(policy)
     wrap_obs_timer(policy)
     wrap_model_timer(policy)
 
-    # Benchmark n_runs times
-    all_act_times: list[float] = []
-    all_obs_times: list[float] = []
+    all_act_times:   list[float] = []
+    all_obs_times:   list[float] = []
     all_model_times: list[float] = []
     is_ga = algo in GA_ALGOS
+
     for run_idx in range(args.n_runs):
         set_seed(config.get("seed", 42))
         if hasattr(policy, "_obs_times"):
             policy._obs_times = []
         if hasattr(policy, "_model_times"):
             policy._model_times = []
+
         act_times, _ = run_inference(config, policy, test_data)
+
+        # trim warmup
+        act_times = act_times[args.warmup:]
+        obs_t  = (policy._obs_times[args.warmup:]   if hasattr(policy, "_obs_times")   else [])
+        mod_t  = (policy._model_times[args.warmup:]  if hasattr(policy, "_model_times") else [])
+
         all_act_times.extend(act_times)
-        if hasattr(policy, "_obs_times"):
-            all_obs_times.extend(policy._obs_times)
-        if hasattr(policy, "_model_times"):
-            all_model_times.extend(policy._model_times)
-        total_act = sum(act_times)
-        per_task_ms = total_act / len(act_times) * 1000 if act_times else 0
+        all_obs_times.extend(obs_t)
+        all_model_times.extend(mod_t)
+
+        total_act    = sum(act_times)
+        per_task_ms  = total_act / len(act_times) * 1000 if act_times else 0
         label = "total run_generation (≈)" if is_ga else "total act()"
-        print(f"Run {run_idx + 1}/{args.n_runs}: {total_act:.4f}s {label}  |  {per_task_ms:.4f} ms/task")
+        print(f"  Run {run_idx + 1}/{args.n_runs}: {total_act:.4f}s {label}  |  {per_task_ms:.4f} ms/task")
 
-    # Aggregate stats across all runs
-    arr = np.array(all_act_times) * 1000  # convert to ms
+    arr    = np.array(all_act_times) * 1000
     n_calls = len(arr)
+    s      = stats(arr)
 
-    # Avg inter-arrival time from testset GenerationTime (simulation units → ms)
-    inter_arrivals = test_data["GenerationTime"].diff().dropna()
+    inter_arrivals      = test_data["GenerationTime"].diff().dropna()
     avg_inter_arrival_ms = float(inter_arrivals.mean()) * 1000
-    ratio = arr.mean() / avg_inter_arrival_ms if avg_inter_arrival_ms > 0 else float("nan")
+    ratio = s["median"] / avg_inter_arrival_ms if avg_inter_arrival_ms > 0 else float("nan")
 
-    print(f"\n{'='*60}")
-    print(f"Config        : {args.config}")
-    print(f"Policy        : {policy_name}  ({algo})")
-    print(f"Dataset       : {dataset} / {flag}")
+    result = {
+        "config":               config_path,
+        "policy":               policy_name,
+        "algo":                 algo,
+        "dataset":              dataset,
+        "flag":                 flag,
+        "timing_scope":         "run_generation_wall_approx" if is_ga else "policy_act_only",
+        "n_tasks":              n_tasks,
+        "warmup":               args.warmup,
+        "n_runs":               args.n_runs,
+        "n_calls":              n_calls,
+        "median_ms":            round(s["median"], 6),
+        "iqr_ms":               round(s["iqr"],    6),
+        "min_ms":               round(s["min"],     6),
+        "max_ms":               round(s["max"],     6),
+        "p95_ms":               round(s["p95"],     6),
+        "p99_ms":               round(s["p99"],     6),
+        "total_act_s":          round(s["total"] / 1000, 6),
+        "avg_inter_arrival_ms": round(avg_inter_arrival_ms, 6),
+        "median_over_inter":    round(ratio, 6),
+        "obs_median_ms":        round(float(np.median(np.array(all_obs_times)   * 1000)), 6) if all_obs_times   else None,
+        "obs_iqr_ms":           round(float(iqr(np.array(all_obs_times)         * 1000)), 6) if all_obs_times   else None,
+        "model_median_ms":      round(float(np.median(np.array(all_model_times) * 1000)), 6) if all_model_times else None,
+        "model_iqr_ms":         round(float(iqr(np.array(all_model_times)       * 1000)), 6) if all_model_times else None,
+        # raw arrays for breakdown
+        "_arr":         arr,
+        "_obs_arr":     np.array(all_obs_times)   * 1000 if all_obs_times   else None,
+        "_model_arr":   np.array(all_model_times) * 1000 if all_model_times else None,
+        "_is_ga":       is_ga,
+    }
+    return result
+
+
+def print_single(r: dict, config_path: str, args):
+    arr       = r["_arr"]
+    o_arr     = r["_obs_arr"]
+    m_arr     = r["_model_arr"]
+    is_ga     = r["_is_ga"]
+
+    print(f"\n{'='*62}")
+    print(f"Config        : {config_path}")
+    print(f"Policy        : {r['policy']}  ({r['algo']})")
+    print(f"Dataset       : {r['dataset']} / {r['flag']}")
     print(f"CPU mode      : {'single core' if args.single_core else 'full (all cores)'}")
-    print(f"Test tasks    : {n_tasks}")
-    print(f"Runs          : {args.n_runs}  ({n_calls} calls total)")
+    print(f"Test tasks    : {r['n_tasks']}  (warmup trimmed: {r['warmup']})")
+    print(f"Runs          : {r['n_runs']}  ({r['n_calls']} calls total)")
     if is_ga:
         print(f"⚠ GA timing   : total run_generation wall time ÷ n_tasks (includes simulation overhead)")
         print(f"               NOT directly comparable to DQL/Heuristic per-task act() times.")
     else:
         print(f"Timing scope  : policy.act() only  (obs extraction + model forward, SimPy excluded)")
-    print(f"{'─'*60}")
-    print(f"Mean per task : {arr.mean():.4f} ms")
-    print(f"Std  per task : {arr.std():.4f} ms")
-    print(f"Min  per task : {arr.min():.4f} ms")
-    print(f"Max  per task : {arr.max():.4f} ms")
-    print(f"P50  per task : {np.percentile(arr, 50):.4f} ms")
-    print(f"P95  per task : {np.percentile(arr, 95):.4f} ms")
-    print(f"P99  per task : {np.percentile(arr, 99):.4f} ms")
-    print(f"Total         : {arr.sum() / 1000:.4f} s")
-    if all_model_times or all_obs_times:
-        mean_act = arr.mean()
-        print(f"{'─'*60}")
-        if all_obs_times:
-            o_arr = np.array(all_obs_times) * 1000
-            print(f"  obs extraction mean: {o_arr.mean():.4f} ms ± {o_arr.std():.4f}  ({o_arr.mean()/mean_act*100:.1f}% of act)")
-            print(f"  obs extraction P50 : {np.percentile(o_arr, 50):.4f} ms")
-            print(f"  obs extraction P95 : {np.percentile(o_arr, 95):.4f} ms")
-        if all_model_times:
-            m_arr = np.array(all_model_times) * 1000
-            print(f"  model.forward mean : {m_arr.mean():.4f} ms ± {m_arr.std():.4f}  ({m_arr.mean()/mean_act*100:.1f}% of act)")
-            print(f"  model.forward P50  : {np.percentile(m_arr, 50):.4f} ms")
-            print(f"  model.forward P95  : {np.percentile(m_arr, 95):.4f} ms")
-        if all_obs_times and all_model_times:
+    print(f"{'─'*62}")
+    print(f"Median per task : {r['median_ms']:.4f} ms  ±IQR {r['iqr_ms']:.4f} ms")
+    print(f"Min    per task : {r['min_ms']:.4f} ms")
+    print(f"Max    per task : {r['max_ms']:.4f} ms")
+    print(f"P95    per task : {r['p95_ms']:.4f} ms")
+    print(f"P99    per task : {r['p99_ms']:.4f} ms")
+    print(f"Total           : {r['total_act_s']:.4f} s")
+
+    if o_arr is not None or m_arr is not None:
+        print(f"{'─'*62}")
+        if o_arr is not None:
+            pct = np.median(o_arr) / r['median_ms'] * 100
+            print(f"  obs extraction  median: {np.median(o_arr):.4f} ms  ±IQR {iqr(o_arr):.4f}  ({pct:.1f}% of act)")
+            print(f"  obs extraction  P95   : {np.percentile(o_arr, 95):.4f} ms")
+        if m_arr is not None:
+            pct = np.median(m_arr) / r['median_ms'] * 100
+            print(f"  model.forward   median: {np.median(m_arr):.4f} ms  ±IQR {iqr(m_arr):.4f}  ({pct:.1f}% of act)")
+            print(f"  model.forward   P95   : {np.percentile(m_arr, 95):.4f} ms")
+        if o_arr is not None and m_arr is not None:
             t_arr = arr - o_arr - m_arr
-            print(f"  tensor+argmax mean : {t_arr.mean():.4f} ms ± {t_arr.std():.4f}  ({t_arr.mean()/mean_act*100:.1f}% of act)")
-    print(f"{'─'*60}")
-    print(f"Avg inter-arr : {avg_inter_arrival_ms:.4f} ms  (testset GenerationTime)")
-    print(f"Mean / inter  : {ratio:.4f}x  ({'real-time feasible' if ratio < 1 else 'EXCEEDS inter-arrival'})")
-    print(f"{'='*60}")
+            pct = np.median(t_arr) / r['median_ms'] * 100
+            print(f"  tensor+argmax   median: {np.median(t_arr):.4f} ms  ±IQR {iqr(t_arr):.4f}  ({pct:.1f}% of act)")
+
+    print(f"{'─'*62}")
+    print(f"Avg inter-arr   : {r['avg_inter_arrival_ms']:.4f} ms  (testset GenerationTime)")
+    ratio = r["median_over_inter"]
+    print(f"Median / inter  : {ratio:.4f}x  ({'real-time feasible' if ratio < 1 else 'EXCEEDS inter-arrival'})")
+    print(f"{'='*62}")
+
+
+def print_table(results: list[dict]):
+    """Print a compact comparison table for all benchmarked configs."""
+    col_w = 16
+    header = (
+        f"{'Policy':<{col_w}} {'Median(ms)':>10} {'IQR(ms)':>9} "
+        f"{'P95(ms)':>8} {'Obs(ms)':>8} {'Model(ms)':>10} {'Med/inter':>10}"
+    )
+    sep = "─" * len(header)
+    print(f"\n{'='*len(header)}")
+    print("COMPARISON TABLE")
+    print(sep)
+    print(header)
+    print(sep)
+    for r in results:
+        obs_str   = f"{r['obs_median_ms']:.3f}"   if r["obs_median_ms"]   is not None else "   —"
+        model_str = f"{r['model_median_ms']:.3f}" if r["model_median_ms"] is not None else "    —"
+        feasible  = "✓" if r["median_over_inter"] < 1 else "✗"
+        print(
+            f"{r['policy']:<{col_w}} "
+            f"{r['median_ms']:>10.4f} "
+            f"{r['iqr_ms']:>9.4f} "
+            f"{r['p95_ms']:>8.4f} "
+            f"{obs_str:>8} "
+            f"{model_str:>10} "
+            f"{r['median_over_inter']:>8.4f}x {feasible}"
+        )
+    print(f"{'='*len(header)}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Benchmark policy.act() inference time.")
+    parser.add_argument(
+        "config", nargs="?", default=None,
+        help="Path to the YAML config file (required unless --scan is used).",
+    )
+    parser.add_argument(
+        "--scan", default=None, metavar="DIR",
+        help="Directory to scan for all T-*.yaml configs (runs each and prints a comparison table).",
+    )
+    parser.add_argument(
+        "--device", default="cpu",
+        help="Device: 'cpu', 'cuda', 'auto' (default: cpu).",
+    )
+    parser.add_argument(
+        "--n_runs", type=int, default=1,
+        help="Number of inference runs per config (default: 1).",
+    )
+    parser.add_argument(
+        "--warmup", type=int, default=0, metavar="N",
+        help="Number of first-N iterations to discard as warmup (default: 0).",
+    )
+    parser.add_argument(
+        "--checkpoint", default=None, metavar="PATH",
+        help="Path to a specific checkpoint file.",
+    )
+    parser.add_argument(
+        "--no_checkpoint", action="store_true",
+        help="Skip checkpoint loading and use default (untrained) weights.",
+    )
+    parser.add_argument(
+        "--single_core", action="store_true",
+        help="Restrict to a single CPU core (torch threads=1, GA n_processes=1).",
+    )
+    parser.add_argument(
+        "--output", default=None, metavar="CSV",
+        help="Append results to a CSV file.",
+    )
+    args = parser.parse_args()
+
+    if args.config is None and args.scan is None:
+        parser.error("Provide a config path or --scan DIR.")
+
+    if args.single_core:
+        import torch
+        torch.set_num_threads(1)
+        os.environ["OMP_NUM_THREADS"] = "1"
+        os.environ["MKL_NUM_THREADS"] = "1"
+
+    # ── Scan mode ──────────────────────────────────────────────────
+    if args.scan:
+        pattern = os.path.join(args.scan, "T-*.yaml")
+        config_paths = sorted(glob.glob(pattern))
+        if not config_paths:
+            print(f"No T-*.yaml configs found in {args.scan}")
+            sys.exit(1)
+        print(f"Found {len(config_paths)} T-* configs in {args.scan}\n")
+
+        results = []
+        for cp in config_paths:
+            print(f"── {cp}")
+            r = benchmark_one(cp, args)
+            if r is not None:
+                results.append(r)
+                print_single(r, cp, args)
+
+        if results:
+            print_table(results)
+
+        if args.output and results:
+            _save_csv(results, args.output)
+        return
+
+    # ── Single config mode ─────────────────────────────────────────
+    print(f"── {args.config}")
+    r = benchmark_one(args.config, args)
+    if r is None:
+        sys.exit(1)
+    print_single(r, args.config, args)
 
     if args.output:
-        row = {
-            "config":          args.config,
-            "policy":          policy_name,
-            "algo":            algo,
-            "dataset":         dataset,
-            "flag":            flag,
-            "timing_scope":    "run_generation_wall_approx" if is_ga else "policy_act_only",
-            "n_tasks":         n_tasks,
-            "n_runs":          args.n_runs,
-            "mean_ms":         round(float(arr.mean()),  6),
-            "std_ms":          round(float(arr.std()),   6),
-            "min_ms":          round(float(arr.min()),   6),
-            "max_ms":          round(float(arr.max()),   6),
-            "p50_ms":          round(float(np.percentile(arr, 50)), 6),
-            "p95_ms":          round(float(np.percentile(arr, 95)), 6),
-            "p99_ms":          round(float(np.percentile(arr, 99)), 6),
-            "total_act_s":         round(float(arr.sum() / 1000), 6),
-            "avg_inter_arrival_ms":   round(avg_inter_arrival_ms, 6),
-            "mean_over_inter":        round(ratio, 6),
-            "obs_mean_ms":            round(float(np.mean(all_obs_times)   * 1000), 6) if all_obs_times   else None,
-            "model_forward_mean_ms":  round(float(np.mean(all_model_times) * 1000), 6) if all_model_times else None,
-        }
-        df_new = pd.DataFrame([row])
-        if os.path.exists(args.output):
-            df_new.to_csv(args.output, mode="a", header=False, index=False)
-        else:
-            df_new.to_csv(args.output, index=False)
-        print(f"Results appended to {args.output}")
+        _save_csv([r], args.output)
+
+
+def _save_csv(results: list[dict], path: str):
+    """Append results (excluding raw arrays) to a CSV."""
+    skip = {"_arr", "_obs_arr", "_model_arr", "_is_ga"}
+    rows = [{k: v for k, v in r.items() if k not in skip} for r in results]
+    df_new = pd.DataFrame(rows)
+    if os.path.exists(path):
+        df_new.to_csv(path, mode="a", header=False, index=False)
+    else:
+        df_new.to_csv(path, index=False)
+    print(f"Results saved to {path}")
 
 
 if __name__ == "__main__":
