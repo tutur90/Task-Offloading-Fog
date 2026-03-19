@@ -312,8 +312,8 @@ def print_table(results: list[dict]):
     pol_w  = max(pol_w, 6)
 
     header = (
-        f"{'Dir':<{dir_w}}  {'Policy':<{pol_w}} {'Median(ms)':>10} {'IQR(ms)':>9} "
-        f"{'P95(ms)':>8} {'Obs(ms)':>8} {'Model(ms)':>10} {'Med/inter':>10}"
+        f"{'Dir':<{dir_w}}  {'Policy':<{pol_w}} {'Act med':>8} {'Act IQR':>8} "
+        f"{'Fwd med':>8} {'Fwd IQR':>8} {'Tensor med':>11} {'Med/inter':>10}"
     )
     sep = "─" * len(header)
 
@@ -321,7 +321,7 @@ def print_table(results: list[dict]):
     results_sorted = sorted(results, key=lambda r: (os.path.dirname(r["config"]), r["policy"]))
 
     print(f"\n{'='*len(header)}")
-    print("COMPARISON TABLE")
+    print("COMPARISON TABLE  (all times in ms)")
     print(sep)
     print(header)
     print(sep)
@@ -333,17 +333,24 @@ def print_table(results: list[dict]):
             print(sep)
         prev_dir = cur_dir
 
-        obs_str   = f"{r['obs_median_ms']:.3f}"   if r["obs_median_ms"]   is not None else "  —"
-        model_str = f"{r['model_median_ms']:.3f}" if r["model_median_ms"] is not None else "    —"
-        feasible  = "✓" if r["median_over_inter"] < 1 else "✗"
+        fwd_med  = f"{r['model_median_ms']:.3f}" if r["model_median_ms"] is not None else "  —"
+        fwd_iqr  = f"{r['model_iqr_ms']:.3f}"    if r["model_iqr_ms"]   is not None else "  —"
+
+        # tensor+argmax = act - obs - model  (median approximation)
+        if r["obs_median_ms"] is not None and r["model_median_ms"] is not None:
+            tensor_med = f"{r['median_ms'] - r['obs_median_ms'] - r['model_median_ms']:.3f}"
+        else:
+            tensor_med = "  —"
+
+        feasible = "✓" if r["median_over_inter"] < 1 else "✗"
         print(
             f"{cur_dir:<{dir_w}}  "
             f"{r['policy']:<{pol_w}} "
-            f"{r['median_ms']:>10.4f} "
-            f"{r['iqr_ms']:>9.4f} "
-            f"{r['p95_ms']:>8.4f} "
-            f"{obs_str:>8} "
-            f"{model_str:>10} "
+            f"{r['median_ms']:>8.3f} "
+            f"{r['iqr_ms']:>8.3f} "
+            f"{fwd_med:>8} "
+            f"{fwd_iqr:>8} "
+            f"{tensor_med:>11} "
             f"{r['median_over_inter']:>8.4f}x {feasible}"
         )
     print(f"{'='*len(header)}")
