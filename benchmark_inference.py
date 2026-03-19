@@ -1,11 +1,10 @@
 """
-Benchmark inference time (policy.act() only) for a YAML config.
+Benchmark inference time (policy.act() only) for one or more YAML configs.
 
 Usage:
-    python benchmark_inference.py configs/Pakistan/Tuple100k/DQL/NATE.yaml
-    python benchmark_inference.py configs/Pakistan/Tuple100k/DQL/NATE.yaml --n_runs 3 --warmup 100
-    python benchmark_inference.py configs/Pakistan/Tuple100k/DQL/NATE.yaml --device cpu --output results.csv
-    python benchmark_inference.py --scan configs/Pakistan/Tuple100k/DQL --single_core
+    python benchmark_inference.py configs/Pakistan/Tuple100k/DQL/T-NATE.yaml
+    python benchmark_inference.py configs/**/T-*.yaml --single_core
+    python benchmark_inference.py configs/Pakistan/Tuple100k/DQL/T-NATE.yaml --n_runs 3 --warmup 100 --output results.csv
 """
 
 import argparse
@@ -353,12 +352,8 @@ def print_table(results: list[dict]):
 def main():
     parser = argparse.ArgumentParser(description="Benchmark policy.act() inference time.")
     parser.add_argument(
-        "config", nargs="?", default=None,
-        help="Path to the YAML config file (required unless --scan is used).",
-    )
-    parser.add_argument(
-        "--scan", default=None, metavar="DIR",
-        help="Root directory to scan recursively for all T-*.yaml configs (default: configs/).",
+        "config", nargs="+",
+        help="One or more YAML config file paths (shell glob expansion supported, e.g. configs/**/T-*.yaml).",
     )
     parser.add_argument(
         "--device", default="cpu",
@@ -369,8 +364,8 @@ def main():
         help="Number of inference runs per config (default: 1).",
     )
     parser.add_argument(
-        "--warmup", type=int, default=0, metavar="N",
-        help="Number of first-N iterations to discard as warmup (default: 0).",
+        "--warmup", type=int, default=500, metavar="N",
+        help="Number of first-N iterations to discard as warmup (default: 500).",
     )
     parser.add_argument(
         "--checkpoint", default=None, metavar="PATH",
@@ -390,49 +385,26 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.config is None and args.scan is None:
-        parser.error("Provide a config path or --scan [DIR] (default dir: configs/).")
-
     if args.single_core:
         import torch
         torch.set_num_threads(1)
         os.environ["OMP_NUM_THREADS"] = "1"
         os.environ["MKL_NUM_THREADS"] = "1"
 
-    # ── Scan mode ──────────────────────────────────────────────────
-    if args.scan is not None:
-        root = args.scan if args.scan else "configs"
-        pattern = os.path.join(root, "**", "T-*.yaml")
-        config_paths = sorted(glob.glob(pattern, recursive=True))
-        if not config_paths:
-            print(f"No T-*.yaml configs found recursively in {root}")
-            sys.exit(1)
-        print(f"Found {len(config_paths)} T-* configs under {root}\n")
+    config_paths = args.config
+    results = []
+    for cp in config_paths:
+        print(f"── {cp}")
+        r = benchmark_one(cp, args)
+        if r is not None:
+            results.append(r)
+            print_single(r, cp, args)
 
-        results = []
-        for cp in config_paths:
-            print(f"── {cp}")
-            r = benchmark_one(cp, args)
-            if r is not None:
-                results.append(r)
-                print_single(r, cp, args)
+    if len(results) > 1:
+        print_table(results)
 
-        if results:
-            print_table(results)
-
-        if args.output and results:
-            _save_csv(results, args.output)
-        return
-
-    # ── Single config mode ─────────────────────────────────────────
-    print(f"── {args.config}")
-    r = benchmark_one(args.config, args)
-    if r is None:
-        sys.exit(1)
-    print_single(r, args.config, args)
-
-    if args.output:
-        _save_csv([r], args.output)
+    if args.output and results:
+        _save_csv(results, args.output)
 
 
 def _save_csv(results: list[dict], path: str):
