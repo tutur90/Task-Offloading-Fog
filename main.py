@@ -253,6 +253,8 @@ def run_lambda_search(config, config_path, args, n_steps):
     policy_name = config["policy"]
     results_dir = f"logs/{dataset}/{flag}/{policy_name}"
     results_file = f"{results_dir}/lambda_grid_search_progress.json"
+    
+    max_val = 40 if "Synthetic" in config["env"]["dataset"] else 0.8
 
     samples = generate_probability_grid(n_steps)
     progress = load_grid_search_progress(results_file)
@@ -309,10 +311,10 @@ def run_lambda_search(config, config_path, args, n_steps):
     # print_top_k_results(samples, test_metrics, k=k, label="Test Results")
     plot_ternary(samples, values=test_metrics[:, 3], title="Test Score Lambda Grid",
                  labels=["λ0", "λ1", "λ2"],
-                 output_path=f"{results_dir}/lambda_grid_search_test.png", max_value=40)
+                 output_path=f"{results_dir}/lambda_grid_search_test.png", max_value=max_val, dpi=400)
     plot_ternary(samples, values=val_metrics[:, 3],  title="Validation Score Lambda Grid",
                  labels=["λ0", "λ1", "λ2"],
-                 output_path=f"{results_dir}/lambda_grid_search_val.png",  max_value=40)
+                 output_path=f"{results_dir}/lambda_grid_search_val.png",  max_value=max_val, dpi=400)
 
 
 def run_search(config, config_path, args):

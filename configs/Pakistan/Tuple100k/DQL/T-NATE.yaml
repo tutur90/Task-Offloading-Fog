@@ -28,8 +28,8 @@ training:
     ref_d_model: 128
     lr_decay: 1
     gamma: 0.99
-    exploration: {'strategy': 'epsilon_greedy', 'explore_value': 1., 'explore_min': 0.05, 'explore_decay': 0.6}
-    # exploration: {'strategy': 'ucb', 'explore_value': 1.0, 'count_decay': 0.9999}
+    exploration: {'strategy': 'epsilon_greedy', 'explore_value': 0.3, 'explore_min': 0.02, 'explore_decay': 0.7}
+    # exploration: {'strategy': 'ucb', 'explore_value': 5.0}
     # exploration: {'strategy': 'ucb', 'explore_value': 0.1 }
     reward: {'momentum': 0.9995, 'norm': 'standard', 'scale': 1, 'eps': 0.1, 'clip': 5.0, 'storage_norm': True}
     optimizer: {'type': 'Adam', 'weight_decay': 0}

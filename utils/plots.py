@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 
 def plot_ternary(grid, values=None, title='Ternary Plot', output_path=None, figsize=(8, 7), 
-                 labels=None, cmap='viridis_r', s=30, max_value=None):
+                 labels=None, cmap='viridis_r', s=30, max_value=None, dpi=400):
     """
     Plot probability grid in ternary diagram
     
@@ -17,6 +17,7 @@ def plot_ternary(grid, values=None, title='Ternary Plot', output_path=None, figs
         labels: List of 3 labels for [l0, l1, l2], default ['l0', 'l1', 'l2']
         cmap: Colormap name
         s: Point size
+        dpi: Resolution of the saved figure
     """
     if values is None:
         values = np.arange(len(grid))
@@ -45,19 +46,19 @@ def plot_ternary(grid, values=None, title='Ternary Plot', output_path=None, figs
     ax.text(0.5, np.sqrt(3)/2 + 0.02, labels[2], fontsize=14, fontweight='bold', ha='center', va='bottom')
     
     ax.set_aspect('equal')
-    ax.set_title(title, fontsize=16)
+    # ax.set_title(title, fontsize=16)
     ax.axis('off')
     
     plt.colorbar(scatter, ax=ax, shrink=0.8, extend='max')
     plt.tight_layout()
     
     if output_path is not None:
-        plt.savefig(output_path)
+        plt.savefig(output_path, dpi=dpi)
     
     return fig, ax
 
 
-def plot_grid_search_heatmap(param_specs, progress, metric_idx=3, metric_name="Score", output_path=None, max_value=None):
+def plot_grid_search_heatmap(param_specs, progress, metric_idx=3, metric_name="Score", output_path=None, max_value=None, dpi=400):
     """
     Plot a heatmap for grid search results with exactly two variables.
 
@@ -121,6 +122,6 @@ def plot_grid_search_heatmap(param_specs, progress, metric_idx=3, metric_name="S
 
     plt.tight_layout()
     if output_path:
-        plt.savefig(output_path, dpi=150)
+        plt.savefig(output_path, dpi=dpi)
         print(f"Heatmap saved to {output_path}")
     plt.close(fig)
