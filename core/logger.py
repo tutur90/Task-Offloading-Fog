@@ -207,9 +207,14 @@ class Logger:
             log_eps: float | dict | None = {'TaskDropRate': 1.,
                                             'AvgLatency': 1., 
                                             'AvgPower': 1.,
-                                            'Score': 1.}, 
+                                            'Score': 1.,
+                                            'PopTaskDropRate': 1.,
+                                            'PopAvgLatency': 1.,
+                                            'PopAvgPower': 1.,}, 
             metric_groups = [
                 ['TaskDropRate', 'AvgLatency', 'AvgPower'],
+                ['PopTaskDropRate', 'PopAvgLatency', 'PopAvgPower'],
+                ['AvgFw', 'AvgFb'],
                 ['AvgLoss', 'AvgGradNorm', 'AvgReward'],
             ]):
         """
@@ -276,6 +281,8 @@ class Logger:
         for gi, group in enumerate(actual_groups):
             num_cols = len(group)
             fig, axes = plt.subplots(1, num_cols, figsize=(6 * num_cols, 4), squeeze=False)
+            
+            
 
             for j, metric in enumerate(group):
                 ax = axes[0][j]
@@ -283,8 +290,10 @@ class Logger:
                     subset = df[(df['Mode'] == mode) & (df['Metric'] == metric)]
                     if subset.empty:
                         continue
+                    
+                    size = 40/max(subset['Epoch_num'], 40)
                     ax.plot(subset['Epoch_num'], subset['Value'],
-                            marker='o', label=mode, color=colors[k % len(colors)])
+                            marker='o', label=mode, color=colors[k % len(colors)], markersize=6*size, linewidth=1.5*size)
                 ax.set_title(metric)
                 ax.set_xlabel("Epoch")
                 ax.set_ylabel(metric)
