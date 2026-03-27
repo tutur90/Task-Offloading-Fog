@@ -68,10 +68,11 @@ class NSGA2Policy:
       "proportional" σ scales with the current weight spread: σ = mutation_sigma * std(W).
                      mutation_sigma acts as a scaling factor (default 0.1).
 
-      "self_adaptive" Each individual carries its own per-layer step-size factors (sigma_w, sigma_b).
-                     These factors evolve via log-normal mutation (ES-style):
+      "self_adaptive" Each individual carries two global step-size scalars (sigma_w, sigma_b) —
+                     one for all weight matrices, one for all bias vectors.  They evolve via
+                     log-normal mutation (ES-style) once per individual per generation:
                        sigma_w' = sigma_w * exp(tau * N(0,1))
-                       σ_w = sigma_w' * std(W)
+                       sigma_b' = sigma_b * exp(tau * N(0,1))
                      mutation_tau controls the meta learning rate (default 0.1).
     """
 
@@ -99,7 +100,7 @@ class NSGA2Policy:
         self.num_actions    = len(env.scenario.node_id2name)
 
         # Population: list of (weights, biases)
-        # Sigma factors: parallel list of [(sigma_w_i, sigma_b_i)] per layer — only for "self_adaptive"
+        # Sigma factors: parallel list of (sigma_w, sigma_b) per individual — only for "self_adaptive"
         pop_size = config["training"]["pop_size"]
         inds, sigmas        = zip(*[self._generate_individual() for _ in range(pop_size)])
         self.population     = list(inds)
@@ -137,7 +138,7 @@ class NSGA2Policy:
     def _generate_individual(self):
         """
         Returns ((weights, biases), sigma_factors).
-        sigma_factors is a list of (sigma_w, sigma_b) per layer for self_adaptive mode, else None.
+        sigma_factors is a (sigma_w, sigma_b) tuple for self_adaptive mode, else None.
         """
         if self.n_layers < 1:
             raise ValueError("n_layers must be >= 1.")
@@ -147,18 +148,15 @@ class NSGA2Policy:
             dims = ([(self.n_observations, self.d_model)]
                     + [(self.d_model, self.d_model)] * (self.n_layers - 2)
                     + [(self.d_model, self.num_actions)])
-            
 
         weights = [self._init_weight(fi, fo) for fi, fo in dims]
         biases  = [np.zeros(fo)              for _, fo  in dims]
-        std = [np.std(w) for w in weights]
-        
-        mutation_sigma = self.config["training"].get("mutation_sigma", 1.0)
-        
-        if mutation_sigma is None:
-            mutation_sigma = 1.0
-            
-        sigmas  = [(mutation_sigma*std[i], mutation_sigma*std[i]) for i in range(len(dims))] if self.mutation_mode == "self_adaptive" else None
+
+        if self.mutation_mode == "self_adaptive":
+            sigma_w = self.config["training"].get("mutation_sigma", 0.1)
+            sigmas  = (sigma_w, sigma_w)   # sigma_b initialised equal to sigma_w
+        else:
+            sigmas = None
         return (weights, biases), sigmas
 
     def individuals(self):
@@ -169,11 +167,11 @@ class NSGA2Policy:
     # Mutation  —  three modes, dispatched per layer
     # =========================================================================
 
-    def _evolve_layer(self, weight, bias, sigma_factor=None):
+    def _evolve_layer(self, weight, bias, sigma_w=None, sigma_b=None):
         """
         Mutate one layer (W, b) according to mutation_mode.
-        Returns (new_weight, new_bias, new_sigma_factor).
-        new_sigma_factor is None for "fixed" and "proportional" modes.
+        For self_adaptive, sigma_w / sigma_b are the already-mutated individual-level scalars.
+        Returns (new_weight, new_bias).
         """
         mode = self.mutation_mode
 
@@ -181,27 +179,19 @@ class NSGA2Policy:
             cfg_sigma = self.config["training"].get("mutation_sigma", None)
             sigma     = cfg_sigma if cfg_sigma is not None else np.sqrt(2.0 / weight.shape[0])
             return (weight + np.random.randn(*weight.shape) * sigma,
-                    bias   + np.random.randn(*bias.shape)   * sigma,
-                    None)
+                    bias   + np.random.randn(*bias.shape)   * sigma)
 
         elif mode == "proportional":
             scale   = self.config["training"].get("mutation_sigma", 0.1)
             sigma_w = scale * max(np.std(weight), 1e-8)
-            sigma_b = scale * max(np.std(weight), 1e-8)
+            sigma_b = sigma_w
             return (weight + np.random.randn(*weight.shape) * sigma_w,
-                    bias   + np.random.randn(*bias.shape)   * sigma_b,
-                    None)
+                    bias   + np.random.randn(*bias.shape)   * sigma_b)
 
         elif mode == "self_adaptive":
-            sigma_w, sigma_b = sigma_factor
-            tau    = self.config["training"].get("mutation_tau", 0.1)
-            # Log-normal mutation of step-size factors (ES-style)
-            sigma_w_new = max(sigma_w * np.exp(tau * np.random.randn()), 1e-8)
-            sigma_b_new = max(sigma_b * np.exp(tau * np.random.randn()), 1e-8)
-
-            return (weight + np.random.randn(*weight.shape) * sigma_w_new,
-                bias   + np.random.randn(*bias.shape)   * sigma_b_new,
-                (sigma_w_new, sigma_b_new))
+            he_scale = np.sqrt(2.0 / weight.shape[0])
+            return (weight + np.random.randn(*weight.shape) * sigma_w * he_scale,
+                    bias   + np.random.randn(*bias.shape)   * sigma_b)
 
     # =========================================================================
     # Offspring generation
@@ -240,36 +230,46 @@ class NSGA2Policy:
     def create_offspring(self, fitness):
         """
         Generate N offspring via tournament selection + _evolve_layer.
-        Sigma factors are propagated and evolved alongside weights/biases.
+        For self_adaptive: sigma is mutated once per individual (log-normal ES step),
+        then the same scalar pair is broadcast across all layers.
         Stores evolved offspring sigma factors in self._offspring_sigmas.
         """
         pop_size = len(self.population)
         fitness  = [tuple(f) for f in fitness]
         ranked   = self._assign_rank_and_crowding(self.population, fitness)
 
+        tau = self.config["training"].get("mutation_tau", 0.1)
+
         offspring        = []
         offspring_sigmas = []
+
+        def _mutate_individual(c, parent_sigma):
+            if self.mutation_mode == "self_adaptive":
+                # Mutate the two global scalars once for this individual
+                sw = max(parent_sigma[0] * np.exp(tau * np.random.randn()), 1e-8)
+                sb = max(parent_sigma[1] * np.exp(tau * np.random.randn()), 1e-8)
+                pairs = [self._evolve_layer(w, b, sigma_w=sw, sigma_b=sb) for w, b in zip(c[0], c[1])]
+                new_w, new_b = zip(*pairs)
+                return (list(new_w), list(new_b)), (sw, sb)
+            else:
+                pairs = [self._evolve_layer(w, b) for w, b in zip(c[0], c[1])]
+                new_w, new_b = zip(*pairs)
+                return (list(new_w), list(new_b)), None
 
         while len(offspring) < pop_size:
             idx1, p1 = self._tournament_select(ranked)
             idx2, p2 = self._tournament_select(ranked)
             c1, c2   = self._crossover(p1, p2)
 
-            s1 = self._sigma_factors[idx1] or [None] * len(c1[0])
-            s2 = self._sigma_factors[idx2] or [None] * len(c2[0])
+            child1, sig1 = _mutate_individual(c1, self._sigma_factors[idx1])
+            child2, sig2 = _mutate_individual(c2, self._sigma_factors[idx2])
 
-            c1_evolved = [self._evolve_layer(w, b, s) for w, b, s in zip(c1[0], c1[1], s1)]
-            c2_evolved = [self._evolve_layer(w, b, s) for w, b, s in zip(c2[0], c2[1], s2)]
-
-            n1_w, n1_b, n1_s = zip(*c1_evolved)
-            n2_w, n2_b, n2_s = zip(*c2_evolved)
-
-            offspring.append((list(n1_w), list(n1_b)))
-            offspring_sigmas.append(list(n1_s) if n1_s[0] is not None else None)
+            offspring.append(child1)
+            offspring_sigmas.append(sig1)
 
             if len(offspring) < pop_size:
-                offspring.append((list(n2_w), list(n2_b)))
-                offspring_sigmas.append(list(n2_s) if n2_s[0] is not None else None)
+                offspring.append(child2)
+                offspring_sigmas.append(sig2)
 
         self._offspring_sigmas = offspring_sigmas[:pop_size]
         return offspring[:pop_size]
@@ -426,8 +426,8 @@ class NSGA2Policy:
                 self._train_logger.update_metric(name, val)
 
             if self.mutation_mode == "self_adaptive":
-                all_sigma_w = [sigma_w for s in self._sigma_factors if s is not None for sigma_w, _ in s]
-                all_sigma_b = [sigma_b for s in self._sigma_factors if s is not None for _, sigma_b in s]
+                all_sigma_w = [s[0] for s in self._sigma_factors if s is not None]
+                all_sigma_b = [s[1] for s in self._sigma_factors if s is not None]
                 if all_sigma_w:
                     self._train_logger.update_metric('AvgSigmaW', float(np.mean(all_sigma_w)))
                     self._train_logger.update_metric('AvgSigmaB', float(np.mean(all_sigma_b)))
@@ -462,10 +462,8 @@ class NSGA2Policy:
             for j, w in enumerate(weights): save_dict[f'ind_{i}_w{j}'] = w
             for j, b in enumerate(biases):  save_dict[f'ind_{i}_b{j}'] = b
             if sigmas[i] is not None:
-                sigma_w_arr = np.array([sigma_w for sigma_w, _ in sigmas[i]])
-                sigma_b_arr = np.array([sigma_b for _, sigma_b in sigmas[i]])
-                save_dict[f'ind_{i}_sigma_w'] = sigma_w_arr
-                save_dict[f'ind_{i}_sigma_b'] = sigma_b_arr
+                save_dict[f'ind_{i}_sigma_w'] = np.float64(sigmas[i][0])
+                save_dict[f'ind_{i}_sigma_b'] = np.float64(sigmas[i][1])
         if cached is not None:
             save_dict['fitness'] = np.array(cached)
         np.savez_compressed(path, **save_dict)
@@ -490,10 +488,19 @@ class NSGA2Policy:
                 biases  = [data[f'ind_{i}_bias_{j}']   for j in range(n_lay)]
             self.population.append((weights, biases))
 
-            if f'ind_{i}_sigma_w' in data:
-                sigma_w_arr = data[f'ind_{i}_sigma_w']
-                sigma_b_arr = data[f'ind_{i}_sigma_b']
-                self._sigma_factors.append(list(zip(sigma_w_arr.tolist(), sigma_b_arr.tolist())))
+            if f'ind_{i}_sigma_w' in data and np.asarray(data[f'ind_{i}_sigma_w']).ndim == 0:
+                # Current scalar format
+                self._sigma_factors.append((float(data[f'ind_{i}_sigma_w']),
+                                            float(data[f'ind_{i}_sigma_b'])))
+            elif f'ind_{i}_sigma_w' in data:
+                # Old per-layer array format: collapse to single scalar; reinitialise
+                # sigma_b from sigma_w to avoid inflated phantom values corrupting bias mutation
+                sigma_w = float(np.mean(data[f'ind_{i}_sigma_w']))
+                self._sigma_factors.append((sigma_w, sigma_w))
+            elif f'ind_{i}_sigma_fw' in data:
+                # Legacy key names (sigma_fw / sigma_fb) — same collapse strategy
+                sigma_w = float(np.mean(data[f'ind_{i}_sigma_fw']))
+                self._sigma_factors.append((sigma_w, sigma_w))
             else:
                 self._sigma_factors.append(None)
 
