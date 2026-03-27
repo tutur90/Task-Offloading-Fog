@@ -68,10 +68,10 @@ class NSGA2Policy:
       "proportional" σ scales with the current weight spread: σ = mutation_sigma * std(W).
                      mutation_sigma acts as a scaling factor (default 0.1).
 
-      "self_adaptive" Each individual carries its own per-layer step-size factors (fw, fb).
+      "self_adaptive" Each individual carries its own per-layer step-size factors (sigma_w, sigma_b).
                      These factors evolve via log-normal mutation (ES-style):
-                       fw' = fw * exp(tau * N(0,1))
-                       σ_w = fw' * std(W)
+                       sigma_w' = sigma_w * exp(tau * N(0,1))
+                       σ_w = sigma_w' * std(W)
                      mutation_tau controls the meta learning rate (default 0.1).
     """
 
@@ -99,7 +99,7 @@ class NSGA2Policy:
         self.num_actions    = len(env.scenario.node_id2name)
 
         # Population: list of (weights, biases)
-        # Sigma factors: parallel list of [(fw_i, fb_i)] per layer — only for "self_adaptive"
+        # Sigma factors: parallel list of [(sigma_w_i, sigma_b_i)] per layer — only for "self_adaptive"
         pop_size = config["training"]["pop_size"]
         inds, sigmas        = zip(*[self._generate_individual() for _ in range(pop_size)])
         self.population     = list(inds)
@@ -137,7 +137,7 @@ class NSGA2Policy:
     def _generate_individual(self):
         """
         Returns ((weights, biases), sigma_factors).
-        sigma_factors is a list of (fw, fb) per layer for self_adaptive mode, else None.
+        sigma_factors is a list of (sigma_w, sigma_b) per layer for self_adaptive mode, else None.
         """
         if self.n_layers < 1:
             raise ValueError("n_layers must be >= 1.")
@@ -186,22 +186,22 @@ class NSGA2Policy:
 
         elif mode == "proportional":
             scale   = self.config["training"].get("mutation_sigma", 0.1)
-            sigma_w = scale * max(np.std(weight), 1e-4)
-            sigma_b = scale * max(np.std(weight), 1e-4)
+            sigma_w = scale * max(np.std(weight), 1e-8)
+            sigma_b = scale * max(np.std(weight), 1e-8)
             return (weight + np.random.randn(*weight.shape) * sigma_w,
                     bias   + np.random.randn(*bias.shape)   * sigma_b,
                     None)
 
         elif mode == "self_adaptive":
-            fw, fb = sigma_factor
+            sigma_w, sigma_b = sigma_factor
             tau    = self.config["training"].get("mutation_tau", 0.1)
             # Log-normal mutation of step-size factors (ES-style)
-            fw_new = max(fw * np.exp(tau * np.random.randn()), 1e-4)
-            fb_new = max(fb * np.exp(tau * np.random.randn()), 1e-4)
-            
-            return (weight + np.random.randn(*weight.shape) * fw_new,
-                    bias   + np.random.randn(*bias.shape)   * fw_new,
-                    (fw_new, fb_new))
+            sigma_w_new = max(sigma_w * np.exp(tau * np.random.randn()), 1e-8)
+            sigma_b_new = max(sigma_b * np.exp(tau * np.random.randn()), 1e-8)
+
+            return (weight + np.random.randn(*weight.shape) * sigma_w_new,
+                bias   + np.random.randn(*bias.shape)   * sigma_b_new,
+                (sigma_w_new, sigma_b_new))
 
     # =========================================================================
     # Offspring generation
@@ -426,11 +426,11 @@ class NSGA2Policy:
                 self._train_logger.update_metric(name, val)
 
             if self.mutation_mode == "self_adaptive":
-                all_fw = [fw for s in self._sigma_factors if s is not None for fw, _ in s]
-                all_fb = [fb for s in self._sigma_factors if s is not None for _, fb in s]
-                if all_fw:
-                    self._train_logger.update_metric('AvgFw', float(np.mean(all_fw)))
-                    self._train_logger.update_metric('AvgFb', float(np.mean(all_fb)))
+                all_sigma_w = [sigma_w for s in self._sigma_factors if s is not None for sigma_w, _ in s]
+                all_sigma_b = [sigma_b for s in self._sigma_factors if s is not None for _, sigma_b in s]
+                if all_sigma_w:
+                    self._train_logger.update_metric('AvgSigmaW', float(np.mean(all_sigma_w)))
+                    self._train_logger.update_metric('AvgSigmaB', float(np.mean(all_sigma_b)))
 
         return self._cached_fitness
 
@@ -462,10 +462,10 @@ class NSGA2Policy:
             for j, w in enumerate(weights): save_dict[f'ind_{i}_w{j}'] = w
             for j, b in enumerate(biases):  save_dict[f'ind_{i}_b{j}'] = b
             if sigmas[i] is not None:
-                fw_arr = np.array([fw for fw, _ in sigmas[i]])
-                fb_arr = np.array([fb for _, fb in sigmas[i]])
-                save_dict[f'ind_{i}_sigma_fw'] = fw_arr
-                save_dict[f'ind_{i}_sigma_fb'] = fb_arr
+                sigma_w_arr = np.array([sigma_w for sigma_w, _ in sigmas[i]])
+                sigma_b_arr = np.array([sigma_b for _, sigma_b in sigmas[i]])
+                save_dict[f'ind_{i}_sigma_w'] = sigma_w_arr
+                save_dict[f'ind_{i}_sigma_b'] = sigma_b_arr
         if cached is not None:
             save_dict['fitness'] = np.array(cached)
         np.savez_compressed(path, **save_dict)
@@ -490,10 +490,10 @@ class NSGA2Policy:
                 biases  = [data[f'ind_{i}_bias_{j}']   for j in range(n_lay)]
             self.population.append((weights, biases))
 
-            if f'ind_{i}_sigma_fw' in data:
-                fw_arr = data[f'ind_{i}_sigma_fw']
-                fb_arr = data[f'ind_{i}_sigma_fb']
-                self._sigma_factors.append(list(zip(fw_arr.tolist(), fb_arr.tolist())))
+            if f'ind_{i}_sigma_w' in data:
+                sigma_w_arr = data[f'ind_{i}_sigma_w']
+                sigma_b_arr = data[f'ind_{i}_sigma_b']
+                self._sigma_factors.append(list(zip(sigma_w_arr.tolist(), sigma_b_arr.tolist())))
             else:
                 self._sigma_factors.append(None)
 
