@@ -68,12 +68,17 @@ class NSGA2Policy:
       "proportional" σ scales with the current weight spread: σ = mutation_sigma * std(W).
                      mutation_sigma acts as a scaling factor (default 0.1).
 
-      "self_adaptive" Each individual carries two global step-size scalars (sigma_w, sigma_b) —
-                     one for all weight matrices, one for all bias vectors.  They evolve via
-                     log-normal mutation (ES-style) once per individual per generation:
+      "self_adaptive" Each individual carries adaptive step-size scalars (sigma_w, sigma_b)
+                     that evolve via log-normal mutation (ES-style):
                        sigma_w' = sigma_w * exp(tau * N(0,1))
                        sigma_b' = sigma_b * exp(tau * N(0,1))
                      mutation_tau controls the meta learning rate (default 0.1).
+
+                     mutation_sigma_scope controls granularity:
+                       "individual" (default) — one (sigma_w, sigma_b) pair shared across
+                                                all layers; mutated once per individual.
+                       "layer"                — one (sigma_w, sigma_b) pair per layer;
+                                                each mutated independently.
     """
 
     MUTATION_MODES = ("fixed", "proportional", "self_adaptive")
@@ -88,9 +93,12 @@ class NSGA2Policy:
         self.n_layers   = config["model"]["n_layers"]
         self.activation = config["model"].get("activation", "relu")
 
-        self.mutation_mode = config["training"].get("mutation_mode", "fixed")
+        self.mutation_mode  = config["training"].get("mutation_mode", "fixed")
         if self.mutation_mode not in self.MUTATION_MODES:
             raise ValueError(f"mutation_mode must be one of {self.MUTATION_MODES}, got '{self.mutation_mode}'")
+        self.sigma_scope = config["training"].get("mutation_sigma_scope", "individual")
+        if self.sigma_scope not in ("individual", "layer"):
+            raise ValueError(f"mutation_sigma_scope must be 'individual' or 'layer', got '{self.sigma_scope}'")
 
         # Normalisation from initial environment state
         initial_obs         = self._make_observation(env, None, self.obs_type)
@@ -138,7 +146,10 @@ class NSGA2Policy:
     def _generate_individual(self):
         """
         Returns ((weights, biases), sigma_factors).
-        sigma_factors is a (sigma_w, sigma_b) tuple for self_adaptive mode, else None.
+        sigma_factors:
+          "individual" scope — (sigma_w, sigma_b) tuple
+          "layer"      scope — list of (sigma_w, sigma_b) per layer
+          non-self_adaptive  — None
         """
         if self.n_layers < 1:
             raise ValueError("n_layers must be >= 1.")
@@ -153,8 +164,11 @@ class NSGA2Policy:
         biases  = [np.zeros(fo)              for _, fo  in dims]
 
         if self.mutation_mode == "self_adaptive":
-            sigma_w = self.config["training"].get("mutation_sigma", 0.1)
-            sigmas  = (sigma_w, sigma_w)   # sigma_b initialised equal to sigma_w
+            s0 = self.config["training"].get("mutation_sigma", 0.1) or 0.1
+            if self.sigma_scope == "layer":
+                sigmas = [(s0, s0)] * len(dims)
+            else:
+                sigmas = (s0, s0)
         else:
             sigmas = None
         return (weights, biases), sigmas
@@ -244,12 +258,22 @@ class NSGA2Policy:
 
         def _mutate_individual(c, parent_sigma):
             if self.mutation_mode == "self_adaptive":
-                # Mutate the two global scalars once for this individual
-                sw = max(parent_sigma[0] * np.exp(tau * np.random.randn()), 1e-8)
-                sb = max(parent_sigma[1] * np.exp(tau * np.random.randn()), 1e-8)
-                pairs = [self._evolve_layer(w, b, sigma_w=sw, sigma_b=sb) for w, b in zip(c[0], c[1])]
-                new_w, new_b = zip(*pairs)
-                return (list(new_w), list(new_b)), (sw, sb)
+                if self.sigma_scope == "layer":
+                    # Mutate each layer's pair independently
+                    new_w, new_b, new_sig = [], [], []
+                    for (sw, sb), w, b in zip(parent_sigma, c[0], c[1]):
+                        sw_ = max(sw * np.exp(tau * np.random.randn()), 1e-8)
+                        sb_ = max(sb * np.exp(tau * np.random.randn()), 1e-8)
+                        nw, nb = self._evolve_layer(w, b, sigma_w=sw_, sigma_b=sb_)
+                        new_w.append(nw); new_b.append(nb); new_sig.append((sw_, sb_))
+                    return (new_w, new_b), new_sig
+                else:
+                    # Mutate the shared pair once, broadcast to all layers
+                    sw = max(parent_sigma[0] * np.exp(tau * np.random.randn()), 1e-8)
+                    sb = max(parent_sigma[1] * np.exp(tau * np.random.randn()), 1e-8)
+                    pairs = [self._evolve_layer(w, b, sigma_w=sw, sigma_b=sb) for w, b in zip(c[0], c[1])]
+                    new_w, new_b = zip(*pairs)
+                    return (list(new_w), list(new_b)), (sw, sb)
             else:
                 pairs = [self._evolve_layer(w, b) for w, b in zip(c[0], c[1])]
                 new_w, new_b = zip(*pairs)
@@ -441,8 +465,12 @@ class NSGA2Policy:
                 self._train_logger.update_metric('CDStd',         cd_std)
 
             if self.mutation_mode == "self_adaptive":
-                all_sigma_w = [s[0] for s in self._sigma_factors if s is not None]
-                all_sigma_b = [s[1] for s in self._sigma_factors if s is not None]
+                if self.sigma_scope == "layer":
+                    all_sigma_w = [sw for s in self._sigma_factors if s is not None for sw, _ in s]
+                    all_sigma_b = [sb for s in self._sigma_factors if s is not None for _, sb in s]
+                else:
+                    all_sigma_w = [s[0] for s in self._sigma_factors if s is not None]
+                    all_sigma_b = [s[1] for s in self._sigma_factors if s is not None]
                 if all_sigma_w:
                     self._train_logger.update_metric('AvgSigmaW', float(np.mean(all_sigma_w)))
                     self._train_logger.update_metric('AvgSigmaB', float(np.mean(all_sigma_b)))
@@ -477,8 +505,12 @@ class NSGA2Policy:
             for j, w in enumerate(weights): save_dict[f'ind_{i}_w{j}'] = w
             for j, b in enumerate(biases):  save_dict[f'ind_{i}_b{j}'] = b
             if sigmas[i] is not None:
-                save_dict[f'ind_{i}_sigma_w'] = np.float64(sigmas[i][0])
-                save_dict[f'ind_{i}_sigma_b'] = np.float64(sigmas[i][1])
+                if self.sigma_scope == "layer":
+                    save_dict[f'ind_{i}_sigma_w'] = np.array([sw for sw, _ in sigmas[i]])
+                    save_dict[f'ind_{i}_sigma_b'] = np.array([sb for _, sb in sigmas[i]])
+                else:
+                    save_dict[f'ind_{i}_sigma_w'] = np.float64(sigmas[i][0])
+                    save_dict[f'ind_{i}_sigma_b'] = np.float64(sigmas[i][1])
         if cached is not None:
             save_dict['fitness'] = np.array(cached)
         np.savez_compressed(path, **save_dict)
@@ -503,19 +535,28 @@ class NSGA2Policy:
                 biases  = [data[f'ind_{i}_bias_{j}']   for j in range(n_lay)]
             self.population.append((weights, biases))
 
-            if f'ind_{i}_sigma_w' in data and np.asarray(data[f'ind_{i}_sigma_w']).ndim == 0:
-                # Current scalar format
-                self._sigma_factors.append((float(data[f'ind_{i}_sigma_w']),
-                                            float(data[f'ind_{i}_sigma_b'])))
-            elif f'ind_{i}_sigma_w' in data:
-                # Old per-layer array format: collapse to single scalar; reinitialise
-                # sigma_b from sigma_w to avoid inflated phantom values corrupting bias mutation
-                sigma_w = float(np.mean(data[f'ind_{i}_sigma_w']))
-                self._sigma_factors.append((sigma_w, sigma_w))
+            if f'ind_{i}_sigma_w' in data:
+                sw_raw = np.asarray(data[f'ind_{i}_sigma_w'])
+                sb_raw = np.asarray(data[f'ind_{i}_sigma_b'])
+                if self.sigma_scope == "layer" and sw_raw.ndim == 1:
+                    # Per-layer array → list of tuples
+                    self._sigma_factors.append(list(zip(sw_raw.tolist(), sb_raw.tolist())))
+                elif self.sigma_scope == "layer" and sw_raw.ndim == 0:
+                    # Checkpoint was individual-scope; broadcast scalar to all layers
+                    s = (float(sw_raw), float(sb_raw))
+                    self._sigma_factors.append([s] * n_lay)
+                elif self.sigma_scope == "individual" and sw_raw.ndim == 1:
+                    # Checkpoint was layer-scope; collapse to scalar, reinit sigma_b from sigma_w
+                    sigma_w = float(np.mean(sw_raw))
+                    self._sigma_factors.append((sigma_w, sigma_w))
+                else:
+                    # Both scalar — direct load
+                    self._sigma_factors.append((float(sw_raw), float(sb_raw)))
             elif f'ind_{i}_sigma_fw' in data:
-                # Legacy key names (sigma_fw / sigma_fb) — same collapse strategy
+                # Legacy key names — collapse to scalar
                 sigma_w = float(np.mean(data[f'ind_{i}_sigma_fw']))
-                self._sigma_factors.append((sigma_w, sigma_w))
+                self._sigma_factors.append((sigma_w, sigma_w) if self.sigma_scope == "individual"
+                                           else [(sigma_w, sigma_w)] * n_lay)
             else:
                 self._sigma_factors.append(None)
 
