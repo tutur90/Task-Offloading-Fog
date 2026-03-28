@@ -11,7 +11,7 @@ training:
     num_epochs: 800
     pop_size: 190
     mutation_mode: self_adaptive
-    mutation_sigma: 1.0
+    mutation_sigma: 0.005
     mutation_tau: 0.1
     early_stop_patience: 200
     min_scores: [0.37, 32.0, 450.0]

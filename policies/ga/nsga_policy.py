@@ -189,9 +189,8 @@ class NSGA2Policy:
                     bias   + np.random.randn(*bias.shape)   * sigma_b)
 
         elif mode == "self_adaptive":
-            he_scale = np.sqrt(2.0 / weight.shape[0])
-            return (weight + np.random.randn(*weight.shape) * sigma_w * he_scale,
-                    bias   + np.random.randn(*bias.shape)   * sigma_b * he_scale)
+            return (weight + np.random.randn(*weight.shape) * sigma_w,
+                    bias   + np.random.randn(*bias.shape)   * sigma_b)
 
     # =========================================================================
     # Offspring generation
