@@ -418,11 +418,27 @@ class NSGA2Policy:
         n_feasible = sum(1 for f in self._cached_fitness if self._is_feasible(f))
         logger.info(f"[NSGA-II] feasible: {n_feasible}/{len(self._cached_fitness)}")
 
+        # Crowding distance on selected population (objectives 0-2)
+        sel_obj = [f[:3] for f in self._cached_fitness]
+        cd_all  = []
+        for front in self.non_dominated_sort(sel_obj):
+            cd_all.extend(self.crowding_distance([sel_obj[i] for i in front]))
+        cd_finite = [d for d in cd_all if np.isfinite(d)]
+
         _metric_names = ['PopAvgDropRate', 'PopAvgLatency', 'PopAvgPower', 'PopAvgScore']
         if self._train_logger is not None:
             for i, val in enumerate(avg):
                 name = _metric_names[i] if i < len(_metric_names) else f'PopAvgObj{i}'
                 self._train_logger.update_metric(name, val)
+
+            if cd_finite:
+                cd_mean = float(np.mean(cd_finite))
+                cd_std  = float(np.std(cd_finite))
+                self._train_logger.update_metric('CDMean',        cd_mean)
+                self._train_logger.update_metric('CDMean+Std',    cd_mean + cd_std)
+                self._train_logger.update_metric('CDMean-Std',    cd_mean - cd_std)
+                self._train_logger.update_metric('CDMin',         float(np.min(cd_finite)))
+                self._train_logger.update_metric('CDStd',         cd_std)
 
             if self.mutation_mode == "self_adaptive":
                 all_sigma_w = [s[0] for s in self._sigma_factors if s is not None]

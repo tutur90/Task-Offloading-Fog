@@ -214,7 +214,8 @@ class Logger:
             metric_groups = [
                 ['TaskDropRate', 'AvgLatency', 'AvgPower'],
                 ['PopTaskDropRate', 'PopAvgLatency', 'PopAvgPower'],
-                ['AvgFw', 'AvgFb'],
+                ['AvgSigmaW', 'AvgSigmaB'],
+                ['CDMean', 'CDMean+Std', 'CDMean-Std', 'CDMin'],
                 ['AvgLoss', 'AvgGradNorm', 'AvgReward'],
             ]):
         """
