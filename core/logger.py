@@ -292,7 +292,7 @@ class Logger:
                     if subset.empty:
                         continue
                     
-                    size = 40/max(subset['Epoch_num'], 40)
+                    size = 40/max(subset['Epoch_num'].max(), 40)
                     ax.plot(subset['Epoch_num'], subset['Value'],
                             marker='o', label=mode, color=colors[k % len(colors)], markersize=6*size, linewidth=1.5*size)
                 ax.set_title(metric)

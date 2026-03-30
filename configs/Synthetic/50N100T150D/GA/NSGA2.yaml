@@ -11,10 +11,11 @@ training:
     num_epochs: 800
     pop_size: 190
     mutation_mode: self_adaptive
-    mutation_sigma: 0.005
+    mutation_sigma_scope: "individual"   # or "layer"
+    mutation_sigma: 0.05
     mutation_tau: 0.1
     early_stop_patience: 200
-    min_scores: [0.37, 32.0, 450.0]
+    min_scores: [0.50, 32.0, 450.0]
     keep_checkpoints: 1
     save_pareto_only: True
 model:

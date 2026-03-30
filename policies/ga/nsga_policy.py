@@ -96,9 +96,10 @@ class NSGA2Policy:
         self.mutation_mode  = config["training"].get("mutation_mode", "fixed")
         if self.mutation_mode not in self.MUTATION_MODES:
             raise ValueError(f"mutation_mode must be one of {self.MUTATION_MODES}, got '{self.mutation_mode}'")
-        self.sigma_scope = config["training"].get("mutation_sigma_scope", "individual")
+        self.sigma_scope    = config["training"].get("mutation_sigma_scope", "individual")
         if self.sigma_scope not in ("individual", "layer"):
             raise ValueError(f"mutation_sigma_scope must be 'individual' or 'layer', got '{self.sigma_scope}'")
+        self.mutation_he_scale = config["training"].get("mutation_he_scale", False)
 
         # Normalisation from initial environment state
         initial_obs         = self._make_observation(env, None, self.obs_type)
@@ -165,10 +166,18 @@ class NSGA2Policy:
 
         if self.mutation_mode == "self_adaptive":
             s0 = self.config["training"].get("mutation_sigma", 0.1) or 0.1
-            if self.sigma_scope == "layer":
-                sigmas = [(s0, s0)] * len(dims)
+            if self.mutation_he_scale:
+                # Divide out the mean He / bias scale so that sigma * scale ≈ s0 on average
+                mean_he_w = float(np.mean([np.sqrt(2.0 / fi) for fi, _ in dims]))
+                mean_he_b = float(np.mean([1.0 / np.sqrt(fo) for _, fo in dims]))
+                s0_w = s0 / mean_he_w
+                s0_b = s0 / mean_he_b
             else:
-                sigmas = (s0, s0)
+                s0_w = s0_b = s0
+            if self.sigma_scope == "layer":
+                sigmas = [(s0_w, s0_b)] * len(dims)
+            else:
+                sigmas = (s0_w, s0_b)
         else:
             sigmas = None
         return (weights, biases), sigmas
@@ -203,8 +212,13 @@ class NSGA2Policy:
                     bias   + np.random.randn(*bias.shape)   * sigma_b)
 
         elif mode == "self_adaptive":
-            return (weight + np.random.randn(*weight.shape) * sigma_w,
-                    bias   + np.random.randn(*bias.shape)   * sigma_b)
+            if self.mutation_he_scale:
+                he_scale   = np.sqrt(2.0 / weight.shape[0])
+                bias_scale = 1.0 / np.sqrt(weight.shape[1])
+            else:
+                he_scale = bias_scale = 1.0
+            return (weight + np.random.randn(*weight.shape) * sigma_w * he_scale,
+                    bias   + np.random.randn(*bias.shape)   * sigma_b * bias_scale)
 
     # =========================================================================
     # Offspring generation
